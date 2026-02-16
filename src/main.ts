@@ -17,6 +17,7 @@ import { initTitleScreen, showGameOver, showVictory, getClassDef } from './scree
 import { checkNPCInteraction, openDialog, isDialogOpen, closeDialog } from './npc';
 import { initI18n, t } from './i18n';
 import { initSettings, loadSettings, isSettingsOpen, closeSettings, openSettings, isTutorialOpen, closeTutorial, openTutorial } from './settings';
+import { APP_VERSION } from './version';
 
 // Canvas setup
 const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
@@ -850,6 +851,11 @@ function init(): void {
   initAssets();
   initInput();
   initSettings(returnToHub);
+
+  // Display version
+  const versionLabel = `v${APP_VERSION}`;
+  document.getElementById('title-version')!.textContent = versionLabel;
+  document.getElementById('settings-version')!.textContent = versionLabel;
 
   // Save button
   document.getElementById('save-btn')!.addEventListener('click', () => {
