@@ -19,23 +19,18 @@ function createCanvas(w: number, h: number): HTMLCanvasElement {
 function generateFloor(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE);
     const ctx = c.getContext('2d')!;
-    // Base soil
     ctx.fillStyle = '#4a3b2a';
     ctx.fillRect(0, 0, TILE, TILE);
-
-    // Texture (pebbles/grass hints)
-    for (let i = 0; i < 6; i++) {
-        const x = Math.floor(Math.random() * TILE);
-        const y = Math.floor(Math.random() * TILE);
-        ctx.fillStyle = Math.random() > 0.5 ? '#5c4a35' : '#3e3226';
-        ctx.fillRect(x, y, 2, 2);
-    }
-
-    // Subtle border
-    ctx.strokeStyle = '#3e3226';
-    ctx.globalAlpha = 0.3;
-    ctx.strokeRect(0, 0, TILE, TILE);
-    ctx.globalAlpha = 1.0;
+    // Stone tile pattern
+    ctx.fillStyle = '#56473a'; ctx.fillRect(1, 1, 6, 6);
+    ctx.fillStyle = '#4e3f30'; ctx.fillRect(9, 1, 6, 6);
+    ctx.fillStyle = '#52432e'; ctx.fillRect(1, 9, 6, 6);
+    ctx.fillStyle = '#584c3c'; ctx.fillRect(9, 9, 6, 6);
+    // Grout lines
+    ctx.fillStyle = '#3a2e20'; ctx.fillRect(0, 7, 16, 1); ctx.fillRect(0, 0, 16, 1); ctx.fillRect(0, 15, 16, 1);
+    ctx.fillRect(7, 0, 1, 16); ctx.fillRect(0, 0, 1, 16); ctx.fillRect(15, 0, 1, 16);
+    // Pebble detail
+    for (let i = 0; i < 3; i++) { const x = 2 + Math.floor(Math.random() * 12); const y = 2 + Math.floor(Math.random() * 12); ctx.fillStyle = '#5c4a35'; ctx.fillRect(x, y, 1, 1); }
     return c;
 }
 
@@ -185,24 +180,83 @@ function generateChestOpen(): HTMLCanvasElement {
 }
 
 function generateTrap(): HTMLCanvasElement {
-    const c = createCanvas(TILE, TILE);
-    const ctx = c.getContext('2d')!;
-
-    ctx.fillStyle = '#4a3b2a'; // Floor matched
-    ctx.fillRect(0, 0, TILE, TILE);
-
-    // Spikes (Hidden/Subtle)
+    const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#4a3b2a'; ctx.fillRect(0, 0, TILE, TILE);
     ctx.fillStyle = '#5d4037';
-    ctx.beginPath();
-    ctx.arc(8, 8, 2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(4, 4, 1, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(12, 12, 1, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(8, 8, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(4, 4, 1, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(12, 12, 1, 0, Math.PI * 2); ctx.fill();
+    return c;
+}
 
+// ===== TOWN TILE GENERATORS =====
+function generateGrass(): HTMLCanvasElement {
+    const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#3a7d44'; ctx.fillRect(0, 0, TILE, TILE);
+    for (let i = 0; i < 8; i++) { const x = Math.floor(Math.random() * 14) + 1; const y = Math.floor(Math.random() * 14) + 1; ctx.fillStyle = ['#2d6b36', '#4a9e56', '#5cb85c', '#348a40'][Math.floor(Math.random() * 4)]; ctx.fillRect(x, y, 1, 2); }
+    ctx.fillStyle = '#2d6b36'; ctx.globalAlpha = 0.2; ctx.strokeRect(0, 0, TILE, TILE); ctx.globalAlpha = 1;
+    return c;
+}
+function generatePath(): HTMLCanvasElement {
+    const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#c4a97d'; ctx.fillRect(0, 0, TILE, TILE);
+    for (let i = 0; i < 5; i++) { const x = Math.floor(Math.random() * 14) + 1; const y = Math.floor(Math.random() * 14) + 1; ctx.fillStyle = Math.random() > 0.5 ? '#b89b6a' : '#d4b98e'; ctx.fillRect(x, y, 2, 1); }
+    ctx.fillStyle = '#a88f64'; ctx.globalAlpha = 0.3; ctx.fillRect(0, 0, 16, 1); ctx.fillRect(0, 15, 16, 1); ctx.globalAlpha = 1;
+    return c;
+}
+function generateWater(): HTMLCanvasElement {
+    const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#2980b9'; ctx.fillRect(0, 0, TILE, TILE);
+    ctx.fillStyle = '#3498db'; ctx.fillRect(2, 3, 4, 1); ctx.fillRect(9, 8, 5, 1); ctx.fillRect(4, 12, 3, 1);
+    ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(3, 4, 3, 1); ctx.fillRect(10, 9, 3, 1);
+    return c;
+}
+function generateBuilding(): HTMLCanvasElement {
+    const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#8d6e63'; ctx.fillRect(0, 0, TILE, TILE);
+    ctx.fillStyle = '#6d4c41'; ctx.fillRect(0, 0, TILE, 3); // roof edge
+    ctx.fillStyle = '#795548'; ctx.fillRect(2, 3, 5, 4); ctx.fillRect(9, 3, 5, 4); // planks
+    ctx.fillStyle = '#5d4037'; ctx.fillRect(7, 3, 2, TILE - 3); // center beam
+    ctx.fillStyle = '#4e342e'; ctx.fillRect(0, 0, 1, TILE); ctx.fillRect(15, 0, 1, TILE);
+    return c;
+}
+function generateFence(): HTMLCanvasElement {
+    const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#3a7d44'; ctx.fillRect(0, 0, TILE, TILE); // grass bg
+    ctx.fillStyle = '#8d6e63'; ctx.fillRect(2, 4, 2, 10); ctx.fillRect(12, 4, 2, 10); // posts
+    ctx.fillStyle = '#a1887f'; ctx.fillRect(1, 6, 14, 2); ctx.fillRect(1, 10, 14, 2); // rails
+    return c;
+}
+function generateTree(): HTMLCanvasElement {
+    const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#3a7d44'; ctx.fillRect(0, 0, TILE, TILE);
+    ctx.fillStyle = '#5d4037'; ctx.fillRect(6, 9, 4, 7); // trunk
+    ctx.fillStyle = '#2d6b36'; ctx.beginPath(); ctx.arc(8, 6, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#4a9e56'; ctx.beginPath(); ctx.arc(6, 5, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(10, 4, 3, 0, Math.PI * 2); ctx.fill();
+    return c;
+}
+function generateFlower(): HTMLCanvasElement {
+    const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#3a7d44'; ctx.fillRect(0, 0, TILE, TILE);
+    const colors = ['#e74c3c', '#f1c40f', '#9b59b6', '#e67e22', '#3498db'];
+    for (let i = 0; i < 3; i++) { const x = 3 + i * 4; const y = 4 + Math.floor(Math.random() * 6); ctx.fillStyle = '#2d6b36'; ctx.fillRect(x + 1, y + 2, 1, 4); ctx.fillStyle = colors[Math.floor(Math.random() * colors.length)]; ctx.fillRect(x, y, 3, 2); ctx.fillStyle = '#f1c40f'; ctx.fillRect(x + 1, y, 1, 1); }
+    return c;
+}
+function generateCropTile(): HTMLCanvasElement {
+    const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#5c4a35'; ctx.fillRect(0, 0, TILE, TILE); // tilled soil
+    ctx.fillStyle = '#4a3b2a'; for (let i = 0; i < 4; i++) ctx.fillRect(0, i * 4, TILE, 1);
+    return c;
+}
+function generateFishSpot(): HTMLCanvasElement {
+    const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#2980b9'; ctx.fillRect(0, 0, TILE, TILE);
+    ctx.fillStyle = '#3498db'; ctx.fillRect(2, 3, 4, 1); ctx.fillRect(9, 8, 5, 1);
+    // Bobber/ripple
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(8, 8, 3, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(8, 8, 1.5, 0, Math.PI * 2); ctx.fill();
     return c;
 }
 
@@ -520,11 +574,35 @@ function generateItemIcon(type: string, rarity: Rarity): HTMLCanvasElement {
             ctx.fillRect(8, 7, 2, 1);
             ctx.fillRect(6, 9, 3, 1);
             break;
-        default: // Armor, shield etc simplified
-            ctx.fillStyle = rc;
-            ctx.fillRect(4, 4, 8, 8);
-            ctx.fillStyle = 'rgba(255,255,255,0.3)';
-            ctx.fillRect(4, 4, 8, 1); // Highlight
+        // Food items
+        case 'food_bread': ctx.fillStyle = '#d4a347'; ctx.fillRect(4, 6, 8, 6); ctx.fillStyle = '#c4933a'; ctx.beginPath(); ctx.arc(8, 6, 4, Math.PI, 0); ctx.fill(); ctx.fillStyle = '#e8c170'; ctx.fillRect(5, 8, 2, 1); break;
+        case 'food_stew': ctx.fillStyle = '#8d6e63'; ctx.fillRect(3, 7, 10, 6); ctx.fillStyle = '#a1887f'; ctx.fillRect(3, 6, 10, 2); ctx.fillStyle = '#c0392b'; ctx.fillRect(5, 8, 6, 3); ctx.fillStyle = '#e67e22'; ctx.fillRect(6, 9, 2, 1); break;
+        case 'food_soup': ctx.fillStyle = '#795548'; ctx.fillRect(3, 7, 10, 6); ctx.fillStyle = '#8d6e63'; ctx.fillRect(3, 6, 10, 2); ctx.fillStyle = '#2ecc71'; ctx.fillRect(5, 8, 6, 3); break;
+        case 'food_salad': ctx.fillStyle = '#27ae60'; ctx.beginPath(); ctx.arc(8, 9, 4, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#2ecc71'; ctx.fillRect(5, 7, 2, 1); ctx.fillStyle = '#e74c3c'; ctx.fillRect(9, 8, 2, 1); ctx.fillStyle = '#f1c40f'; ctx.fillRect(7, 10, 2, 1); break;
+        case 'food_pie': ctx.fillStyle = '#d4a347'; ctx.beginPath(); ctx.arc(8, 9, 5, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#c4933a'; ctx.beginPath(); ctx.moveTo(8, 4); ctx.lineTo(13, 9); ctx.lineTo(8, 9); ctx.fill(); ctx.fillStyle = '#e8c170'; ctx.fillRect(6, 8, 4, 1); break;
+        case 'food_feast': ctx.fillStyle = '#8d6e63'; ctx.fillRect(2, 8, 12, 5); ctx.fillStyle = '#c0392b'; ctx.fillRect(4, 5, 8, 5); ctx.fillStyle = '#e67e22'; ctx.fillRect(5, 3, 6, 3); ctx.fillStyle = '#f1c40f'; ctx.fillRect(7, 2, 2, 2); break;
+        case 'food_smoothie': ctx.fillStyle = '#8e44ad'; ctx.beginPath(); ctx.arc(8, 9, 3, 0, Math.PI * 2); ctx.fill(); ctx.fillRect(7, 5, 2, 4); ctx.fillStyle = '#9b59b6'; ctx.fillRect(6, 5, 4, 1); ctx.fillStyle = '#ecf0f1'; ctx.fillRect(7, 4, 2, 1); break;
+        case 'food_cookie': ctx.fillStyle = '#d4a347'; ctx.beginPath(); ctx.arc(8, 8, 4, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#5d4037'; ctx.fillRect(6, 7, 1, 1); ctx.fillRect(9, 9, 1, 1); ctx.fillRect(7, 10, 1, 1); break;
+        case 'food_tea': ctx.fillStyle = '#ecf0f1'; ctx.fillRect(5, 6, 6, 7); ctx.fillStyle = '#27ae60'; ctx.fillRect(6, 7, 4, 4); ctx.fillStyle = '#bdc3c7'; ctx.fillRect(11, 8, 2, 2); ctx.fillRect(5, 5, 6, 1); break;
+        case 'food_wheat': ctx.fillStyle = '#d4a347'; ctx.fillRect(7, 3, 2, 10); ctx.fillStyle = '#e8c170'; ctx.fillRect(6, 2, 4, 3); ctx.fillRect(5, 4, 2, 2); ctx.fillRect(9, 4, 2, 2); break;
+        case 'food_berry': ctx.fillStyle = '#8e44ad'; ctx.beginPath(); ctx.arc(6, 9, 2, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(10, 8, 2, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(8, 11, 2, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#2ecc71'; ctx.fillRect(7, 5, 2, 3); break;
+        case 'food_golden': ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(8, 9, 4, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#f39c12'; ctx.beginPath(); ctx.arc(7, 8, 2, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#2ecc71'; ctx.fillRect(7, 4, 2, 3); break;
+        case 'food_dragon': ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(8, 9, 4, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#c0392b'; ctx.fillRect(5, 7, 6, 4); ctx.fillStyle = '#f39c12'; ctx.fillRect(7, 6, 2, 1); ctx.fillStyle = '#2ecc71'; ctx.fillRect(6, 4, 4, 2); break;
+        // Fish
+        case 'fish_small': ctx.fillStyle = '#7f8c8d'; ctx.beginPath(); ctx.ellipse(8, 8, 4, 2, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#222'; ctx.fillRect(5, 7, 1, 1); ctx.fillStyle = '#95a5a6'; ctx.beginPath(); ctx.moveTo(12, 8); ctx.lineTo(15, 6); ctx.lineTo(15, 10); ctx.fill(); break;
+        case 'fish_med': ctx.fillStyle = '#3498db'; ctx.beginPath(); ctx.ellipse(7, 8, 5, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#222'; ctx.fillRect(4, 7, 1, 1); ctx.fillStyle = '#2980b9'; ctx.beginPath(); ctx.moveTo(12, 8); ctx.lineTo(15, 5); ctx.lineTo(15, 11); ctx.fill(); break;
+        case 'fish_gold': ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.ellipse(7, 8, 5, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#e67e22'; ctx.fillRect(4, 6, 2, 4); ctx.fillStyle = '#222'; ctx.fillRect(4, 7, 1, 1); ctx.fillStyle = '#f39c12'; ctx.beginPath(); ctx.moveTo(12, 8); ctx.lineTo(15, 5); ctx.lineTo(15, 11); ctx.fill(); break;
+        case 'fish_phantom': ctx.fillStyle = 'rgba(155,89,182,0.7)'; ctx.beginPath(); ctx.ellipse(7, 8, 5, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#00ffff'; ctx.fillRect(4, 7, 1, 1); ctx.fillStyle = 'rgba(142,68,173,0.5)'; ctx.beginPath(); ctx.moveTo(12, 8); ctx.lineTo(15, 5); ctx.lineTo(15, 11); ctx.fill(); break;
+        case 'fish_koi': ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.ellipse(7, 8, 5, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#ecf0f1'; ctx.fillRect(5, 6, 3, 4); ctx.fillStyle = '#f1c40f'; ctx.fillRect(4, 7, 1, 1); ctx.fillStyle = '#c0392b'; ctx.beginPath(); ctx.moveTo(12, 8); ctx.lineTo(15, 5); ctx.lineTo(15, 11); ctx.fill(); break;
+        // Seeds
+        case 'seed': ctx.fillStyle = '#795548'; ctx.beginPath(); ctx.ellipse(8, 9, 2, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#4caf50'; ctx.fillRect(7, 5, 2, 3); break;
+        case 'seed_gold': ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.ellipse(8, 9, 2, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#4caf50'; ctx.fillRect(7, 5, 2, 3); break;
+        case 'seed_dragon': ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.ellipse(8, 9, 2, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#4caf50'; ctx.fillRect(7, 5, 2, 3); ctx.fillStyle = '#f39c12'; ctx.fillRect(8, 4, 1, 1); break;
+        // Tools
+        case 'tool_rod': ctx.fillStyle = '#8d6e63'; ctx.fillRect(3, 2, 2, 12); ctx.fillStyle = '#bdc3c7'; ctx.fillRect(3, 2, 2, 1); ctx.fillStyle = '#ecf0f1'; ctx.fillRect(5, 2, 6, 1); ctx.fillRect(11, 2, 1, 3); break;
+        case 'tool_can': ctx.fillStyle = '#3498db'; ctx.fillRect(4, 6, 8, 7); ctx.fillStyle = '#2980b9'; ctx.fillRect(4, 5, 8, 2); ctx.fillStyle = '#bdc3c7'; ctx.fillRect(12, 4, 3, 2); ctx.fillRect(13, 6, 1, 3); break;
+        default: // Armor, shield etc
+            ctx.fillStyle = rc; ctx.fillRect(4, 4, 8, 8); ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(4, 4, 8, 1);
     }
     ctx.shadowBlur = 0;
     return c;
@@ -537,59 +615,44 @@ function generateNPC(type: NPCType): HTMLCanvasElement {
         merchant: { body: '#d35400', head: '#f0ceab', hat: '#f1c40f', hair: '#5d4037' },
         healer: { body: '#ecf0f1', head: '#f0ceab', hat: '#e74c3c', hair: '#f1c40f' },
         sage: { body: '#8e44ad', head: '#f0ceab', hat: '#8e44ad', hair: '#fff' },
+        cook: { body: '#ecf0f1', head: '#f0ceab', hat: '#ecf0f1', hair: '#5d4037' },
+        fishmonger: { body: '#2980b9', head: '#f0ceab', hat: '#1a5276', hair: '#d35400' },
+        farmer: { body: '#27ae60', head: '#f0ceab', hat: '#d4a347', hair: '#795548' },
     };
     const info = colors[type];
-
-    // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.beginPath();
-    ctx.ellipse(8, 30, 6, 2, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Body (Robe style)
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(8, 30, 6, 2, 0, 0, Math.PI * 2); ctx.fill();
     const y = 10;
-    ctx.fillStyle = info.body;
-    ctx.beginPath();
-    ctx.moveTo(8, y);
-    ctx.lineTo(4, y + 14);
-    ctx.lineTo(12, y + 14);
-    ctx.fill();
-
-    // Head
-    ctx.fillStyle = info.head;
-    ctx.fillRect(5, y - 8, 6, 7);
-
-    // Hat / Hair
+    ctx.fillStyle = info.body; ctx.beginPath(); ctx.moveTo(8, y); ctx.lineTo(4, y + 14); ctx.lineTo(12, y + 14); ctx.fill();
+    ctx.fillStyle = info.head; ctx.fillRect(5, y - 8, 6, 7);
     if (type === 'sage') {
-        // Hood
-        ctx.fillStyle = info.hat;
-        ctx.beginPath();
-        ctx.moveTo(5, y - 9);
-        ctx.lineTo(8, y - 14); // Pointy
-        ctx.lineTo(11, y - 9);
-        ctx.lineTo(11, y - 4);
-        ctx.lineTo(5, y - 4);
-        ctx.fill();
-        // Beard
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(5, y - 2, 6, 4);
+        ctx.fillStyle = info.hat; ctx.beginPath(); ctx.moveTo(5, y - 9); ctx.lineTo(8, y - 14); ctx.lineTo(11, y - 9); ctx.lineTo(11, y - 4); ctx.lineTo(5, y - 4); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.fillRect(5, y - 2, 6, 4);
     } else if (type === 'merchant') {
-        // Turban-ish
-        ctx.fillStyle = info.hat;
-        ctx.fillRect(4, y - 9, 8, 3);
-        ctx.fillStyle = '#222'; // Backpack strap
-        ctx.fillRect(5, y + 2, 1, 8);
+        ctx.fillStyle = info.hat; ctx.fillRect(4, y - 9, 8, 3);
+        ctx.fillStyle = '#222'; ctx.fillRect(5, y + 2, 1, 8);
+    } else if (type === 'cook') {
+        // Chef hat
+        ctx.fillStyle = '#ecf0f1'; ctx.fillRect(4, y - 12, 8, 5);
+        ctx.fillStyle = '#bdc3c7'; ctx.fillRect(4, y - 7, 8, 1);
+        // Fork in hand
+        ctx.fillStyle = '#bdc3c7'; ctx.fillRect(13, y + 2, 1, 6);
+    } else if (type === 'fishmonger') {
+        // Rain hat
+        ctx.fillStyle = info.hat; ctx.fillRect(3, y - 9, 10, 2);
+        ctx.fillRect(5, y - 11, 6, 2);
+        // Fishing line
+        ctx.fillStyle = '#ecf0f1'; ctx.fillRect(13, y - 2, 1, 10);
+    } else if (type === 'farmer') {
+        // Straw hat
+        ctx.fillStyle = info.hat; ctx.fillRect(3, y - 9, 10, 2);
+        ctx.fillRect(5, y - 11, 6, 2);
+        // Pitchfork
+        ctx.fillStyle = '#8d6e63'; ctx.fillRect(13, y, 1, 10);
+        ctx.fillStyle = '#bdc3c7'; ctx.fillRect(12, y - 1, 3, 1);
     } else {
-        // Healer flower/band
-        ctx.fillStyle = info.hat;
-        ctx.fillRect(4, y - 7, 8, 2);
+        ctx.fillStyle = info.hat; ctx.fillRect(4, y - 7, 8, 2);
     }
-
-    // Eyes
-    ctx.fillStyle = '#222';
-    ctx.fillRect(6, y - 5, 1, 1);
-    ctx.fillRect(9, y - 5, 1, 1);
-
+    ctx.fillStyle = '#222'; ctx.fillRect(6, y - 5, 1, 1); ctx.fillRect(9, y - 5, 1, 1);
     return c;
 }
 
@@ -624,6 +687,16 @@ export function initAssets(): void {
     cache.chestOpen = generateChestOpen();
     cache.trap = generateTrap();
     cache.droppedItem = generateDroppedItem();
+    // Town tiles
+    cache.grass = generateGrass();
+    cache.path = generatePath();
+    cache.water = generateWater();
+    cache.building = generateBuilding();
+    cache.fence = generateFence();
+    cache.tree = generateTree();
+    cache.flower = generateFlower();
+    cache.crop = generateCropTile();
+    cache.fishSpot = generateFishSpot();
 
     cache.player = {} as Record<ClassName, HTMLCanvasElement[][]>;
     (Object.keys(CLASS_COLORS) as ClassName[]).forEach(cls => {
@@ -654,25 +727,25 @@ export function initAssets(): void {
     }
 
     cache.items = {} as Record<string, Record<Rarity, HTMLCanvasElement>>;
-    const itemTypes = ['sword', 'axe', 'staff', 'dagger', 'bow', 'armor', 'shield', 'ring', 'potion_hp', 'potion_mp', 'scroll', 'key'];
+    const itemTypes = ['sword', 'axe', 'staff', 'dagger', 'bow', 'armor', 'shield', 'ring', 'potion_hp', 'potion_mp', 'scroll', 'key',
+        'food_bread', 'food_stew', 'food_soup', 'food_salad', 'food_pie', 'food_feast', 'food_smoothie', 'food_cookie', 'food_tea',
+        'food_wheat', 'food_berry', 'food_golden', 'food_dragon',
+        'fish_small', 'fish_med', 'fish_gold', 'fish_phantom', 'fish_koi',
+        'seed', 'seed_gold', 'seed_dragon', 'tool_rod', 'tool_can'];
     const rarities: Rarity[] = ['common', 'uncommon', 'rare', 'legendary'];
     itemTypes.forEach(t => {
         cache.items[t] = {} as Record<Rarity, HTMLCanvasElement>;
-        rarities.forEach(r => {
-            cache.items[t][r] = generateItemIcon(t, r);
-        });
+        rarities.forEach(r => { cache.items[t][r] = generateItemIcon(t, r); });
     });
 
     cache.npcs = {} as Record<NPCType, HTMLCanvasElement>;
-    (['merchant', 'healer', 'sage'] as NPCType[]).forEach(t => {
+    (['merchant', 'healer', 'sage', 'cook', 'fishmonger', 'farmer'] as NPCType[]).forEach(t => {
         cache.npcs[t] = generateNPC(t);
     });
 }
 
 export const Assets = {
-    TILE,
-    CHAR_W,
-    CHAR_H,
+    TILE, CHAR_W, CHAR_H,
     get: (key: string): HTMLCanvasElement => cache[key],
     getPlayer: (cls: ClassName, dir: number, frame: number): HTMLCanvasElement => cache.player[cls]?.[dir]?.[frame],
     getEnemy: (type: EnemyType, frame: number): HTMLCanvasElement => cache.enemies[type]?.[frame],

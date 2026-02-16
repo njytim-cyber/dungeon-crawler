@@ -12,7 +12,7 @@ const levelText = document.getElementById('level-text')!;
 const floorText = document.getElementById('floor-text')!;
 const goldText = document.getElementById('gold-text');
 
-export function updateHUD(player: PlayerState): void {
+export function updateHUD(player: PlayerState, inTown = false): void {
     const hpPct = Math.max(0, player.stats.hp / player.stats.maxHp * 100);
     healthBar.style.width = `${hpPct}%`;
     healthText.textContent = `${Math.ceil(player.stats.hp)}/${player.stats.maxHp}`;
@@ -22,7 +22,7 @@ export function updateHUD(player: PlayerState): void {
     xpText.textContent = `XP: ${player.xp}/${player.xpToLevel}`;
 
     levelText.textContent = `Lv. ${player.level}`;
-    floorText.textContent = player.floor === 0 ? 'Hub' : `Floor ${player.floor}`;
+    floorText.textContent = inTown ? '🏘️ Town' : player.floor === 0 ? 'Hub' : `Floor ${player.floor}`;
 
     // Gold counter
     if (goldText) goldText.textContent = `💰 ${player.gold}`;

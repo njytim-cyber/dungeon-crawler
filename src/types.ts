@@ -1,22 +1,23 @@
 // ===== SHARED TYPES =====
 
-export type GameState = 'TITLE' | 'PLAYING' | 'INVENTORY' | 'DIALOG' | 'GAME_OVER' | 'VICTORY';
+export type GameState = 'TITLE' | 'PLAYING' | 'INVENTORY' | 'DIALOG' | 'GAME_OVER' | 'VICTORY' | 'FISHING' | 'FARMING';
 
 export type Direction = 0 | 1 | 2 | 3; // down, up, left, right
 
-export type TileType = 'WALL' | 'FLOOR' | 'DOOR' | 'STAIRS_DOWN' | 'STAIRS_UP' | 'CHEST' | 'TRAP';
+export type TileType = 'WALL' | 'FLOOR' | 'DOOR' | 'STAIRS_DOWN' | 'STAIRS_UP' | 'CHEST' | 'TRAP'
+    | 'GRASS' | 'WATER' | 'PATH' | 'BUILDING' | 'FENCE' | 'CROP' | 'FISH_SPOT' | 'FLOWER' | 'TREE';
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'legendary';
 
 export type EquipSlot = 'weapon' | 'armor' | 'ring';
 
-export type ItemCategory = 'weapon' | 'armor' | 'ring' | 'consumable' | 'key' | 'scroll';
+export type ItemCategory = 'weapon' | 'armor' | 'ring' | 'consumable' | 'key' | 'scroll' | 'food' | 'fish' | 'seed' | 'tool';
 
 export type ClassName = 'warrior' | 'mage' | 'rogue' | 'paladin' | 'ranger' | 'necromancer' | 'berserker' | 'cleric' | 'assassin';
 
 export type EnemyType = 'slime' | 'skeleton' | 'bat' | 'ghost' | 'goblin' | 'spider' | 'orc' | 'demon' | 'wraith' | 'golem' | 'drake' | 'lich';
 
-export type NPCType = 'merchant' | 'healer' | 'sage';
+export type NPCType = 'merchant' | 'healer' | 'sage' | 'cook' | 'fishmonger' | 'farmer';
 
 export interface Position {
     x: number;
@@ -32,6 +33,20 @@ export interface Stats {
     critChance: number;
 }
 
+// Food buffs — temporary stat modifiers 
+export interface FoodEffect {
+    type: 'heal' | 'atk_boost' | 'def_boost' | 'spd_boost' | 'crit_boost' | 'maxhp_boost' | 'regen' | 'shield' | 'xp_boost';
+    value: number;
+    duration: number; // seconds, 0 = instant
+}
+
+export interface ActiveBuff {
+    name: string;
+    icon: string;
+    effect: FoodEffect;
+    remaining: number; // seconds left
+}
+
 export interface ItemDef {
     id: string;
     name: string;
@@ -42,6 +57,7 @@ export interface ItemDef {
     equipSlot?: EquipSlot;
     stats?: Partial<Stats>;
     healAmount?: number;
+    foodEffects?: FoodEffect[];  // custom food effects
     stackable?: boolean;
     value: number;
 }
@@ -55,6 +71,17 @@ export interface Equipment {
     weapon: ItemDef | null;
     armor: ItemDef | null;
     ring: ItemDef | null;
+}
+
+// Farming crop state
+export interface CropPlot {
+    x: number;
+    y: number;
+    seedId: string;
+    harvestId: string;       // item ID to produce when harvested
+    growthStage: number;  // 0-3 (planted, sprout, growing, ready)
+    growthTimer: number;  // seconds until next stage
+    wateredToday: boolean;
 }
 
 export interface PlayerState {
@@ -86,6 +113,13 @@ export interface PlayerState {
     totalDamageDealt: number;
     totalFloorsCleared: number;
     maxReachedFloor: number;
+    // Town features
+    buffs: ActiveBuff[];
+    fishCaught: number;
+    cropsHarvested: number;
+    crops: CropPlot[];
+    hasFishingRod: boolean;
+    hasWateringCan: boolean;
 }
 
 export interface EnemyState {
@@ -131,7 +165,7 @@ export interface DialogNode {
 
 export interface DialogOption {
     label: string;
-    action: string; // 'close', 'heal', 'shop', 'next', 'hint'
+    action: string; // 'close', 'heal', 'shop', 'next', 'hint', 'buy_*', 'fish', 'farm'
     cost?: number;
 }
 
@@ -155,6 +189,7 @@ export interface DungeonFloor {
     stairsDown: Position;
     stairsUp: Position;
     chests: ChestState[];
+    isTown?: boolean;
 }
 
 export interface DroppedItem {

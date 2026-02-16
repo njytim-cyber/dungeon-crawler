@@ -5,7 +5,7 @@ import type { PlayerState, DungeonFloor, GameState, ClassName, Direction, SaveDa
 import { initAssets, Assets } from './assets';
 import { GameAudio } from './audio';
 import { initInput, Input } from './input';
-import { generateFloor, isWalkable } from './dungeon';
+import { generateFloor, isWalkable, generateTown } from './dungeon';
 import { getItemsByFloor, rollLoot } from './items';
 import { playerAttack, enemyAttack, checkLevelUp, recalcStats, updateScreenShake, getScreenShake } from './combat';
 import { updateParticles, renderParticles, renderFloatingTexts, clearParticles, spawnTorchEmbers, spawnLevelUpParticles, addFloatingText, spawnHitParticles } from './particles';
@@ -18,6 +18,7 @@ import { checkNPCInteraction, openDialog, isDialogOpen, closeDialog } from './np
 import { initI18n, t } from './i18n';
 import { initSettings, loadSettings, isSettingsOpen, closeSettings, openSettings, isTutorialOpen, closeTutorial, openTutorial } from './settings';
 import { APP_VERSION } from './version';
+import { startFishing, fishingCatch, isFishingActive, updateFishingCooldown, interactWithCrop, updateCrops, getAdjacentFishSpot, getAdjacentCropTile, initTownActivities } from './town';
 
 // Canvas setup
 const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
@@ -40,6 +41,30 @@ let attackHeld = false;
 
 const SAVE_KEY = 'dungeon-crawler-save';
 
+// Track floors for return from town
+let savedDungeonFloor: DungeonFloor | null = null;
+let savedPlayerPos = { x: 0, y: 0 };
+let townFloor: DungeonFloor | null = null;
+
+// Escape to town handler
+window.addEventListener('escape-to-town', () => {
+  if (gameState !== 'PLAYING' || !player || !currentFloor) return;
+  if (currentFloor.isTown || player.floor === 0) {
+    addMessage('You are already in a safe area!', 'msg-common');
+    return;
+  }
+  // Save dungeon state
+  savedDungeonFloor = currentFloor;
+  savedPlayerPos = { x: player.x, y: player.y };
+  // Generate or reuse town
+  if (!townFloor) townFloor = generateTown();
+  currentFloor = townFloor;
+  player.x = 15; player.y = 24;
+  player.px = player.x * 16; player.py = player.y * 16;
+  showFloorTransition(-1); // -1 = town
+  closeInventory();
+});
+
 // ===== CANVAS RESIZE =====
 function resizeCanvas(): void {
   canvas.width = window.innerWidth;
@@ -53,7 +78,7 @@ function showFloorTransition(floorNum: number): void {
   transitioning = true;
   const overlay = document.getElementById('floor-transition')!;
   const text = document.getElementById('floor-transition-text')!;
-  text.textContent = floorNum === 0 ? t('hub_welcome') : t('entered_floor', floorNum);
+  text.textContent = floorNum === -1 ? '🏘️ Welcome to Town!' : floorNum === 0 ? t('hub_welcome') : t('entered_floor', floorNum);
   overlay.classList.remove('hidden');
 
   // Reset animation
@@ -80,6 +105,23 @@ function showDamageFlash(): void {
 }
 
 // ===== CREATE PLAYER =====
+function renderBuffBar(): void {
+  let bar = document.getElementById('buff-bar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'buff-bar';
+    document.getElementById('hud')?.appendChild(bar);
+  }
+  if (!player || !player.buffs || player.buffs.length === 0) {
+    bar.innerHTML = '';
+    return;
+  }
+  bar.innerHTML = player.buffs.map(b => {
+    const secs = Math.ceil(b.remaining);
+    return `<span class="buff-icon" title="${b.name}">${b.icon} ${secs}s</span>`;
+  }).join('');
+}
+
 function createPlayer(className: ClassName, name: string): PlayerState {
   const classDef = getClassDef(className);
   const stats = { ...classDef.baseStats };
@@ -111,6 +153,12 @@ function createPlayer(className: ClassName, name: string): PlayerState {
     totalDamageDealt: 0,
     totalFloorsCleared: 0,
     maxReachedFloor: 1,
+    buffs: [],
+    fishCaught: 0,
+    cropsHarvested: 0,
+    crops: [],
+    hasFishingRod: false,
+    hasWateringCan: false,
   };
 }
 
@@ -375,6 +423,12 @@ function update(dt: number): void {
   // Block gameplay when overlays open
   if (isInventoryOpen() || isDialogOpen() || isSettingsOpen() || isTutorialOpen()) return;
 
+  // Block movement during fishing (but still allow interact to catch)
+  if (isFishingActive()) {
+    if (Input.isInteracting()) fishingCatch();
+    return;
+  }
+
   // Tab: toggle minimap
   if (Input.wantsMinimapToggle()) {
     Input.toggleMinimap();
@@ -427,7 +481,21 @@ function update(dt: number): void {
         // Check tile interactions
         const tile = currentFloor.tiles[ny][nx];
         if (tile === 'STAIRS_DOWN') {
-          if (player.floor === 0) {
+          if (currentFloor.isTown) {
+            // Return to dungeon from town
+            if (savedDungeonFloor) {
+              currentFloor = savedDungeonFloor;
+              player.x = savedPlayerPos.x;
+              player.y = savedPlayerPos.y;
+              player.px = player.x * 16;
+              player.py = player.y * 16;
+              savedDungeonFloor = null;
+              showFloorTransition(player.floor);
+              addMessage('You return to the dungeon...', 'msg-common');
+            } else {
+              enterFloor(player.floor > 0 ? player.floor : 1);
+            }
+          } else if (player.floor === 0) {
             // Hub stairs logic
             if (player.maxReachedFloor > 1) {
               // Dialog to choose floor
@@ -548,11 +616,27 @@ function update(dt: number): void {
   }
   if (!wantsAttack) attackHeld = false;
 
-  // Interact (NPC)
+  // Interact (NPC, Fishing, Farming)
   if (Input.isInteracting() && player.alive) {
-    const npc = checkNPCInteraction(player, currentFloor);
-    if (npc) {
-      openDialog(npc, player);
+    if (isFishingActive()) {
+      fishingCatch();
+    } else {
+      const npc = checkNPCInteraction(player, currentFloor);
+      if (npc) {
+        openDialog(npc, player);
+      } else if (currentFloor.isTown) {
+        // Check for fishing spot adjacency
+        const fishSpot = getAdjacentFishSpot(player, currentFloor);
+        if (fishSpot) {
+          startFishing(player);
+        } else {
+          // Check for crop tile (standing on or adjacent)
+          const cropTile = getAdjacentCropTile(player, currentFloor);
+          if (cropTile) {
+            interactWithCrop(player, currentFloor, cropTile.x, cropTile.y);
+          }
+        }
+      }
     }
   }
 
@@ -630,6 +714,10 @@ function update(dt: number): void {
     spawnLevelUpParticles(player.px + 8, player.py + 8);
   }
 
+  // Town activities
+  updateCrops(player, dt);
+  updateFishingCooldown(dt);
+
   // Check death
   if (!player.alive && gameState === 'PLAYING') {
     gameState = 'GAME_OVER';
@@ -647,8 +735,30 @@ function update(dt: number): void {
   cameraX += (targetCamX - cameraX) * 0.1;
   cameraY += (targetCamY - cameraY) * 0.1;
 
+  // Update buffs
+  if (player.buffs && player.buffs.length > 0) {
+    let needsRecalc = false;
+    for (let i = player.buffs.length - 1; i >= 0; i--) {
+      const buff = player.buffs[i];
+      buff.remaining -= dt;
+      // Regen effect
+      if (buff.effect.type === 'regen' && player.stats.hp < player.stats.maxHp) {
+        player.stats.hp = Math.min(player.stats.maxHp, player.stats.hp + buff.effect.value * dt);
+      }
+      if (buff.remaining <= 0) {
+        player.buffs.splice(i, 1);
+        addMessage(`${buff.name} buff expired.`, 'msg-common');
+        needsRecalc = true;
+      }
+    }
+    if (needsRecalc) recalcStats(player);
+  }
+
   // Update HUD
-  updateHUD(player);
+  updateHUD(player, !!currentFloor?.isTown);
+
+  // Render buff bar
+  renderBuffBar();
 }
 
 // ===== RENDER =====
@@ -692,6 +802,16 @@ function render(): void {
           break;
         }
         case 'TRAP': sprite = visible[y][x] ? Assets.get('trap') : Assets.get('floor'); break;
+        // Town tiles
+        case 'GRASS': sprite = Assets.get('grass'); break;
+        case 'PATH': sprite = Assets.get('path'); break;
+        case 'WATER': sprite = Assets.get('water'); break;
+        case 'BUILDING': sprite = Assets.get('building'); break;
+        case 'FENCE': sprite = Assets.get('fence'); break;
+        case 'TREE': sprite = Assets.get('tree'); break;
+        case 'FLOWER': sprite = Assets.get('flower'); break;
+        case 'CROP': sprite = Assets.get('crop'); break;
+        case 'FISH_SPOT': sprite = Assets.get('fishSpot'); break;
       }
 
       if (sprite) {
@@ -816,8 +936,8 @@ function render(): void {
     spawnTorchEmbers(player.px + 8, player.py - 12); // Higher for taller sprite
   }
 
-  // Lighting / fog of war (skip on hub — always lit)
-  if (player.floor !== 0) {
+  // Lighting / fog of war (skip on hub and town — always lit)
+  if (player.floor !== 0 && !currentFloor.isTown) {
     renderLighting(ctx, currentFloor, player, camX, camY, canvas.width, canvas.height, tileSize);
   }
 
@@ -851,6 +971,7 @@ function init(): void {
   initAssets();
   initInput();
   initSettings(returnToHub);
+  initTownActivities();
 
   // Display version
   const versionLabel = `v${APP_VERSION}`;

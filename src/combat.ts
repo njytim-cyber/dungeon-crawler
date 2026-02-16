@@ -64,10 +64,17 @@ export function playerAttack(player: PlayerState, floor: DungeonFloor, addMsg: (
                 enemy.alive = false;
                 GameAudio.enemyDeath();
                 spawnDeathParticles(enemy.px + 8, enemy.py + 8, '#e74c3c');
-                player.xp += enemy.xpReward;
+                // Apply XP boost from buffs
+                let xpGain = enemy.xpReward;
+                if (player.buffs) {
+                    for (const buff of player.buffs) {
+                        if (buff.effect.type === 'xp_boost') xpGain = Math.floor(xpGain * (1 + buff.effect.value));
+                    }
+                }
+                player.xp += xpGain;
                 player.totalKills++;
                 player.totalDamageDealt += damage;
-                addMsg(`Defeated ${enemy.type}! +${enemy.xpReward} XP`, 'msg-xp');
+                addMsg(`Defeated ${enemy.type}! +${xpGain} XP`, 'msg-xp');
 
                 // Drop loot
                 const loot = rollLoot(enemy.dropTable);
@@ -144,7 +151,19 @@ export function recalcStats(player: PlayerState): void {
         }
     });
 
-    s.hp = Math.min(player.stats.hp, s.maxHp); // Keep current HP proportional
-    if (player.stats.hp === player.stats.maxHp) s.hp = s.maxHp; // Full heal if was full
+    // Apply active buff bonuses
+    if (player.buffs) {
+        for (const buff of player.buffs) {
+            const fx = buff.effect;
+            if (fx.type === 'atk_boost') s.atk += fx.value;
+            else if (fx.type === 'def_boost') s.def += fx.value;
+            else if (fx.type === 'spd_boost') s.spd += fx.value;
+            else if (fx.type === 'crit_boost') s.critChance += fx.value;
+            else if (fx.type === 'maxhp_boost') s.maxHp += fx.value;
+        }
+    }
+
+    s.hp = Math.min(player.stats.hp, s.maxHp);
+    if (player.stats.hp === player.stats.maxHp) s.hp = s.maxHp;
     player.stats = s;
 }

@@ -38,7 +38,7 @@ const ITEMS: Record<string, ItemDef> = {
     emerald_ring: { id: 'emerald_ring', name: 'Emerald Ring', description: 'Nature\'s blessing.', category: 'ring', rarity: 'rare', icon: 'ring', equipSlot: 'ring', stats: { def: 4, maxHp: 20 }, value: 150 },
     ring_of_power: { id: 'ring_of_power', name: 'Ring of Power', description: 'Overwhelming strength.', category: 'ring', rarity: 'legendary', icon: 'ring', equipSlot: 'ring', stats: { atk: 8, def: 5, maxHp: 30 }, value: 400 },
 
-    // Consumables
+    // Consumables (Potions)
     health_potion: { id: 'health_potion', name: 'Health Potion', description: 'Restores 30 HP.', category: 'consumable', rarity: 'common', icon: 'potion_hp', healAmount: 30, stackable: true, value: 10 },
     greater_health: { id: 'greater_health', name: 'Greater Potion', description: 'Restores 80 HP.', category: 'consumable', rarity: 'uncommon', icon: 'potion_hp', healAmount: 80, stackable: true, value: 30 },
     ultra_health: { id: 'ultra_health', name: 'Ultra Potion', description: 'Restores 200 HP.', category: 'consumable', rarity: 'rare', icon: 'potion_hp', healAmount: 200, stackable: true, value: 80 },
@@ -46,8 +46,126 @@ const ITEMS: Record<string, ItemDef> = {
 
     // Keys & scrolls
     dungeon_key: { id: 'dungeon_key', name: 'Dungeon Key', description: 'Opens locked doors.', category: 'key', rarity: 'common', icon: 'key', stackable: true, value: 5 },
-    escape_scroll: { id: 'escape_scroll', name: 'Escape Scroll', description: 'Teleport to stairs.', category: 'scroll', rarity: 'uncommon', icon: 'scroll', stackable: true, value: 40 },
+    escape_scroll: { id: 'escape_scroll', name: 'Escape Scroll', description: 'Teleport to town!', category: 'scroll', rarity: 'uncommon', icon: 'scroll', stackable: true, value: 40 },
     power_scroll: { id: 'power_scroll', name: 'Power Scroll', description: '+2 ATK permanently.', category: 'scroll', rarity: 'rare', icon: 'scroll', stackable: true, value: 100 },
+
+    // ============ FOOD ITEMS (Town Cook Shop) ============
+    // Bread — basic healing
+    bread: {
+        id: 'bread', name: 'Fresh Bread', description: 'Warm and hearty. Heals 20 HP.', category: 'food', rarity: 'common', icon: 'food_bread', stackable: true, value: 5,
+        foodEffects: [{ type: 'heal', value: 20, duration: 0 }]
+    },
+
+    // Meat Stew — ATK boost
+    meat_stew: {
+        id: 'meat_stew', name: 'Meat Stew', description: 'Hearty stew. +5 ATK for 60s.', category: 'food', rarity: 'uncommon', icon: 'food_stew', stackable: true, value: 25,
+        foodEffects: [{ type: 'heal', value: 30, duration: 0 }, { type: 'atk_boost', value: 5, duration: 60 }]
+    },
+
+    // Iron Soup — DEF boost
+    iron_soup: {
+        id: 'iron_soup', name: 'Iron Soup', description: 'Fortifying soup. +4 DEF for 60s.', category: 'food', rarity: 'uncommon', icon: 'food_soup', stackable: true, value: 25,
+        foodEffects: [{ type: 'heal', value: 25, duration: 0 }, { type: 'def_boost', value: 4, duration: 60 }]
+    },
+
+    // Speed Salad — SPD boost  
+    speed_salad: {
+        id: 'speed_salad', name: 'Speed Salad', description: 'Light and zippy. +0.3 SPD for 45s.', category: 'food', rarity: 'uncommon', icon: 'food_salad', stackable: true, value: 20,
+        foodEffects: [{ type: 'heal', value: 15, duration: 0 }, { type: 'spd_boost', value: 0.3, duration: 45 }]
+    },
+
+    // Golden Pie — CRIT boost
+    golden_pie: {
+        id: 'golden_pie', name: 'Golden Pie', description: 'Lucky pastry. +15% CRIT for 45s.', category: 'food', rarity: 'rare', icon: 'food_pie', stackable: true, value: 50,
+        foodEffects: [{ type: 'heal', value: 40, duration: 0 }, { type: 'crit_boost', value: 0.15, duration: 45 }]
+    },
+
+    // Dragon Feast — Max HP boost + heal
+    dragon_feast: {
+        id: 'dragon_feast', name: 'Dragon Feast', description: 'Legendary meal. +30 MaxHP for 90s, full heal.', category: 'food', rarity: 'legendary', icon: 'food_feast', stackable: true, value: 100,
+        foodEffects: [{ type: 'heal', value: 999, duration: 0 }, { type: 'maxhp_boost', value: 30, duration: 90 }]
+    },
+
+    // Berry Smoothie — Regen
+    berry_smoothie: {
+        id: 'berry_smoothie', name: 'Berry Smoothie', description: 'Sweet berry drink. Regen 3 HP/s for 20s.', category: 'food', rarity: 'uncommon', icon: 'food_smoothie', stackable: true, value: 30,
+        foodEffects: [{ type: 'regen', value: 3, duration: 20 }]
+    },
+
+    // Battle Cookie — ATK + CRIT
+    battle_cookie: {
+        id: 'battle_cookie', name: 'Battle Cookie', description: 'War rations! +3 ATK, +10% CRIT for 30s.', category: 'food', rarity: 'rare', icon: 'food_cookie', stackable: true, value: 40,
+        foodEffects: [{ type: 'heal', value: 20, duration: 0 }, { type: 'atk_boost', value: 3, duration: 30 }, { type: 'crit_boost', value: 0.10, duration: 30 }]
+    },
+
+    // XP Tea — XP boost
+    xp_tea: {
+        id: 'xp_tea', name: 'Scholar\'s Tea', description: 'Enlightening! +50% XP gain for 60s.', category: 'food', rarity: 'rare', icon: 'food_tea', stackable: true, value: 60,
+        foodEffects: [{ type: 'xp_boost', value: 0.5, duration: 60 }]
+    },
+
+    // ============ FISH ITEMS ============
+    small_fish: {
+        id: 'small_fish', name: 'Small Fish', description: 'A tiny catch. Heals 10 HP.', category: 'fish', rarity: 'common', icon: 'fish_small', stackable: true, value: 5,
+        foodEffects: [{ type: 'heal', value: 10, duration: 0 }]
+    },
+
+    bass: {
+        id: 'bass', name: 'Bass', description: 'A decent catch. Heals 25 HP.', category: 'fish', rarity: 'common', icon: 'fish_med', stackable: true, value: 12,
+        foodEffects: [{ type: 'heal', value: 25, duration: 0 }]
+    },
+
+    golden_trout: {
+        id: 'golden_trout', name: 'Golden Trout', description: 'Rare shimmering fish. Heals 50 HP, +3 ATK for 30s.', category: 'fish', rarity: 'uncommon', icon: 'fish_gold', stackable: true, value: 30,
+        foodEffects: [{ type: 'heal', value: 50, duration: 0 }, { type: 'atk_boost', value: 3, duration: 30 }]
+    },
+
+    phantom_fish: {
+        id: 'phantom_fish', name: 'Phantom Fish', description: 'Ghostly fish. Heals 80 HP, +5 DEF for 45s.', category: 'fish', rarity: 'rare', icon: 'fish_phantom', stackable: true, value: 60,
+        foodEffects: [{ type: 'heal', value: 80, duration: 0 }, { type: 'def_boost', value: 5, duration: 45 }]
+    },
+
+    legendary_koi: {
+        id: 'legendary_koi', name: 'Legendary Koi', description: 'Ancient mystical fish! Full heal, all stats +3 for 60s.', category: 'fish', rarity: 'legendary', icon: 'fish_koi', stackable: true, value: 150,
+        foodEffects: [
+            { type: 'heal', value: 999, duration: 0 },
+            { type: 'atk_boost', value: 3, duration: 60 },
+            { type: 'def_boost', value: 3, duration: 60 },
+            { type: 'spd_boost', value: 0.2, duration: 60 },
+        ]
+    },
+
+    // ============ SEEDS (for Farming) ============
+    wheat_seed: { id: 'wheat_seed', name: 'Wheat Seed', description: 'Plant to grow wheat. Makes bread!', category: 'seed', rarity: 'common', icon: 'seed', stackable: true, value: 5 },
+    berry_seed: { id: 'berry_seed', name: 'Berry Seed', description: 'Plant to grow berries. Sweet and useful!', category: 'seed', rarity: 'common', icon: 'seed', stackable: true, value: 8 },
+    golden_seed: { id: 'golden_seed', name: 'Golden Seed', description: 'Rare golden plant. Valuable harvest!', category: 'seed', rarity: 'uncommon', icon: 'seed_gold', stackable: true, value: 20 },
+    dragon_seed: { id: 'dragon_seed', name: 'Dragon Seed', description: 'Mythical plant. Legendary food ingredient!', category: 'seed', rarity: 'rare', icon: 'seed_dragon', stackable: true, value: 50 },
+
+    // ============ TOOLS ============
+    fishing_rod: { id: 'fishing_rod', name: 'Fishing Rod', description: 'Used to fish at ponds. Reusable!', category: 'tool', rarity: 'uncommon', icon: 'tool_rod', stackable: false, value: 50 },
+    watering_can: { id: 'watering_can', name: 'Watering Can', description: 'Water your crops for faster growth!', category: 'tool', rarity: 'uncommon', icon: 'tool_can', stackable: false, value: 40 },
+
+    // ============ HARVEST ITEMS (from farming) ============
+    wheat: {
+        id: 'wheat', name: 'Wheat', description: 'Fresh wheat. Can be sold or cooked.', category: 'food', rarity: 'common', icon: 'food_wheat', stackable: true, value: 8,
+        foodEffects: [{ type: 'heal', value: 5, duration: 0 }]
+    },
+    berries: {
+        id: 'berries', name: 'Fresh Berries', description: 'Sweet berries! Heals 15 HP.', category: 'food', rarity: 'common', icon: 'food_berry', stackable: true, value: 10,
+        foodEffects: [{ type: 'heal', value: 15, duration: 0 }]
+    },
+    golden_fruit: {
+        id: 'golden_fruit', name: 'Golden Fruit', description: 'Shimmering golden fruit. +20 MaxHP for 45s.', category: 'food', rarity: 'uncommon', icon: 'food_golden', stackable: true, value: 35,
+        foodEffects: [{ type: 'heal', value: 40, duration: 0 }, { type: 'maxhp_boost', value: 20, duration: 45 }]
+    },
+    dragon_fruit: {
+        id: 'dragon_fruit', name: 'Dragon Fruit', description: 'Legendary dragon fruit! +8 ATK, +5 DEF for 60s.', category: 'food', rarity: 'rare', icon: 'food_dragon', stackable: true, value: 80,
+        foodEffects: [
+            { type: 'heal', value: 100, duration: 0 },
+            { type: 'atk_boost', value: 8, duration: 60 },
+            { type: 'def_boost', value: 5, duration: 60 },
+        ]
+    },
 };
 
 export function getItemDef(id: string): ItemDef | undefined {

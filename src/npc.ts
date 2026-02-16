@@ -14,16 +14,13 @@ const npcOptionsEl = document.getElementById('npc-options')!;
 
 let dialogOpen = false;
 
-
 export function isDialogOpen(): boolean { return dialogOpen; }
-
 
 let currentActionCallback: ((action: string) => void) | undefined;
 
 export function openDialog(npc: NPCState, player: PlayerState, onAction?: (action: string) => void): void {
     dialogOpen = true;
     currentActionCallback = onAction;
-
     GameAudio.npcGreet();
     showDialogNode(npc, npc.currentDialog, player);
     dialogEl.classList.remove('hidden');
@@ -38,17 +35,31 @@ export function closeDialog(): void {
 function showDialogNode(npc: NPCState, index: number, player: PlayerState): void {
     const node = npc.dialog[index];
     if (!node) { closeDialog(); return; }
-
     npcNameEl.textContent = npc.name;
     npcTextEl.textContent = node.text;
     npcOptionsEl.innerHTML = '';
-
     node.options.forEach(opt => {
         const btn = document.createElement('button');
         btn.textContent = opt.label;
         btn.addEventListener('click', () => handleDialogAction(opt.action, opt.cost, npc, player));
         npcOptionsEl.appendChild(btn);
     });
+}
+
+function buyItem(itemId: string, cost: number, player: PlayerState): boolean {
+    if (player.gold >= cost) {
+        const def = getItemDef(itemId);
+        if (def) {
+            player.gold -= cost;
+            addItemToInventory(player, def);
+            addMessage(`Bought ${def.name} for ${cost}g`, 'msg-uncommon');
+            GameAudio.pickup();
+            return true;
+        }
+    } else {
+        addMessage('Not enough gold!', 'msg-damage');
+    }
+    return false;
 }
 
 function handleDialogAction(action: string, cost: number | undefined, npc: NPCState, player: PlayerState): void {
@@ -74,65 +85,31 @@ function handleDialogAction(action: string, cost: number | undefined, npc: NPCSt
             closeDialog();
             break;
 
-        case 'buy_hp':
-            if (cost && player.gold >= cost) {
-                player.gold -= cost;
-                const potionDef = getItemDef('health_potion');
-                if (potionDef) {
-                    addItemToInventory(player, potionDef);
-                    addMessage(`Bought Health Potion for ${cost}g`, 'msg-uncommon');
-                    GameAudio.pickup();
-                }
-            } else {
-                addMessage('Not enough gold!', 'msg-damage');
-            }
-            closeDialog();
-            break;
+        case 'buy_hp': buyItem('health_potion', cost || 10, player); closeDialog(); break;
+        case 'buy_greater_hp': buyItem('greater_health', cost || 30, player); closeDialog(); break;
+        case 'buy_armor': buyItem('leather_armor', cost || 15, player); closeDialog(); break;
+        case 'buy_escape': buyItem('escape_scroll', cost || 40, player); closeDialog(); break;
 
-        case 'buy_greater_hp':
-            if (cost && player.gold >= cost) {
-                player.gold -= cost;
-                const gpDef = getItemDef('greater_health');
-                if (gpDef) {
-                    addItemToInventory(player, gpDef);
-                    addMessage(`Bought Greater Potion for ${cost}g`, 'msg-uncommon');
-                    GameAudio.pickup();
-                }
-            } else {
-                addMessage('Not enough gold!', 'msg-damage');
-            }
-            closeDialog();
-            break;
+        // Cook shop items
+        case 'buy_bread': buyItem('bread', cost || 5, player); closeDialog(); break;
+        case 'buy_stew': buyItem('meat_stew', cost || 25, player); closeDialog(); break;
+        case 'buy_soup': buyItem('iron_soup', cost || 25, player); closeDialog(); break;
+        case 'buy_salad': buyItem('speed_salad', cost || 20, player); closeDialog(); break;
+        case 'buy_pie': buyItem('golden_pie', cost || 50, player); closeDialog(); break;
+        case 'buy_feast': buyItem('dragon_feast', cost || 100, player); closeDialog(); break;
+        case 'buy_smoothie': buyItem('berry_smoothie', cost || 30, player); closeDialog(); break;
+        case 'buy_cookie': buyItem('battle_cookie', cost || 40, player); closeDialog(); break;
+        case 'buy_tea': buyItem('xp_tea', cost || 60, player); closeDialog(); break;
 
-        case 'buy_armor':
-            if (cost && player.gold >= cost) {
-                player.gold -= cost;
-                const armorDef = getItemDef('leather_armor');
-                if (armorDef) {
-                    addItemToInventory(player, armorDef);
-                    addMessage(`Bought Leather Armor for ${cost}g`, 'msg-uncommon');
-                    GameAudio.pickup();
-                }
-            } else {
-                addMessage('Not enough gold!', 'msg-damage');
-            }
-            closeDialog();
-            break;
+        // Fishmonger shop
+        case 'buy_rod': if (buyItem('fishing_rod', cost || 50, player)) player.hasFishingRod = true; closeDialog(); break;
 
-        case 'buy_escape':
-            if (cost && player.gold >= cost) {
-                player.gold -= cost;
-                const scrollDef = getItemDef('escape_scroll');
-                if (scrollDef) {
-                    addItemToInventory(player, scrollDef);
-                    addMessage(`Bought Escape Scroll for ${cost}g`, 'msg-uncommon');
-                    GameAudio.pickup();
-                }
-            } else {
-                addMessage('Not enough gold!', 'msg-damage');
-            }
-            closeDialog();
-            break;
+        // Farmer shop
+        case 'buy_can': if (buyItem('watering_can', cost || 40, player)) player.hasWateringCan = true; closeDialog(); break;
+        case 'buy_wheat_seed': buyItem('wheat_seed', cost || 5, player); closeDialog(); break;
+        case 'buy_berry_seed': buyItem('berry_seed', cost || 8, player); closeDialog(); break;
+        case 'buy_golden_seed': buyItem('golden_seed', cost || 20, player); closeDialog(); break;
+        case 'buy_dragon_seed': buyItem('dragon_seed', cost || 50, player); closeDialog(); break;
 
         case 'hint': {
             const hints = [
@@ -149,7 +126,11 @@ function handleDialogAction(action: string, cost: number | undefined, npc: NPCSt
                 'Return to the Hub from Settings to heal and restock.',
                 'Rings provide passive stat bonuses. Don\'t ignore them!',
                 'Press R to quickly use a potion from your hotbar.',
-                'Escape Scrolls teleport you to the stairs. Very handy!',
+                'Escape Scrolls teleport you to the town!',
+                'Visit the Cook for food that gives special buffs!',
+                'Try fishing at the pond for rare catches!',
+                'Plant seeds at the farm to grow valuable crops!',
+                'Food buffs stack — eat a meal before a boss fight!',
             ];
             const hint = hints[Math.floor(Math.random() * hints.length)];
             addMessage(`Sage: "${hint}"`, 'msg-uncommon');
@@ -163,7 +144,6 @@ function handleDialogAction(action: string, cost: number | undefined, npc: NPCSt
             break;
 
         case 'shop':
-            // Show shop dialog page
             npc.currentDialog = 1;
             showDialogNode(npc, 1, player);
             break;

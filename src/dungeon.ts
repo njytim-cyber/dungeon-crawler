@@ -174,20 +174,69 @@ function createNPC(type: NPCType, x: number, y: number, floor: number): NPCState
         merchant: 'Travelling Merchant',
         healer: 'Wandering Healer',
         sage: 'Ancient Sage',
+        cook: 'Chef Rosemary',
+        fishmonger: 'Old Fisher Pete',
+        farmer: 'Farmer Green',
     };
-
     const dialogs: Record<NPCType, DialogNode[]> = {
         merchant: [
-            { text: `Welcome, adventurer! I have wares that might interest you. Floor ${floor} is dangerous...`, options: [{ label: 'Buy Health Potion (10g)', action: 'buy_hp', cost: 10 }, { label: 'Leave', action: 'close' }] },
+            {
+                text: `Welcome, adventurer! I have wares for you.`, options: [
+                    { label: 'Health Potion (10g)', action: 'buy_hp', cost: 10 },
+                    { label: 'Greater Potion (30g)', action: 'buy_greater_hp', cost: 30 },
+                    { label: 'Escape Scroll (40g)', action: 'buy_escape', cost: 40 },
+                    { label: 'Leave', action: 'close' },
+                ]
+            },
         ],
         healer: [
             { text: 'You look weary, traveler. Let me restore your strength.', options: [{ label: 'Heal me (free)', action: 'heal' }, { label: 'Leave', action: 'close' }] },
         ],
         sage: [
-            { text: `You have reached floor ${floor}. ${floor < 50 ? 'The deeper you go, the stronger the enemies.' : 'Few have ventured this deep. Be careful.'}`, options: [{ label: 'Any advice?', action: 'hint' }, { label: 'Leave', action: 'close' }] },
+            { text: `You have reached floor ${floor}. ${floor < 50 ? 'The deeper you go, the stronger the enemies.' : 'Few have ventured this deep.'}`, options: [{ label: 'Any advice?', action: 'hint' }, { label: 'Leave', action: 'close' }] },
+        ],
+        cook: [
+            {
+                text: 'Welcome to my kitchen! I cook food that gives you special powers. What would you like?', options: [
+                    { label: 'Bread (5g) +20HP', action: 'buy_bread', cost: 5 },
+                    { label: 'Meat Stew (25g) +ATK', action: 'buy_stew', cost: 25 },
+                    { label: 'Iron Soup (25g) +DEF', action: 'buy_soup', cost: 25 },
+                    { label: 'Speed Salad (20g) +SPD', action: 'buy_salad', cost: 20 },
+                    { label: 'More food...', action: 'next' },
+                ]
+            },
+            {
+                text: 'Here are my specialty dishes!', options: [
+                    { label: 'Golden Pie (50g) +CRIT', action: 'buy_pie', cost: 50 },
+                    { label: 'Berry Smoothie (30g) Regen', action: 'buy_smoothie', cost: 30 },
+                    { label: 'Battle Cookie (40g) +ATK+CRIT', action: 'buy_cookie', cost: 40 },
+                    { label: "Scholar's Tea (60g) +XP", action: 'buy_tea', cost: 60 },
+                    { label: 'Dragon Feast (100g) LEGENDARY', action: 'buy_feast', cost: 100 },
+                    { label: 'Leave', action: 'close' },
+                ]
+            },
+        ],
+        fishmonger: [
+            {
+                text: 'Ahoy! Want a fishing rod? Head to the pond south side to fish. Fish heal and give buffs!', options: [
+                    { label: 'Buy Fishing Rod (50g)', action: 'buy_rod', cost: 50 },
+                    { label: 'Leave', action: 'close' },
+                ]
+            },
+        ],
+        farmer: [
+            {
+                text: 'Howdy! Buy seeds and plant them on the farm plots. Water them with a watering can for faster growth!', options: [
+                    { label: 'Watering Can (40g)', action: 'buy_can', cost: 40 },
+                    { label: 'Wheat Seed (5g)', action: 'buy_wheat_seed', cost: 5 },
+                    { label: 'Berry Seed (8g)', action: 'buy_berry_seed', cost: 8 },
+                    { label: 'Golden Seed (20g)', action: 'buy_golden_seed', cost: 20 },
+                    { label: 'Dragon Seed (50g)', action: 'buy_dragon_seed', cost: 50 },
+                    { label: 'Leave', action: 'close' },
+                ]
+            },
         ],
     };
-
     return {
         type, x, y,
         name: names[type],
@@ -317,5 +366,68 @@ export function generateFloor(floor: number): DungeonFloor {
 
 export function isWalkable(tiles: TileType[][], x: number, y: number): boolean {
     if (y < 0 || y >= tiles.length || x < 0 || x >= tiles[0].length) return false;
-    return tiles[y][x] !== 'WALL';
+    const t = tiles[y][x];
+    return t !== 'WALL' && t !== 'WATER' && t !== 'BUILDING' && t !== 'TREE';
+}
+
+export function generateTown(): DungeonFloor {
+    const w = 32, h = 28;
+    const tiles = createGrid(w, h, 'GRASS');
+    // Border of trees
+    for (let x = 0; x < w; x++) { tiles[0][x] = 'TREE'; tiles[h - 1][x] = 'TREE'; }
+    for (let y = 0; y < h; y++) { tiles[y][0] = 'TREE'; tiles[y][w - 1] = 'TREE'; }
+    // Extra trees in corners
+    for (let i = 1; i < 4; i++) { tiles[1][i] = 'TREE'; tiles[1][w - 1 - i] = 'TREE'; tiles[h - 2][i] = 'TREE'; tiles[h - 2][w - 1 - i] = 'TREE'; }
+    // Main path (cross shape)
+    for (let x = 4; x < w - 4; x++) { tiles[13][x] = 'PATH'; tiles[14][x] = 'PATH'; }
+    for (let y = 4; y < h - 4; y++) { tiles[y][15] = 'PATH'; tiles[y][16] = 'PATH'; }
+    // Entry point at bottom
+    tiles[h - 2][15] = 'PATH'; tiles[h - 2][16] = 'PATH';
+    tiles[h - 1][15] = 'PATH'; tiles[h - 1][16] = 'PATH';
+    // Cook shop (top left building, 5x4)
+    for (let y = 4; y < 8; y++) for (let x = 4; x < 9; x++) tiles[y][x] = 'BUILDING';
+    tiles[7][6] = 'PATH'; // door
+    // Flowers around cook
+    tiles[8][4] = 'FLOWER'; tiles[8][5] = 'FLOWER'; tiles[8][8] = 'FLOWER';
+    // Fish shop (top right building, 5x4)
+    for (let y = 4; y < 8; y++) for (let x = 22; x < 27; x++) tiles[y][x] = 'BUILDING';
+    tiles[7][24] = 'PATH'; // door
+    // Fishing pond (right side, 6x4)
+    for (let y = 16; y < 20; y++) for (let x = 22; x < 28; x++) tiles[y][x] = 'WATER';
+    tiles[16][23] = 'FISH_SPOT'; tiles[16][25] = 'FISH_SPOT'; tiles[19][24] = 'FISH_SPOT';
+    // Farm shop (left side building)
+    for (let y = 17; y < 21; y++) for (let x = 4; x < 9; x++) tiles[y][x] = 'BUILDING';
+    tiles[17][6] = 'PATH'; // door
+    // Farm crop plots (left side, 3x4 grid of crops)
+    for (let y = 22; y < 25; y++) for (let x = 4; x < 12; x++) tiles[y][x] = 'CROP';
+    // Flowers and decorations
+    tiles[10][8] = 'FLOWER'; tiles[10][22] = 'FLOWER';
+    tiles[12][10] = 'FLOWER'; tiles[12][20] = 'FLOWER';
+    // Fence around farm (with gate opening)
+    for (let x = 3; x < 13; x++) tiles[21][x] = 'FENCE';
+    tiles[21][7] = 'PATH'; tiles[21][8] = 'PATH'; // Farm gate
+    for (let x = 3; x < 13; x++) tiles[25][x] = 'FENCE';
+    for (let y = 21; y < 26; y++) { tiles[y][3] = 'FENCE'; tiles[y][12] = 'FENCE'; }
+    // Path leading to farm gate
+    for (let y = 14; y < 22; y++) { tiles[y][7] = 'PATH'; tiles[y][8] = 'PATH'; }
+    // Stairs back to dungeon (entry point)
+    const stairsUp: Position = { x: 15, y: h - 3 };
+    tiles[stairsUp.y][stairsUp.x] = 'STAIRS_DOWN';
+    const stairsDown: Position = { x: 16, y: h - 3 };
+    // NPCs
+    const npcs: NPCState[] = [
+        createNPC('cook', 6, 9, 0),
+        createNPC('fishmonger', 24, 9, 0),
+        createNPC('farmer', 6, 16, 0),
+        createNPC('healer', 14, 12, 0),
+        createNPC('merchant', 18, 12, 0),
+        createNPC('sage', 16, 10, 0),
+    ];
+    const explored = createBoolGrid(w, h, true);
+    const visible = createBoolGrid(w, h, true);
+    return {
+        width: w, height: h, tiles, rooms: [], explored, visible,
+        enemies: [], npcs, items: [], stairsDown, stairsUp, chests: [],
+        isTown: true,
+    };
 }

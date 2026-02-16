@@ -180,17 +180,11 @@ function useOrEquipItem(player: PlayerState, index: number): void {
     const def = item.def;
 
     if (def.equipSlot) {
-        // Equip
         const old = player.equipment[def.equipSlot];
         player.equipment[def.equipSlot] = def;
-
-        // Remove from inventory
         item.count--;
         if (item.count <= 0) player.inventory.splice(index, 1);
-
-        // Put old item back
         if (old) addItemToInventory(player, old);
-
         recalcStats(player);
         GameAudio.pickup();
         addMessage(`Equipped ${def.name}`, `msg-${def.rarity}`);
@@ -202,10 +196,44 @@ function useOrEquipItem(player: PlayerState, index: number): void {
             spawnHealParticles(player.px + 8, player.py + 8);
             addFloatingText(player.px + 8, player.py, `+${heal}`, '#2ecc71');
             addMessage(`Used ${def.name}, healed ${heal} HP`, 'msg-heal');
-
             item.count--;
             if (item.count <= 0) player.inventory.splice(index, 1);
         }
+    } else if (def.category === 'food' || def.category === 'fish') {
+        // Apply food effects
+        if (def.foodEffects) {
+            for (const fx of def.foodEffects) {
+                if (fx.type === 'heal') {
+                    const heal = Math.min(fx.value, player.stats.maxHp - player.stats.hp);
+                    if (heal > 0) {
+                        player.stats.hp += heal;
+                        spawnHealParticles(player.px + 8, player.py + 8);
+                        addFloatingText(player.px + 8, player.py, `+${heal}`, '#2ecc71');
+                    }
+                } else {
+                    // Timed buff
+                    if (!player.buffs) player.buffs = [];
+                    const buffName = def.name;
+                    const icons: Record<string, string> = {
+                        atk_boost: '⚔️', def_boost: '🛡️', spd_boost: '💨',
+                        crit_boost: '🎯', maxhp_boost: '❤️', regen: '💚',
+                        shield: '🔰', xp_boost: '📚'
+                    };
+                    player.buffs.push({
+                        name: buffName,
+                        icon: icons[fx.type] || '✨',
+                        effect: { ...fx },
+                        remaining: fx.duration,
+                    });
+                    const label = fx.type.replace('_', ' ').toUpperCase();
+                    addFloatingText(player.px + 8, player.py - 10, `${label}!`, '#f1c40f');
+                }
+            }
+            addMessage(`Ate ${def.name}!`, 'msg-uncommon');
+            GameAudio.potionDrink();
+        }
+        item.count--;
+        if (item.count <= 0) player.inventory.splice(index, 1);
     } else if (def.category === 'scroll') {
         if (def.id === 'power_scroll') {
             player.baseStats.atk += 2;
@@ -213,6 +241,12 @@ function useOrEquipItem(player: PlayerState, index: number): void {
             addMessage('ATK permanently increased by 2!', 'msg-legendary');
             item.count--;
             if (item.count <= 0) player.inventory.splice(index, 1);
+        } else if (def.id === 'escape_scroll') {
+            // Teleport to town
+            item.count--;
+            if (item.count <= 0) player.inventory.splice(index, 1);
+            addMessage('The scroll glows... You are teleported to town!', 'msg-rare');
+            window.dispatchEvent(new CustomEvent('escape-to-town'));
         }
     }
 
@@ -246,8 +280,8 @@ export function addItemToInventory(player: PlayerState, def: ItemDef, count = 1)
     if (player.inventory.length >= 32) return false;
     player.inventory.push({ def, count });
 
-    // Auto-assign to hotbar if consumable and slot is empty
-    if (def.category === 'consumable') {
+    // Auto-assign to hotbar if consumable/food and slot is empty
+    if (def.category === 'consumable' || def.category === 'food' || def.category === 'fish') {
         for (let i = 0; i < 5; i++) {
             if (!player.hotbar[i]) {
                 player.hotbar[i] = player.inventory[player.inventory.length - 1];

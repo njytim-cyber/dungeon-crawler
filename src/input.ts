@@ -42,11 +42,11 @@ export function initInput(): void {
         atkBtn.addEventListener('touchend', e => { e.preventDefault(); _touchAttack = false; });
     }
 
-    // Interact button
+    // Interact button (one-shot: fire once per tap)
     const intBtn = document.getElementById('mobile-interact');
     if (intBtn) {
         intBtn.addEventListener('touchstart', e => { e.preventDefault(); _touchInteract = true; });
-        intBtn.addEventListener('touchend', e => { e.preventDefault(); _touchInteract = false; });
+        intBtn.addEventListener('touchend', e => { e.preventDefault(); });
     }
 
     // Screen tap/click to attack
@@ -194,8 +194,12 @@ export const Input = {
     // Attack: Space, Q, screen tap, or mobile button
     isAttacking: (): boolean => !!keys['Space'] || !!keys['KeyQ'] || _touchAttack || _screenAttack,
 
-    // Interact: E key or mobile button
-    isInteracting: (): boolean => !!justPressed['KeyE'] || _touchInteract,
+    // Interact: E key or mobile button (one-shot — consumes the flag)
+    isInteracting: (): boolean => {
+        if (justPressed['KeyE']) return true;
+        if (_touchInteract) { _touchInteract = false; return true; }
+        return false;
+    },
 
     // Inventory: I key
     wantsInventory: (): boolean => !!justPressed['KeyI'],
