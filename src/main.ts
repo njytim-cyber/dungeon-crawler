@@ -38,6 +38,8 @@ let transitioning = false;
 
 // Attack cooldown fix: track if attack was already pressed
 let attackHeld = false;
+// In town, screen taps trigger interact instead of attack
+let _pendingTownInteract = false;
 
 const SAVE_KEY = 'dungeon-crawler-save';
 
@@ -423,9 +425,12 @@ function update(dt: number): void {
   // Block gameplay when overlays open
   if (isInventoryOpen() || isDialogOpen() || isSettingsOpen() || isTutorialOpen()) return;
 
-  // Block movement during fishing (but still allow interact to catch)
+  // Block movement during fishing (but still allow interact/tap to catch)
   if (isFishingActive()) {
-    if (Input.isInteracting()) fishingCatch();
+    if (Input.isInteracting() || _pendingTownInteract || Input.isAttacking()) {
+      _pendingTownInteract = false;
+      fishingCatch();
+    }
     return;
   }
 
@@ -578,6 +583,14 @@ function update(dt: number): void {
           currentFloor.tiles[ny][nx] = 'FLOOR';
         }
 
+        // Town auto-interactions on step
+        if (currentFloor.isTown) {
+          // Auto-farm: stepped on crop tile
+          if (tile === 'CROP') {
+            interactWithCrop(player, currentFloor, nx, ny);
+          }
+        }
+
         // Pick up dropped items
         const droppedItem = currentFloor.items.find(i => i.x === nx && i.y === ny);
         if (droppedItem) {
@@ -611,13 +624,20 @@ function update(dt: number): void {
   // Attack — BUG FIX: single-press, not continuous fire
   const wantsAttack = Input.isAttacking();
   if (wantsAttack && !attackHeld && player.alive) {
-    playerAttack(player, currentFloor, addMessage);
+    if (currentFloor.isTown) {
+      // In town, tapping the screen acts as interact (fish/farm/NPC)
+      _pendingTownInteract = true;
+    } else {
+      playerAttack(player, currentFloor, addMessage);
+    }
     attackHeld = true;
   }
   if (!wantsAttack) attackHeld = false;
 
-  // Interact (NPC, Fishing, Farming)
-  if (Input.isInteracting() && player.alive) {
+  // Interact (NPC, Fishing, Farming) — also triggered by screen tap in town
+  const wantsInteract = Input.isInteracting() || _pendingTownInteract;
+  _pendingTownInteract = false;
+  if (wantsInteract && player.alive) {
     if (isFishingActive()) {
       fishingCatch();
     } else {
@@ -817,6 +837,41 @@ function render(): void {
       if (sprite) {
         ctx.drawImage(sprite, sx, sy, tileSize, tileSize);
       }
+
+      // Render crop growth overlays
+      if (tile === 'CROP' && player.crops) {
+        const crop = player.crops.find(c => c.x === x && c.y === y);
+        if (crop) {
+          if (crop.growthStage === 1) {
+            // Seedling — tiny green dot
+            ctx.fillStyle = '#2ecc71';
+            ctx.fillRect(sx + 6, sy + 10, 4, 4);
+            ctx.fillRect(sx + 7, sy + 7, 2, 3);
+          } else if (crop.growthStage === 2) {
+            // Growing — medium plant
+            ctx.fillStyle = '#27ae60';
+            ctx.fillRect(sx + 5, sy + 6, 6, 8);
+            ctx.fillStyle = '#2ecc71';
+            ctx.fillRect(sx + 3, sy + 4, 4, 3);
+            ctx.fillRect(sx + 9, sy + 5, 4, 3);
+            ctx.fillRect(sx + 6, sy + 3, 4, 3);
+          } else if (crop.growthStage >= 3) {
+            // Ready to harvest — full plant with glow
+            ctx.fillStyle = '#1e8449';
+            ctx.fillRect(sx + 4, sy + 4, 8, 10);
+            ctx.fillStyle = '#27ae60';
+            ctx.fillRect(sx + 2, sy + 2, 5, 4);
+            ctx.fillRect(sx + 9, sy + 3, 5, 4);
+            ctx.fillStyle = '#f1c40f';
+            ctx.fillRect(sx + 6, sy + 5, 4, 3);
+            ctx.fillRect(sx + 5, sy + 8, 6, 2);
+            // Pulse glow
+            const pulse = 0.4 + Math.sin(Date.now() / 400) * 0.3;
+            ctx.fillStyle = `rgba(241, 196, 15, ${pulse})`;
+            ctx.fillRect(sx + 4, sy + 3, 8, 10);
+          }
+        }
+      }
     }
   }
 
@@ -930,6 +985,33 @@ function render(): void {
       const ax = psx + (ad === 3 ? tileSize : ad === 2 ? -tileSize / 2 : tileSize / 4);
       const ay = psy + (ad === 0 ? tileSize : ad === 1 ? -tileSize / 2 : tileSize / 4);
       ctx.fillRect(ax, ay, tileSize / 2, tileSize / 2);
+    }
+
+    // Fishing line visual
+    if (isFishingActive() && currentFloor.isTown) {
+      const fishSpot = getAdjacentFishSpot(player, currentFloor);
+      if (fishSpot) {
+        const bobX = fishSpot.x * tileSize - camX + tileSize / 2;
+        const bobY = fishSpot.y * tileSize - camY + tileSize / 2 + Math.sin(Date.now() / 300) * 2;
+        const rodX = psx + tileSize / 2;
+        const rodY = psy - tileSize / 2;
+        // Line
+        ctx.strokeStyle = '#bdc3c7';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(rodX, rodY);
+        ctx.quadraticCurveTo(rodX + (bobX - rodX) * 0.5, rodY - 8, bobX, bobY);
+        ctx.stroke();
+        // Bobber
+        ctx.fillStyle = '#e74c3c';
+        ctx.beginPath();
+        ctx.arc(bobX, bobY, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ecf0f1';
+        ctx.beginPath();
+        ctx.arc(bobX, bobY - 2, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
     // Torch ember particles

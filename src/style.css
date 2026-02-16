@@ -344,6 +344,8 @@ canvas#gameCanvas {
   max-width: 95vw;
   max-height: 90vh;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
   border: 3px solid #444;
   border-radius: 8px;
@@ -369,14 +371,17 @@ canvas#gameCanvas {
   border: 2px solid #666;
   color: #e0d8c0;
   font-size: 16px;
-  width: 30px;
-  height: 30px;
+  width: 44px;
+  height: 44px;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
-#close-inventory:hover {
+#close-inventory:hover,
+#close-inventory:active {
   border-color: #e74c3c;
   color: #e74c3c;
 }
@@ -458,6 +463,8 @@ canvas#gameCanvas {
 
 .inv-slot {
   aspect-ratio: 1;
+  min-width: 36px;
+  min-height: 36px;
   background: rgba(0, 0, 0, 0.4);
   border: 2px solid #333;
   border-radius: 3px;
@@ -467,6 +474,8 @@ canvas#gameCanvas {
   cursor: pointer;
   position: relative;
   image-rendering: pixelated;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .inv-slot:hover {
@@ -1289,10 +1298,22 @@ canvas#gameCanvas {
 
   #inventory-panel {
     padding: 10px;
+    max-height: 85vh;
   }
 
   #inventory-grid {
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+  }
+
+  .inv-slot {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .equip-slot {
+    width: 56px;
+    height: 56px;
   }
 
   .hotbar-slot {

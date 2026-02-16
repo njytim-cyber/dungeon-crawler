@@ -74,10 +74,13 @@ function initJoystick(): void {
     const knob = document.getElementById('joystick-knob');
     if (!base || !knob) return;
 
-    const MAX_DIST = 35;
+    const MAX_DIST = 40;
+    // Add smooth transition for visual polish
+    knob.style.transition = 'transform 0.05s ease-out';
 
     function handleStart(cx: number, cy: number) {
         joystickActive = true;
+        knob!.style.transition = 'none'; // Instant during active drag
         const rect = base!.getBoundingClientRect();
         joystickStartX = rect.left + rect.width / 2;
         joystickStartY = rect.top + rect.height / 2;
@@ -95,13 +98,12 @@ function initJoystick(): void {
         }
         knob!.style.transform = `translate(${dx}px, ${dy}px)`;
 
-        // Determine direction (dead zone = 10px)
-        if (dist < 10) {
+        // Determine direction (dead zone = 6px for snappier response)
+        if (dist < 6) {
             joystickDirX = 0;
             joystickDirY = 0;
         } else {
-            // Normalize to -1, 0, 1 for 8-directional-ish input
-            // Pick dominant axis
+            // Pick dominant axis for 4-directional movement
             if (Math.abs(dx) > Math.abs(dy)) {
                 joystickDirX = dx > 0 ? 1 : -1;
                 joystickDirY = 0;
@@ -116,6 +118,7 @@ function initJoystick(): void {
         joystickActive = false;
         joystickDirX = 0;
         joystickDirY = 0;
+        knob!.style.transition = 'transform 0.15s ease-out'; // Smooth return
         knob!.style.transform = 'translate(0px, 0px)';
     }
 
