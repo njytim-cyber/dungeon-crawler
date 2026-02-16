@@ -177,14 +177,15 @@ function createNPC(type: NPCType, x: number, y: number, floor: number): NPCState
         cook: 'Chef Rosemary',
         fishmonger: 'Old Fisher Pete',
         farmer: 'Farmer Green',
+        blacksmith: 'Forge Master Grimm',
     };
     const dialogs: Record<NPCType, DialogNode[]> = {
         merchant: [
             {
                 text: `Welcome, adventurer! I have wares for you.`, options: [
-                    { label: 'Health Potion (10g)', action: 'buy_hp', cost: 10 },
-                    { label: 'Greater Potion (30g)', action: 'buy_greater_hp', cost: 30 },
-                    { label: 'Escape Scroll (40g)', action: 'buy_escape', cost: 40 },
+                    { label: 'Health Potion (10g)', action: 'buy_hp', cost: 10, itemId: 'health_potion' },
+                    { label: 'Greater Potion (30g)', action: 'buy_greater_hp', cost: 30, itemId: 'greater_health' },
+                    { label: 'Escape Scroll (40g)', action: 'buy_escape', cost: 40, itemId: 'escape_scroll' },
                     { label: 'Leave', action: 'close' },
                 ]
             },
@@ -198,20 +199,20 @@ function createNPC(type: NPCType, x: number, y: number, floor: number): NPCState
         cook: [
             {
                 text: 'Welcome to my kitchen! I cook food that gives you special powers. What would you like?', options: [
-                    { label: 'Bread (5g) +20HP', action: 'buy_bread', cost: 5 },
-                    { label: 'Meat Stew (25g) +ATK', action: 'buy_stew', cost: 25 },
-                    { label: 'Iron Soup (25g) +DEF', action: 'buy_soup', cost: 25 },
-                    { label: 'Speed Salad (20g) +SPD', action: 'buy_salad', cost: 20 },
+                    { label: 'Bread (5g)', action: 'buy_bread', cost: 5, itemId: 'food_bread' },
+                    { label: 'Meat Stew (25g)', action: 'buy_stew', cost: 25, itemId: 'food_stew' },
+                    { label: 'Iron Soup (25g)', action: 'buy_soup', cost: 25, itemId: 'food_soup' },
+                    { label: 'Speed Salad (20g)', action: 'buy_salad', cost: 20, itemId: 'food_salad' },
                     { label: 'More food...', action: 'next' },
                 ]
             },
             {
                 text: 'Here are my specialty dishes!', options: [
-                    { label: 'Golden Pie (50g) +CRIT', action: 'buy_pie', cost: 50 },
-                    { label: 'Berry Smoothie (30g) Regen', action: 'buy_smoothie', cost: 30 },
-                    { label: 'Battle Cookie (40g) +ATK+CRIT', action: 'buy_cookie', cost: 40 },
-                    { label: "Scholar's Tea (60g) +XP", action: 'buy_tea', cost: 60 },
-                    { label: 'Dragon Feast (100g) LEGENDARY', action: 'buy_feast', cost: 100 },
+                    { label: 'Golden Pie (50g)', action: 'buy_pie', cost: 50, itemId: 'food_pie' },
+                    { label: 'Berry Smoothie (30g)', action: 'buy_smoothie', cost: 30, itemId: 'food_smoothie' },
+                    { label: 'Battle Cookie (40g)', action: 'buy_cookie', cost: 40, itemId: 'food_cookie' },
+                    { label: "Scholar's Tea (60g)", action: 'buy_tea', cost: 60, itemId: 'food_tea' },
+                    { label: 'Dragon Feast (100g)', action: 'buy_feast', cost: 100, itemId: 'food_feast' },
                     { label: 'Leave', action: 'close' },
                 ]
             },
@@ -219,7 +220,7 @@ function createNPC(type: NPCType, x: number, y: number, floor: number): NPCState
         fishmonger: [
             {
                 text: 'Ahoy! Want a fishing rod? Head to the pond south side to fish. Fish heal and give buffs!', options: [
-                    { label: 'Buy Fishing Rod (50g)', action: 'buy_rod', cost: 50 },
+                    { label: 'Buy Fishing Rod (50g)', action: 'buy_rod', cost: 50, itemId: 'fishing_rod' },
                     { label: 'Leave', action: 'close' },
                 ]
             },
@@ -227,11 +228,30 @@ function createNPC(type: NPCType, x: number, y: number, floor: number): NPCState
         farmer: [
             {
                 text: 'Howdy! Buy seeds and plant them on the farm plots. Water them with a watering can for faster growth!', options: [
-                    { label: 'Watering Can (40g)', action: 'buy_can', cost: 40 },
-                    { label: 'Wheat Seed (5g)', action: 'buy_wheat_seed', cost: 5 },
-                    { label: 'Berry Seed (8g)', action: 'buy_berry_seed', cost: 8 },
-                    { label: 'Golden Seed (20g)', action: 'buy_golden_seed', cost: 20 },
-                    { label: 'Dragon Seed (50g)', action: 'buy_dragon_seed', cost: 50 },
+                    { label: 'Watering Can (40g)', action: 'buy_can', cost: 40, itemId: 'watering_can' },
+                    { label: 'Wheat Seed (5g)', action: 'buy_wheat_seed', cost: 5, itemId: 'wheat_seed' },
+                    { label: 'Berry Seed (8g)', action: 'buy_berry_seed', cost: 8, itemId: 'berry_seed' },
+                    { label: 'Golden Seed (20g)', action: 'buy_golden_seed', cost: 20, itemId: 'golden_seed' },
+                    { label: 'Dragon Seed (50g)', action: 'buy_dragon_seed', cost: 50, itemId: 'dragon_seed' },
+                    { label: 'Leave', action: 'close' },
+                ]
+            },
+        ],
+        blacksmith: [
+            {
+                text: '⚒️ Welcome to the forge! I sell weapons and can FORGE two weapons into one mighty creation! What\'ll it be?', options: [
+                    { label: 'Iron Sword (30g)', action: 'buy_iron_sword', cost: 30, itemId: 'iron_sword' },
+                    { label: 'Short Bow (25g)', action: 'buy_short_bow', cost: 25, itemId: 'short_bow' },
+                    { label: 'Bone Axe (20g)', action: 'buy_bone_axe', cost: 20, itemId: 'bone_axe' },
+                    { label: 'More weapons...', action: 'next' },
+                ]
+            },
+            {
+                text: '⚒️ My finer wares! Or step up to the forge and combine two weapons into something powerful!', options: [
+                    { label: 'Steel Sword (80g)', action: 'buy_steel_sword', cost: 80, itemId: 'steel_sword' },
+                    { label: 'War Axe (90g)', action: 'buy_war_axe', cost: 90, itemId: 'war_axe' },
+                    { label: 'Long Bow (75g)', action: 'buy_long_bow', cost: 75, itemId: 'long_bow' },
+                    { label: '🔥 OPEN THE FORGE!', action: 'open_forge' },
                     { label: 'Leave', action: 'close' },
                 ]
             },
@@ -410,6 +430,19 @@ export function generateTown(): DungeonFloor {
     for (let y = 21; y < 26; y++) { tiles[y][3] = 'FENCE'; tiles[y][12] = 'FENCE'; }
     // Path leading to farm gate
     for (let y = 14; y < 22; y++) { tiles[y][7] = 'PATH'; tiles[y][8] = 'PATH'; }
+
+    // ===== BLACKSMITH BUILDING (bottom right, 7x5 — bigger!) =====
+    for (let y = 20; y < 25; y++) for (let x = 20; x < 27; x++) tiles[y][x] = 'BUILDING';
+    tiles[20][23] = 'PATH'; // door
+    // Anvil marker next to building (just a path tile with anvil nearby)
+    tiles[19][23] = 'PATH';
+    tiles[19][22] = 'PATH'; tiles[19][24] = 'PATH';
+    // Path connecting blacksmith to main road
+    for (let y = 14; y < 20; y++) { tiles[y][23] = 'PATH'; tiles[y][24] = 'PATH'; }
+    // Decorative fence around blacksmith
+    tiles[25][20] = 'FENCE'; tiles[25][21] = 'FENCE'; tiles[25][22] = 'FENCE';
+    tiles[25][24] = 'FENCE'; tiles[25][25] = 'FENCE'; tiles[25][26] = 'FENCE';
+
     // Stairs back to dungeon (entry point)
     const stairsUp: Position = { x: 15, y: h - 3 };
     tiles[stairsUp.y][stairsUp.x] = 'STAIRS_DOWN';
@@ -422,6 +455,7 @@ export function generateTown(): DungeonFloor {
         createNPC('healer', 14, 12, 0),
         createNPC('merchant', 18, 12, 0),
         createNPC('sage', 16, 10, 0),
+        createNPC('blacksmith', 23, 18, 0),
     ];
     const explored = createBoolGrid(w, h, true);
     const visible = createBoolGrid(w, h, true);

@@ -2,7 +2,7 @@
 
 import type { PlayerState, EnemyState, DungeonFloor, Direction } from './types';
 import { spawnHitParticles, addFloatingText, spawnDeathParticles } from './particles';
-import { rollLoot } from './items';
+import { rollLoot, getBossWeapon } from './items';
 import { GameAudio } from './audio';
 
 let screenShake = 0;
@@ -81,6 +81,16 @@ export function playerAttack(player: PlayerState, floor: DungeonFloor, addMsg: (
                 if (loot) {
                     floor.items.push({ x: enemy.x, y: enemy.y, def: loot, count: 1 });
                     addMsg(`${enemy.type} dropped ${loot.name}!`, `msg-${loot.rarity}`);
+                }
+
+                // Boss weapon drop (guaranteed!)
+                if (enemy.isBoss) {
+                    const bossWeapon = getBossWeapon(player.floor);
+                    if (bossWeapon) {
+                        floor.items.push({ x: enemy.x + 1, y: enemy.y, def: bossWeapon, count: 1 });
+                        addMsg(`⚔️ BOSS DROP: ${bossWeapon.name}!`, 'msg-legendary');
+                        addFloatingText(enemy.px + 8, enemy.py - 8, '⚔️ BOSS LOOT!', '#e67e22');
+                    }
                 }
 
                 // Gold drop

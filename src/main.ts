@@ -19,6 +19,7 @@ import { initI18n, t } from './i18n';
 import { initSettings, loadSettings, isSettingsOpen, closeSettings, openSettings, isTutorialOpen, closeTutorial, openTutorial } from './settings';
 import { APP_VERSION } from './version';
 import { startFishing, fishingCatch, isFishingActive, updateFishingCooldown, interactWithCrop, updateCrops, getAdjacentFishSpot, getAdjacentCropTile, initTownActivities } from './town';
+import { isForgeOpen, initForge } from './forge';
 
 // Canvas setup
 const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
@@ -423,7 +424,7 @@ function update(dt: number): void {
   }
 
   // Block gameplay when overlays open
-  if (isInventoryOpen() || isDialogOpen() || isSettingsOpen() || isTutorialOpen()) return;
+  if (isInventoryOpen() || isDialogOpen() || isSettingsOpen() || isTutorialOpen() || isForgeOpen()) return;
 
   // Block movement during fishing (but still allow interact/tap to catch)
   if (isFishingActive()) {
@@ -1054,6 +1055,7 @@ function init(): void {
   initInput();
   initSettings(returnToHub);
   initTownActivities();
+  initForge();
 
   // Display version
   const versionLabel = `v${APP_VERSION}`;

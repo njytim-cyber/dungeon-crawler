@@ -7,6 +7,12 @@
   <title>Dungeon Crawler RPG</title>
   <meta name="description"
     content="A 2D top-down dungeon crawler RPG with 100 floors, 9 character classes, and procedurally generated dungeons.">
+  <meta name="theme-color" content="#0f0f23">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon-192.png">
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 </head>
 
@@ -32,6 +38,28 @@
       </div>
       <button id="fishing-catch-btn">🎣 CATCH!</button>
       <div id="fishing-result"></div>
+    </div>
+  </div>
+
+  <!-- Forge Overlay -->
+  <div id="forge-overlay" class="hidden">
+    <div id="forge-box">
+      <div id="forge-header">
+        <h2>⚒️ THE FORGE</h2>
+        <button id="forge-close-btn">✕</button>
+      </div>
+      <div id="forge-instruction">Select 2 weapons to combine into one mighty weapon!</div>
+      <div id="forge-selection">
+        <div id="forge-sel1-label" class="forge-sel-label">Select weapon 1</div>
+        <div class="forge-plus">+</div>
+        <div id="forge-sel2-label" class="forge-sel-label">Select weapon 2</div>
+        <div class="forge-equals">=</div>
+        <div class="forge-result-label">?</div>
+      </div>
+      <div id="forge-weapon-grid"></div>
+      <div id="forge-preview"></div>
+      <div id="forge-result-stats"></div>
+      <button id="forge-confirm-btn" class="hidden">🔥 FORGE!</button>
     </div>
   </div>
 
@@ -230,6 +258,15 @@
   </div>
 
   <script type="module" src="/src/main.ts"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(registration => console.log('SW registered: ', registration))
+          .catch(registrationError => console.log('SW registration failed: ', registrationError));
+      });
+    }
+  </script>
 </body>
 
 </html>

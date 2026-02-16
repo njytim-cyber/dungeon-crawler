@@ -530,78 +530,282 @@ function generateItemIcon(type: string, rarity: Rarity): HTMLCanvasElement {
 
     switch (type) {
         case 'sword':
-            ctx.fillStyle = '#95a5a6'; ctx.fillRect(7, 2, 2, 10);
-            ctx.fillStyle = '#7f8c8d'; ctx.fillRect(7, 2, 1, 10); // shading
-            ctx.fillStyle = rc; ctx.fillRect(5, 11, 6, 2); // hilt guard
-            ctx.fillStyle = '#5d4037'; ctx.fillRect(7, 13, 2, 2); // handle
+            // Blade
+            ctx.fillStyle = '#d5dfe3'; ctx.fillRect(7, 1, 2, 3);
+            ctx.fillStyle = '#bdc3c7'; ctx.fillRect(7, 4, 2, 4);
+            ctx.fillStyle = '#aab2b8'; ctx.fillRect(7, 8, 2, 3);
+            // Edge highlights
+            ctx.fillStyle = '#ecf0f1'; ctx.fillRect(7, 2, 1, 5);
+            ctx.fillStyle = '#95a5a6'; ctx.fillRect(8, 3, 1, 5);
+            // Tip
+            ctx.fillStyle = '#ecf0f1'; ctx.fillRect(7, 1, 2, 1);
+            // Guard
+            ctx.fillStyle = rc; ctx.fillRect(4, 11, 8, 2);
+            ctx.fillStyle = '#f1c40f'; ctx.fillRect(7, 11, 2, 2);
+            // Handle
+            ctx.fillStyle = '#5d4037'; ctx.fillRect(7, 13, 2, 2);
+            ctx.fillStyle = '#4a3728'; ctx.fillRect(7, 14, 2, 1);
+            // Pommel
+            ctx.fillStyle = rc; ctx.fillRect(7, 15, 2, 1);
+            break;
+        case 'axe':
+            // Handle (diagonal feel)
+            ctx.fillStyle = '#8d6e63'; ctx.fillRect(7, 5, 2, 10);
+            ctx.fillStyle = '#795548'; ctx.fillRect(7, 5, 1, 10);
+            // Axe head — curved blade
+            ctx.fillStyle = '#7f8c8d'; ctx.fillRect(3, 2, 5, 2);
+            ctx.fillStyle = '#95a5a6'; ctx.fillRect(2, 4, 6, 3);
+            ctx.fillStyle = '#aab2b8'; ctx.fillRect(3, 7, 5, 1);
+            // Blade edge
+            ctx.fillStyle = '#ecf0f1'; ctx.fillRect(2, 4, 1, 3);
+            // Inner detail
+            ctx.fillStyle = rc; ctx.fillRect(4, 3, 2, 1);
+            ctx.fillStyle = '#5d4037'; ctx.fillRect(7, 3, 1, 2); // where handle meets head
+            break;
+        case 'bow':
+            // Bow limbs — curved shape
+            ctx.fillStyle = '#8d6e63';
+            ctx.fillRect(4, 2, 2, 1); ctx.fillRect(3, 3, 2, 1);
+            ctx.fillRect(2, 4, 2, 3);
+            ctx.fillRect(3, 7, 2, 1); ctx.fillRect(4, 8, 2, 1);
+            ctx.fillRect(5, 9, 2, 1); ctx.fillRect(6, 10, 2, 1);
+            ctx.fillRect(7, 11, 2, 1); ctx.fillRect(8, 12, 2, 1);
+            ctx.fillRect(9, 13, 2, 1);
+            // String
+            ctx.fillStyle = '#ecf0f1';
+            ctx.fillRect(5, 2, 1, 1); ctx.fillRect(6, 3, 1, 1);
+            ctx.fillRect(7, 4, 1, 1); ctx.fillRect(8, 5, 1, 1);
+            ctx.fillRect(9, 6, 1, 1); ctx.fillRect(9, 7, 1, 1);
+            ctx.fillRect(9, 8, 1, 1); ctx.fillRect(9, 9, 1, 1);
+            ctx.fillRect(10, 10, 1, 1); ctx.fillRect(10, 11, 1, 1);
+            ctx.fillRect(10, 12, 1, 1); ctx.fillRect(10, 13, 1, 1);
+            // Arrow nocked
+            ctx.fillStyle = rc; ctx.fillRect(7, 6, 1, 3);
+            ctx.fillStyle = '#bdc3c7'; ctx.fillRect(7, 5, 1, 1); // arrowhead
+            break;
+        case 'dagger':
+            // Short blade
+            ctx.fillStyle = '#d5dfe3'; ctx.fillRect(7, 4, 2, 2);
+            ctx.fillStyle = '#bdc3c7'; ctx.fillRect(7, 6, 2, 3);
+            ctx.fillStyle = '#ecf0f1'; ctx.fillRect(7, 4, 1, 3);
+            // Guard
+            ctx.fillStyle = rc; ctx.fillRect(5, 9, 6, 1);
+            // Handle
+            ctx.fillStyle = '#5d4037'; ctx.fillRect(7, 10, 2, 3);
+            ctx.fillStyle = '#4a3728'; ctx.fillRect(7, 12, 2, 1);
+            break;
+        case 'staff':
+            // Shaft
+            ctx.fillStyle = '#6d4c41'; ctx.fillRect(7, 5, 2, 10);
+            ctx.fillStyle = '#5d4037'; ctx.fillRect(7, 5, 1, 10);
+            // Orb at top
+            ctx.fillStyle = rc;
+            ctx.beginPath(); ctx.arc(8, 4, 3, 0, Math.PI * 2); ctx.fill();
+            // Orb shine
+            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            ctx.fillRect(6, 2, 2, 2);
+            // Orb inner glow
+            ctx.fillStyle = 'rgba(255,255,255,0.2)';
+            ctx.beginPath(); ctx.arc(8, 4, 2, 0, Math.PI * 2); ctx.fill();
+            break;
+        case 'armor':
+            // Chestplate shape
+            ctx.fillStyle = rc;
+            ctx.fillRect(3, 4, 10, 3); // shoulders
+            ctx.fillRect(4, 7, 8, 5); // chest
+            ctx.fillRect(5, 12, 6, 2); // waist
+            // Collar
+            ctx.fillStyle = '#7f8c8d'; ctx.fillRect(6, 3, 4, 2);
+            // Detail line
+            ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(8, 5, 1, 7);
+            // Shine
+            ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(4, 5, 3, 4);
             break;
         case 'potion_hp':
-            ctx.fillStyle = 'rgba(231, 76, 60, 0.8)'; // Red liquid transparentish
-            ctx.beginPath(); ctx.arc(8, 9, 3, 0, Math.PI * 2); ctx.fill();
-            ctx.fillRect(7, 5, 2, 4); // neck
-            ctx.fillStyle = '#ecf0f1'; ctx.fillRect(7, 4, 2, 1); // cork
-            ctx.strokeStyle = '#ecf0f1'; ctx.lineWidth = 1; ctx.stroke();
+            // Flask bottle
+            ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.fillRect(6, 6, 4, 6); // glass
+            ctx.fillStyle = '#c0392b'; ctx.fillRect(7, 7, 2, 4); // liquid (red)
+            ctx.fillStyle = '#e74c3c'; ctx.fillRect(7, 8, 2, 2); // liquid light
+            // Neck
+            ctx.fillStyle = '#ecf0f1'; ctx.fillRect(7, 4, 2, 2);
+            // Cork
+            ctx.fillStyle = '#8d6e63'; ctx.fillRect(7, 3, 2, 1);
             break;
         case 'potion_mp':
-            ctx.fillStyle = 'rgba(52, 152, 219, 0.8)';
-            ctx.beginPath(); ctx.arc(8, 9, 3, 0, Math.PI * 2); ctx.fill();
-            ctx.fillRect(7, 5, 2, 4);
-            ctx.fillStyle = '#ecf0f1'; ctx.fillRect(7, 4, 2, 1);
+            ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.fillRect(6, 6, 4, 6);
+            ctx.fillStyle = '#2980b9'; ctx.fillRect(7, 7, 2, 4);
+            ctx.fillStyle = '#3498db'; ctx.fillRect(7, 8, 2, 2);
+            ctx.fillStyle = '#ecf0f1'; ctx.fillRect(7, 4, 2, 2);
+            ctx.fillStyle = '#8d6e63'; ctx.fillRect(7, 3, 2, 1);
             break;
         case 'key':
             ctx.fillStyle = '#f1c40f';
-            ctx.beginPath(); ctx.arc(6, 6, 3, 0, Math.PI * 2); ctx.stroke();
-            ctx.fillRect(6, 6, 2, 8);
-            ctx.fillRect(8, 10, 2, 2);
-            ctx.fillRect(8, 12, 2, 2);
+            // Bow (handle)
+            ctx.fillRect(5, 3, 6, 4); ctx.clearRect(7, 4, 2, 2);
+            // Shaft
+            ctx.fillRect(7, 7, 2, 7);
+            // Bits
+            ctx.fillRect(9, 11, 2, 1); ctx.fillRect(9, 13, 2, 1);
             break;
         case 'ring':
-            ctx.strokeStyle = rc;
-            ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.arc(8, 8, 4, 0, Math.PI * 2); ctx.stroke();
-            ctx.fillStyle = '#f1c40f'; // Gem
-            ctx.beginPath(); ctx.arc(8, 4, 1.5, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = rc; // Band color matches rarity
+            ctx.beginPath(); ctx.arc(8, 9, 5, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#0f0f23'; ctx.beginPath(); ctx.arc(8, 9, 3, 0, Math.PI * 2); ctx.fill();
+            // Gem
+            ctx.fillStyle = '#9b59b6'; ctx.fillRect(6, 3, 4, 4);
+            ctx.fillStyle = '#8e44ad'; ctx.fillRect(7, 4, 2, 2);
+            // Shine
+            ctx.fillStyle = '#fff'; ctx.fillRect(7, 3, 1, 1);
             break;
         case 'scroll':
-            ctx.fillStyle = '#f3e5ab';
-            ctx.fillRect(4, 3, 8, 10);
-            ctx.strokeStyle = '#d6cba1';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(4, 3, 8, 10);
-            // runes
-            ctx.fillStyle = rc;
-            ctx.fillRect(5, 5, 2, 1);
-            ctx.fillRect(8, 7, 2, 1);
-            ctx.fillRect(6, 9, 3, 1);
+            // Rolled paper
+            ctx.fillStyle = '#f5e6ca'; ctx.fillRect(4, 3, 8, 10);
+            // Shadow/roll
+            ctx.fillStyle = '#e6d0a1'; ctx.fillRect(11, 3, 1, 10); ctx.fillRect(4, 3, 1, 10);
+            // Seal/Ribbon
+            ctx.fillStyle = '#c0392b'; ctx.fillRect(4, 7, 8, 2);
+            ctx.fillStyle = '#e74c3c'; ctx.fillRect(7, 7, 2, 2); // Seal
             break;
-        // Food items
-        case 'food_bread': ctx.fillStyle = '#d4a347'; ctx.fillRect(4, 6, 8, 6); ctx.fillStyle = '#c4933a'; ctx.beginPath(); ctx.arc(8, 6, 4, Math.PI, 0); ctx.fill(); ctx.fillStyle = '#e8c170'; ctx.fillRect(5, 8, 2, 1); break;
-        case 'food_stew': ctx.fillStyle = '#8d6e63'; ctx.fillRect(3, 7, 10, 6); ctx.fillStyle = '#a1887f'; ctx.fillRect(3, 6, 10, 2); ctx.fillStyle = '#c0392b'; ctx.fillRect(5, 8, 6, 3); ctx.fillStyle = '#e67e22'; ctx.fillRect(6, 9, 2, 1); break;
-        case 'food_soup': ctx.fillStyle = '#795548'; ctx.fillRect(3, 7, 10, 6); ctx.fillStyle = '#8d6e63'; ctx.fillRect(3, 6, 10, 2); ctx.fillStyle = '#2ecc71'; ctx.fillRect(5, 8, 6, 3); break;
-        case 'food_salad': ctx.fillStyle = '#27ae60'; ctx.beginPath(); ctx.arc(8, 9, 4, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#2ecc71'; ctx.fillRect(5, 7, 2, 1); ctx.fillStyle = '#e74c3c'; ctx.fillRect(9, 8, 2, 1); ctx.fillStyle = '#f1c40f'; ctx.fillRect(7, 10, 2, 1); break;
-        case 'food_pie': ctx.fillStyle = '#d4a347'; ctx.beginPath(); ctx.arc(8, 9, 5, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#c4933a'; ctx.beginPath(); ctx.moveTo(8, 4); ctx.lineTo(13, 9); ctx.lineTo(8, 9); ctx.fill(); ctx.fillStyle = '#e8c170'; ctx.fillRect(6, 8, 4, 1); break;
-        case 'food_feast': ctx.fillStyle = '#8d6e63'; ctx.fillRect(2, 8, 12, 5); ctx.fillStyle = '#c0392b'; ctx.fillRect(4, 5, 8, 5); ctx.fillStyle = '#e67e22'; ctx.fillRect(5, 3, 6, 3); ctx.fillStyle = '#f1c40f'; ctx.fillRect(7, 2, 2, 2); break;
-        case 'food_smoothie': ctx.fillStyle = '#8e44ad'; ctx.beginPath(); ctx.arc(8, 9, 3, 0, Math.PI * 2); ctx.fill(); ctx.fillRect(7, 5, 2, 4); ctx.fillStyle = '#9b59b6'; ctx.fillRect(6, 5, 4, 1); ctx.fillStyle = '#ecf0f1'; ctx.fillRect(7, 4, 2, 1); break;
-        case 'food_cookie': ctx.fillStyle = '#d4a347'; ctx.beginPath(); ctx.arc(8, 8, 4, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#5d4037'; ctx.fillRect(6, 7, 1, 1); ctx.fillRect(9, 9, 1, 1); ctx.fillRect(7, 10, 1, 1); break;
-        case 'food_tea': ctx.fillStyle = '#ecf0f1'; ctx.fillRect(5, 6, 6, 7); ctx.fillStyle = '#27ae60'; ctx.fillRect(6, 7, 4, 4); ctx.fillStyle = '#bdc3c7'; ctx.fillRect(11, 8, 2, 2); ctx.fillRect(5, 5, 6, 1); break;
-        case 'food_wheat': ctx.fillStyle = '#d4a347'; ctx.fillRect(7, 3, 2, 10); ctx.fillStyle = '#e8c170'; ctx.fillRect(6, 2, 4, 3); ctx.fillRect(5, 4, 2, 2); ctx.fillRect(9, 4, 2, 2); break;
-        case 'food_berry': ctx.fillStyle = '#8e44ad'; ctx.beginPath(); ctx.arc(6, 9, 2, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(10, 8, 2, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(8, 11, 2, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#2ecc71'; ctx.fillRect(7, 5, 2, 3); break;
-        case 'food_golden': ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(8, 9, 4, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#f39c12'; ctx.beginPath(); ctx.arc(7, 8, 2, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#2ecc71'; ctx.fillRect(7, 4, 2, 3); break;
-        case 'food_dragon': ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(8, 9, 4, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#c0392b'; ctx.fillRect(5, 7, 6, 4); ctx.fillStyle = '#f39c12'; ctx.fillRect(7, 6, 2, 1); ctx.fillStyle = '#2ecc71'; ctx.fillRect(6, 4, 4, 2); break;
-        // Fish
-        case 'fish_small': ctx.fillStyle = '#7f8c8d'; ctx.beginPath(); ctx.ellipse(8, 8, 4, 2, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#222'; ctx.fillRect(5, 7, 1, 1); ctx.fillStyle = '#95a5a6'; ctx.beginPath(); ctx.moveTo(12, 8); ctx.lineTo(15, 6); ctx.lineTo(15, 10); ctx.fill(); break;
-        case 'fish_med': ctx.fillStyle = '#3498db'; ctx.beginPath(); ctx.ellipse(7, 8, 5, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#222'; ctx.fillRect(4, 7, 1, 1); ctx.fillStyle = '#2980b9'; ctx.beginPath(); ctx.moveTo(12, 8); ctx.lineTo(15, 5); ctx.lineTo(15, 11); ctx.fill(); break;
-        case 'fish_gold': ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.ellipse(7, 8, 5, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#e67e22'; ctx.fillRect(4, 6, 2, 4); ctx.fillStyle = '#222'; ctx.fillRect(4, 7, 1, 1); ctx.fillStyle = '#f39c12'; ctx.beginPath(); ctx.moveTo(12, 8); ctx.lineTo(15, 5); ctx.lineTo(15, 11); ctx.fill(); break;
-        case 'fish_phantom': ctx.fillStyle = 'rgba(155,89,182,0.7)'; ctx.beginPath(); ctx.ellipse(7, 8, 5, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#00ffff'; ctx.fillRect(4, 7, 1, 1); ctx.fillStyle = 'rgba(142,68,173,0.5)'; ctx.beginPath(); ctx.moveTo(12, 8); ctx.lineTo(15, 5); ctx.lineTo(15, 11); ctx.fill(); break;
-        case 'fish_koi': ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.ellipse(7, 8, 5, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#ecf0f1'; ctx.fillRect(5, 6, 3, 4); ctx.fillStyle = '#f1c40f'; ctx.fillRect(4, 7, 1, 1); ctx.fillStyle = '#c0392b'; ctx.beginPath(); ctx.moveTo(12, 8); ctx.lineTo(15, 5); ctx.lineTo(15, 11); ctx.fill(); break;
-        // Seeds
-        case 'seed': ctx.fillStyle = '#795548'; ctx.beginPath(); ctx.ellipse(8, 9, 2, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#4caf50'; ctx.fillRect(7, 5, 2, 3); break;
-        case 'seed_gold': ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.ellipse(8, 9, 2, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#4caf50'; ctx.fillRect(7, 5, 2, 3); break;
-        case 'seed_dragon': ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.ellipse(8, 9, 2, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#4caf50'; ctx.fillRect(7, 5, 2, 3); ctx.fillStyle = '#f39c12'; ctx.fillRect(8, 4, 1, 1); break;
-        // Tools
-        case 'tool_rod': ctx.fillStyle = '#8d6e63'; ctx.fillRect(3, 2, 2, 12); ctx.fillStyle = '#bdc3c7'; ctx.fillRect(3, 2, 2, 1); ctx.fillStyle = '#ecf0f1'; ctx.fillRect(5, 2, 6, 1); ctx.fillRect(11, 2, 1, 3); break;
-        case 'tool_can': ctx.fillStyle = '#3498db'; ctx.fillRect(4, 6, 8, 7); ctx.fillStyle = '#2980b9'; ctx.fillRect(4, 5, 8, 2); ctx.fillStyle = '#bdc3c7'; ctx.fillRect(12, 4, 3, 2); ctx.fillRect(13, 6, 1, 3); break;
-        default: // Armor, shield etc
+
+        /* === FOOD === */
+        case 'food_bread':
+            ctx.fillStyle = '#d35400'; ctx.beginPath(); ctx.ellipse(8, 9, 6, 4, 0, 0, Math.PI * 2); ctx.fill(); // Crust
+            ctx.fillStyle = '#e67e22'; ctx.beginPath(); ctx.ellipse(8, 8, 5, 3, 0, 0, Math.PI * 2); ctx.fill(); // Top
+            ctx.fillStyle = '#f39c12'; ctx.fillRect(6, 6, 1, 2); ctx.fillRect(9, 6, 1, 2); // Slashes
+            break;
+        case 'food_stew':
+            ctx.fillStyle = '#795548'; ctx.beginPath(); ctx.arc(8, 9, 6, 0, Math.PI, false); ctx.fill(); // Bowl
+            ctx.fillStyle = '#a1887f'; ctx.fillRect(2, 8, 12, 1); // Rim
+            ctx.fillStyle = '#d35400'; ctx.beginPath(); ctx.ellipse(8, 9, 5, 2, 0, 0, Math.PI * 2); ctx.fill(); // Stew
+            // Chunks
+            ctx.fillStyle = '#ecf0f1'; ctx.fillRect(7, 9, 2, 1); ctx.fillStyle = '#27ae60'; ctx.fillRect(9, 8, 1, 1);
+            break;
+        case 'food_soup':
+            ctx.fillStyle = '#5d4037'; ctx.beginPath(); ctx.arc(8, 9, 6, 0, Math.PI, false); ctx.fill();
+            ctx.fillStyle = '#8d6e63'; ctx.fillRect(2, 8, 12, 1);
+            ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.ellipse(8, 9, 5, 2, 0, 0, Math.PI * 2); ctx.fill(); // Yellow soup
+            break;
+        case 'food_salad':
+            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(8, 10, 6, 0, Math.PI, false); ctx.fill(); // Bowl
+            ctx.fillStyle = '#2ecc71'; ctx.beginPath(); ctx.arc(8, 8, 5, 0, Math.PI * 2); ctx.fill(); // Greens
+            ctx.fillStyle = '#e74c3c'; ctx.fillRect(7, 6, 2, 2); // Tomato
+            ctx.fillStyle = '#f1c40f'; ctx.fillRect(5, 8, 2, 2); // Corn?
+            break;
+        case 'food_pie':
+            ctx.fillStyle = '#bdc3c7'; ctx.beginPath(); ctx.ellipse(8, 10, 6, 3, 0, 0, Math.PI * 2); ctx.fill(); // Tin
+            ctx.fillStyle = '#e67e22'; ctx.beginPath(); ctx.ellipse(8, 9, 5, 2, 0, 0, Math.PI * 2); ctx.fill(); // Crust
+            ctx.fillStyle = '#d35400'; ctx.fillRect(6, 8, 4, 1); ctx.fillRect(8, 7, 1, 3); // Lattice
+            break;
+        case 'food_feast':
+            // Roast Chicken
+            ctx.fillStyle = '#d35400'; ctx.beginPath(); ctx.ellipse(8, 9, 5, 3, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ecf0f1'; ctx.fillRect(12, 8, 2, 1); // Bone
+            // Garnish
+            ctx.fillStyle = '#2ecc71'; ctx.fillRect(4, 10, 8, 2);
+            break;
+        case 'food_smoothie':
+            // Glass
+            ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(6, 5, 4, 8);
+            // Drink
+            ctx.fillStyle = '#9b59b6'; ctx.fillRect(6, 7, 4, 6);
+            // Straw
+            ctx.fillStyle = '#f1c40f'; ctx.fillRect(9, 2, 1, 6);
+            break;
+        case 'food_cookie':
+            ctx.fillStyle = '#d4a347'; ctx.beginPath(); ctx.arc(8, 8, 5, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#5d4037'; ctx.fillRect(6, 6, 1, 1); ctx.fillRect(9, 7, 1, 1); ctx.fillRect(7, 10, 1, 1); // Chips
+            break;
+        case 'food_tea':
+            ctx.fillStyle = '#fff'; ctx.fillRect(5, 6, 6, 7); // Cup
+            ctx.fillStyle = '#bdc3c7'; ctx.fillRect(11, 7, 2, 3); // Handle
+            ctx.fillStyle = '#27ae60'; ctx.fillRect(6, 7, 4, 1); // Tea
+            // Steam
+            ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.fillRect(7, 3, 1, 2); ctx.fillRect(9, 2, 1, 2);
+            break;
+        case 'food_wheat':
+            ctx.fillStyle = '#f1c40f'; ctx.fillRect(7, 2, 2, 12); // Stalk
+            ctx.fillStyle = '#f39c12';
+            ctx.beginPath(); ctx.ellipse(6, 4, 2, 1, 0.5, 0, 6.28); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(10, 5, 2, 1, -0.5, 0, 6.28); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(6, 7, 2, 1, 0.5, 0, 6.28); ctx.fill();
+            break;
+        case 'food_berry':
+            ctx.fillStyle = '#9b59b6';
+            ctx.beginPath(); ctx.arc(7, 9, 2.5, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(10, 10, 2.5, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#2ecc71'; ctx.fillRect(8, 6, 2, 2); // stem
+            break;
+        case 'food_golden':
+            ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(8, 8, 5, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#fff'; ctx.fillRect(6, 6, 2, 2); // Shine
+            ctx.fillStyle = '#2ecc71'; ctx.fillRect(7, 3, 2, 2); // Leaf
+            break;
+        case 'food_dragon':
+            ctx.fillStyle = '#c0392b'; ctx.beginPath(); ctx.arc(8, 9, 5, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#e74c3c'; ctx.fillRect(5, 7, 6, 4); // Scaly texture
+            ctx.fillStyle = '#f1c40f'; ctx.fillRect(7, 3, 2, 3); // Flame/Stem
+            break;
+
+        /* === FISH === */
+        case 'fish_small':
+            ctx.fillStyle = '#95a5a6'; ctx.beginPath(); ctx.ellipse(8, 8, 6, 3, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#7f8c8d'; ctx.beginPath(); ctx.moveTo(14, 8); ctx.lineTo(16, 5); ctx.lineTo(16, 11); ctx.fill();
+            ctx.fillStyle = '#000'; ctx.fillRect(5, 7, 1, 1);
+            break;
+        case 'fish_med':
+            ctx.fillStyle = '#3498db'; ctx.beginPath(); ctx.ellipse(8, 8, 7, 4, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#2980b9'; ctx.beginPath(); ctx.moveTo(15, 8); ctx.lineTo(16, 5); ctx.lineTo(16, 11); ctx.fill();
+            ctx.fillStyle = '#000'; ctx.fillRect(4, 7, 1, 1);
+            break;
+        case 'fish_gold':
+            ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.ellipse(8, 8, 7, 4, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#f39c12'; ctx.beginPath(); ctx.moveTo(15, 8); ctx.lineTo(16, 5); ctx.lineTo(16, 11); ctx.fill();
+            ctx.fillStyle = '#fff'; ctx.fillRect(5, 6, 2, 2); // Shine
+            ctx.fillStyle = '#000'; ctx.fillRect(4, 7, 1, 1);
+            break;
+        case 'fish_phantom':
+            ctx.fillStyle = 'rgba(155, 89, 182, 0.7)'; ctx.beginPath(); ctx.ellipse(8, 8, 7, 3, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(142, 68, 173, 0.7)'; ctx.beginPath(); ctx.moveTo(15, 8); ctx.lineTo(16, 5); ctx.lineTo(16, 11); ctx.fill();
+            ctx.fillStyle = '#fff'; ctx.fillRect(5, 7, 1, 1); // Ghost eye
+            break;
+        case 'fish_koi':
+            ctx.fillStyle = '#ecf0f1'; ctx.beginPath(); ctx.ellipse(8, 8, 7, 4, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(6, 8, 3, 0, Math.PI * 2); ctx.fill(); // Red spot
+            ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.moveTo(15, 8); ctx.lineTo(16, 5); ctx.lineTo(16, 11); ctx.fill();
+            ctx.fillStyle = '#000'; ctx.fillRect(4, 7, 1, 1);
+            break;
+
+        /* === SEEDS & TOOLS === */
+        case 'seed':
+        case 'seed_gold':
+        case 'seed_dragon':
+            // Packet
+            ctx.fillStyle = '#d7ccc8'; ctx.fillRect(4, 4, 8, 10);
+            ctx.fillStyle = '#a1887f'; ctx.strokeRect(4, 4, 8, 10);
+            // Icon on packet
+            ctx.fillStyle = type === 'seed_gold' ? '#f1c40f' : (type === 'seed_dragon' ? '#e74c3c' : '#8d6e63');
+            ctx.beginPath(); ctx.arc(8, 9, 2, 0, Math.PI * 2); ctx.fill();
+            break;
+
+        case 'tool_rod':
+            ctx.fillStyle = '#8d6e63';
+            ctx.beginPath(); ctx.moveTo(3, 14); ctx.lineTo(14, 3); ctx.stroke(); // Rod
+            ctx.lineWidth = 2; ctx.stroke();
+            ctx.fillStyle = '#bdc3c7'; ctx.fillRect(4, 12, 2, 2); // Reel
+            ctx.fillStyle = '#ecf0f1'; ctx.beginPath(); ctx.moveTo(14, 3); ctx.lineTo(14, 10); ctx.stroke(); // Line
+            ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(14, 11, 1, 0, Math.PI * 2); ctx.fill(); // Hook
+            break;
+
+        case 'tool_can':
+            ctx.fillStyle = '#95a5a6'; // Metal can
+            ctx.fillRect(5, 8, 8, 5); // Body
+            ctx.fillRect(11, 6, 2, 4); // Handle
+            ctx.fillRect(3, 6, 2, 3); // Spout
+            ctx.fillStyle = '#3498db'; ctx.fillRect(6, 9, 1, 4); // Water drop? No, label
+            break;
+
+        default:
+            // Fallback for armor/shield if missed (though they have cases)
             ctx.fillStyle = rc; ctx.fillRect(4, 4, 8, 8); ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(4, 4, 8, 1);
     }
     ctx.shadowBlur = 0;
@@ -618,6 +822,7 @@ function generateNPC(type: NPCType): HTMLCanvasElement {
         cook: { body: '#ecf0f1', head: '#f0ceab', hat: '#ecf0f1', hair: '#5d4037' },
         fishmonger: { body: '#2980b9', head: '#f0ceab', hat: '#1a5276', hair: '#d35400' },
         farmer: { body: '#27ae60', head: '#f0ceab', hat: '#d4a347', hair: '#795548' },
+        blacksmith: { body: '#4a3728', head: '#d4a574', hat: '#333', hair: '#222' },
     };
     const info = colors[type];
     ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(8, 30, 6, 2, 0, 0, Math.PI * 2); ctx.fill();
@@ -649,6 +854,19 @@ function generateNPC(type: NPCType): HTMLCanvasElement {
         // Pitchfork
         ctx.fillStyle = '#8d6e63'; ctx.fillRect(13, y, 1, 10);
         ctx.fillStyle = '#bdc3c7'; ctx.fillRect(12, y - 1, 3, 1);
+    } else if (type === 'blacksmith') {
+        // Leather apron (darker body)
+        ctx.fillStyle = '#5d4037'; ctx.fillRect(5, y + 2, 6, 10);
+        // Belt / strap
+        ctx.fillStyle = '#f1c40f'; ctx.fillRect(5, y + 4, 6, 1);
+        // Muscular arms
+        ctx.fillStyle = info.head; ctx.fillRect(3, y + 1, 2, 5); ctx.fillRect(11, y + 1, 2, 5);
+        // Hammer in right hand
+        ctx.fillStyle = '#8d6e63'; ctx.fillRect(13, y - 2, 1, 8); // handle
+        ctx.fillStyle = '#7f8c8d'; ctx.fillRect(12, y - 4, 3, 3); // head
+        ctx.fillStyle = '#95a5a6'; ctx.fillRect(12, y - 4, 3, 1); // shine
+        // Hair / bandana
+        ctx.fillStyle = '#c0392b'; ctx.fillRect(4, y - 9, 8, 2);
     } else {
         ctx.fillStyle = info.hat; ctx.fillRect(4, y - 7, 8, 2);
     }
@@ -739,7 +957,7 @@ export function initAssets(): void {
     });
 
     cache.npcs = {} as Record<NPCType, HTMLCanvasElement>;
-    (['merchant', 'healer', 'sage', 'cook', 'fishmonger', 'farmer'] as NPCType[]).forEach(t => {
+    (['merchant', 'healer', 'sage', 'cook', 'fishmonger', 'farmer', 'blacksmith'] as NPCType[]).forEach(t => {
         cache.npcs[t] = generateNPC(t);
     });
 }

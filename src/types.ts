@@ -17,7 +17,7 @@ export type ClassName = 'warrior' | 'mage' | 'rogue' | 'paladin' | 'ranger' | 'n
 
 export type EnemyType = 'slime' | 'skeleton' | 'bat' | 'ghost' | 'goblin' | 'spider' | 'orc' | 'demon' | 'wraith' | 'golem' | 'drake' | 'lich';
 
-export type NPCType = 'merchant' | 'healer' | 'sage' | 'cook' | 'fishmonger' | 'farmer';
+export type NPCType = 'merchant' | 'healer' | 'sage' | 'cook' | 'fishmonger' | 'farmer' | 'blacksmith';
 
 export interface Position {
     x: number;
@@ -60,6 +60,8 @@ export interface ItemDef {
     foodEffects?: FoodEffect[];  // custom food effects
     stackable?: boolean;
     value: number;
+    isBossWeapon?: boolean;  // dropped by bosses
+    isForged?: boolean;      // created at the forge
 }
 
 export interface InventoryItem {
@@ -167,6 +169,7 @@ export interface DialogOption {
     label: string;
     action: string; // 'close', 'heal', 'shop', 'next', 'hint', 'buy_*', 'fish', 'farm'
     cost?: number;
+    itemId?: string; // for shop rendering
 }
 
 export interface Room {

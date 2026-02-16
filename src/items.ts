@@ -166,6 +166,18 @@ const ITEMS: Record<string, ItemDef> = {
             { type: 'def_boost', value: 5, duration: 60 },
         ]
     },
+
+    // ============ BOSS WEAPONS (dropped by bosses every 10 floors) ============
+    slime_mace: { id: 'slime_mace', name: "Slime King's Mace", description: 'Drips with corrosive slime. Poisons foes.', category: 'weapon', rarity: 'rare', icon: 'axe', equipSlot: 'weapon', stats: { atk: 14, def: 2 }, value: 200, isBossWeapon: true },
+    shadow_reaper: { id: 'shadow_reaper', name: 'Shadow Reaper', description: 'Harvests souls in darkness.', category: 'weapon', rarity: 'rare', icon: 'sword', equipSlot: 'weapon', stats: { atk: 18, spd: 1, critChance: 0.1 }, value: 300, isBossWeapon: true },
+    thunder_hammer: { id: 'thunder_hammer', name: 'Thunder Hammer', description: 'Crackles with lightning.', category: 'weapon', rarity: 'rare', icon: 'axe', equipSlot: 'weapon', stats: { atk: 22, def: 4 }, value: 400, isBossWeapon: true },
+    void_scythe: { id: 'void_scythe', name: 'Void Scythe', description: 'Cuts through reality itself.', category: 'weapon', rarity: 'legendary', icon: 'sword', equipSlot: 'weapon', stats: { atk: 28, critChance: 0.15 }, value: 500, isBossWeapon: true },
+    inferno_blade: { id: 'inferno_blade', name: 'Inferno Blade', description: 'Burns with hellfire.', category: 'weapon', rarity: 'legendary', icon: 'sword', equipSlot: 'weapon', stats: { atk: 32, spd: 1 }, value: 600, isBossWeapon: true },
+    frost_maul: { id: 'frost_maul', name: 'Frost Maul', description: 'Freezes enemies solid.', category: 'weapon', rarity: 'legendary', icon: 'axe', equipSlot: 'weapon', stats: { atk: 26, def: 8, maxHp: 20 }, value: 550, isBossWeapon: true },
+    celestial_bow: { id: 'celestial_bow', name: 'Celestial Bow', description: 'Fires arrows of pure starlight.', category: 'weapon', rarity: 'legendary', icon: 'bow', equipSlot: 'weapon', stats: { atk: 30, spd: 2, critChance: 0.12 }, value: 650, isBossWeapon: true },
+    soul_staff: { id: 'soul_staff', name: 'Soul Staff', description: 'Channels the power of fallen souls.', category: 'weapon', rarity: 'legendary', icon: 'staff', equipSlot: 'weapon', stats: { atk: 24, maxHp: 50, def: 3 }, value: 600, isBossWeapon: true },
+    doom_dagger: { id: 'doom_dagger', name: 'Doom Dagger', description: 'One cut is all it takes.', category: 'weapon', rarity: 'legendary', icon: 'dagger', equipSlot: 'weapon', stats: { atk: 20, spd: 3, critChance: 0.25 }, value: 500, isBossWeapon: true },
+    world_ender: { id: 'world_ender', name: 'World Ender', description: 'The final weapon. Ends everything.', category: 'weapon', rarity: 'legendary', icon: 'sword', equipSlot: 'weapon', stats: { atk: 40, def: 10, maxHp: 30, spd: 1, critChance: 0.1 }, value: 1000, isBossWeapon: true },
 };
 
 export function getItemDef(id: string): ItemDef | undefined {
@@ -228,4 +240,28 @@ export function getRarityColor(rarity: Rarity): string {
         case 'rare': return '#3498db';
         case 'legendary': return '#e67e22';
     }
+}
+
+const BOSS_WEAPON_TIERS = [
+    'slime_mace',       // floor 10
+    'shadow_reaper',    // floor 20
+    'thunder_hammer',   // floor 30
+    'void_scythe',      // floor 40
+    'inferno_blade',    // floor 50
+    'frost_maul',       // floor 60
+    'celestial_bow',    // floor 70
+    'soul_staff',       // floor 80
+    'doom_dagger',      // floor 90
+    'world_ender',      // floor 100
+];
+
+export function getBossWeapon(floor: number): ItemDef | null {
+    const tierIndex = Math.floor(floor / 10) - 1;
+    const id = BOSS_WEAPON_TIERS[Math.min(tierIndex, BOSS_WEAPON_TIERS.length - 1)];
+    if (!id) return null;
+    return getItemDef(id) || null;
+}
+
+export function getWeaponsForForge(): ItemDef[] {
+    return Object.values(ITEMS).filter(i => i.category === 'weapon');
 }

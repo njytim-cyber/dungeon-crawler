@@ -1,0 +1,18 @@
+{
+    "name": "Dungeon Crawler RPG",
+    "short_name": "DungeonCrawler",
+    "description": "A 2D top-down dungeon crawler RPG with 100 floors, 9 classes, and procedurally generated dungeons.",
+    "start_url": "/",
+    "display": "standalone",
+    "orientation": "any",
+    "background_color": "#0f0f23",
+    "theme_color": "#0f0f23",
+    "icons": [
+        {
+            "src": "/icon.svg",
+            "sizes": "512x512",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ]
+}
