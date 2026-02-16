@@ -1,0 +1,321 @@
+// ===== DUNGEON GENERATOR =====
+// BSP-based procedural dungeon generation
+
+import type { TileType, Room, DungeonFloor, EnemyState, NPCState, Position, ChestState, DroppedItem, EnemyType, NPCType, DialogNode } from './types';
+import { getItemsByFloor } from './items';
+
+const MIN_ROOM_SIZE = 4;
+const MAX_ROOM_SIZE = 10;
+
+function createGrid(w: number, h: number, fill: TileType): TileType[][] {
+    return Array.from({ length: h }, () => Array(w).fill(fill));
+}
+
+function createBoolGrid(w: number, h: number, fill: boolean): boolean[][] {
+    return Array.from({ length: h }, () => Array(w).fill(fill));
+}
+
+interface BSPNode {
+    x: number; y: number; w: number; h: number;
+    left?: BSPNode; right?: BSPNode;
+    room?: Room;
+}
+
+function splitBSP(node: BSPNode, depth: number): void {
+    if (depth <= 0 || node.w < MIN_ROOM_SIZE * 2 + 2 || node.h < MIN_ROOM_SIZE * 2 + 2) return;
+
+    const splitH = node.w > node.h ? false : node.h > node.w ? true : Math.random() > 0.5;
+
+    if (splitH) {
+        const split = Math.floor(node.y + node.h * (0.3 + Math.random() * 0.4));
+        if (split - node.y < MIN_ROOM_SIZE + 1 || node.y + node.h - split < MIN_ROOM_SIZE + 1) return;
+        node.left = { x: node.x, y: node.y, w: node.w, h: split - node.y };
+        node.right = { x: node.x, y: split, w: node.w, h: node.y + node.h - split };
+    } else {
+        const split = Math.floor(node.x + node.w * (0.3 + Math.random() * 0.4));
+        if (split - node.x < MIN_ROOM_SIZE + 1 || node.x + node.w - split < MIN_ROOM_SIZE + 1) return;
+        node.left = { x: node.x, y: node.y, w: split - node.x, h: node.h };
+        node.right = { x: split, y: node.y, w: node.x + node.w - split, h: node.h };
+    }
+
+    splitBSP(node.left!, depth - 1);
+    splitBSP(node.right!, depth - 1);
+}
+
+function createRoomInNode(node: BSPNode): void {
+    if (node.left && node.right) {
+        createRoomInNode(node.left);
+        createRoomInNode(node.right);
+        return;
+    }
+
+    const rw = Math.min(MAX_ROOM_SIZE, Math.floor(MIN_ROOM_SIZE + Math.random() * (node.w - MIN_ROOM_SIZE - 1)));
+    const rh = Math.min(MAX_ROOM_SIZE, Math.floor(MIN_ROOM_SIZE + Math.random() * (node.h - MIN_ROOM_SIZE - 1)));
+    const rx = node.x + 1 + Math.floor(Math.random() * (node.w - rw - 1));
+    const ry = node.y + 1 + Math.floor(Math.random() * (node.h - rh - 1));
+
+    node.room = { x: rx, y: ry, w: rw, h: rh };
+}
+
+function getRoomCenter(room: Room): Position {
+    return { x: Math.floor(room.x + room.w / 2), y: Math.floor(room.y + room.h / 2) };
+}
+
+function getNodeRoom(node: BSPNode): Room | undefined {
+    if (node.room) return node.room;
+    if (node.left) {
+        const r = getNodeRoom(node.left);
+        if (r) return r;
+    }
+    if (node.right) {
+        const r = getNodeRoom(node.right);
+        if (r) return r;
+    }
+    return undefined;
+}
+
+function connectRooms(tiles: TileType[][], r1: Room, r2: Room): void {
+    const c1 = getRoomCenter(r1);
+    const c2 = getRoomCenter(r2);
+    let x = c1.x, y = c1.y;
+
+    while (x !== c2.x) {
+        if (y >= 0 && y < tiles.length && x >= 0 && x < tiles[0].length) {
+            if (tiles[y][x] === 'WALL') tiles[y][x] = 'FLOOR';
+            if (y + 1 < tiles.length && tiles[y + 1][x] === 'WALL') tiles[y + 1][x] = 'FLOOR';
+        }
+        x += x < c2.x ? 1 : -1;
+    }
+    while (y !== c2.y) {
+        if (y >= 0 && y < tiles.length && x >= 0 && x < tiles[0].length) {
+            if (tiles[y][x] === 'WALL') tiles[y][x] = 'FLOOR';
+            if (x + 1 < tiles[0].length && tiles[y][x + 1] === 'WALL') tiles[y][x + 1] = 'FLOOR';
+        }
+        y += y < c2.y ? 1 : -1;
+    }
+}
+
+function connectBSP(tiles: TileType[][], node: BSPNode): void {
+    if (!node.left || !node.right) return;
+    connectBSP(tiles, node.left);
+    connectBSP(tiles, node.right);
+    const r1 = getNodeRoom(node.left);
+    const r2 = getNodeRoom(node.right);
+    if (r1 && r2) connectRooms(tiles, r1, r2);
+}
+
+function collectRooms(node: BSPNode, rooms: Room[]): void {
+    if (node.room) rooms.push(node.room);
+    if (node.left) collectRooms(node.left, rooms);
+    if (node.right) collectRooms(node.right, rooms);
+}
+
+const ENEMY_POOL_BY_DEPTH: EnemyType[][] = [
+    ['slime', 'bat'],                          // 1-10
+    ['slime', 'bat', 'goblin', 'skeleton'],    // 11-20
+    ['goblin', 'skeleton', 'spider'],          // 21-30
+    ['skeleton', 'spider', 'orc'],             // 31-40
+    ['spider', 'orc', 'ghost'],               // 41-50
+    ['orc', 'ghost', 'wraith'],               // 51-60
+    ['ghost', 'wraith', 'golem'],             // 61-70
+    ['wraith', 'golem', 'demon'],             // 71-80
+    ['golem', 'demon', 'drake'],              // 81-90
+    ['demon', 'drake', 'lich'],               // 91-100
+];
+
+function getEnemyPool(floor: number): EnemyType[] {
+    const idx = Math.min(Math.floor((floor - 1) / 10), ENEMY_POOL_BY_DEPTH.length - 1);
+    return ENEMY_POOL_BY_DEPTH[idx];
+}
+
+function createEnemy(type: EnemyType, x: number, y: number, floor: number, isBoss: boolean): EnemyState {
+    const scale = 1 + floor * 0.08;
+    const baseStats: Record<EnemyType, { hp: number; atk: number; def: number; spd: number; xp: number }> = {
+        slime: { hp: 15, atk: 3, def: 1, spd: 0.5, xp: 5 },
+        bat: { hp: 10, atk: 4, def: 0, spd: 1.2, xp: 4 },
+        skeleton: { hp: 25, atk: 6, def: 3, spd: 0.6, xp: 10 },
+        goblin: { hp: 20, atk: 5, def: 2, spd: 0.8, xp: 8 },
+        spider: { hp: 18, atk: 7, def: 2, spd: 1.0, xp: 12 },
+        ghost: { hp: 30, atk: 8, def: 4, spd: 0.7, xp: 15 },
+        orc: { hp: 40, atk: 10, def: 6, spd: 0.5, xp: 20 },
+        wraith: { hp: 35, atk: 12, def: 3, spd: 0.9, xp: 25 },
+        golem: { hp: 60, atk: 14, def: 12, spd: 0.3, xp: 35 },
+        demon: { hp: 50, atk: 16, def: 8, spd: 0.7, xp: 40 },
+        drake: { hp: 70, atk: 18, def: 10, spd: 0.6, xp: 50 },
+        lich: { hp: 55, atk: 20, def: 6, spd: 0.8, xp: 60 },
+    };
+
+    const base = baseStats[type];
+    const bossMultiplier = isBoss ? 5 : 1;
+
+    return {
+        type,
+        x, y,
+        px: x * 16, py: y * 16,
+        hp: Math.floor(base.hp * scale * bossMultiplier),
+        maxHp: Math.floor(base.hp * scale * bossMultiplier),
+        atk: Math.floor(base.atk * scale * bossMultiplier * 0.7),
+        def: Math.floor(base.def * scale * (isBoss ? 2 : 1)),
+        spd: base.spd,
+        moveTimer: 0,
+        animFrame: 0,
+        animTimer: 0,
+        alive: true,
+        isBoss,
+        bossFloor: isBoss ? floor : 0,
+        aggroRange: isBoss ? 12 : 6,
+        dropTable: getItemsByFloor(floor),
+        xpReward: Math.floor(base.xp * scale * (isBoss ? 10 : 1)),
+    };
+}
+
+function createNPC(type: NPCType, x: number, y: number, floor: number): NPCState {
+    const names: Record<NPCType, string> = {
+        merchant: 'Travelling Merchant',
+        healer: 'Wandering Healer',
+        sage: 'Ancient Sage',
+    };
+
+    const dialogs: Record<NPCType, DialogNode[]> = {
+        merchant: [
+            { text: `Welcome, adventurer! I have wares that might interest you. Floor ${floor} is dangerous...`, options: [{ label: 'Buy Health Potion (10g)', action: 'buy_hp', cost: 10 }, { label: 'Leave', action: 'close' }] },
+        ],
+        healer: [
+            { text: 'You look weary, traveler. Let me restore your strength.', options: [{ label: 'Heal me (free)', action: 'heal' }, { label: 'Leave', action: 'close' }] },
+        ],
+        sage: [
+            { text: `You have reached floor ${floor}. ${floor < 50 ? 'The deeper you go, the stronger the enemies.' : 'Few have ventured this deep. Be careful.'}`, options: [{ label: 'Any advice?', action: 'hint' }, { label: 'Leave', action: 'close' }] },
+        ],
+    };
+
+    return {
+        type, x, y,
+        name: names[type],
+        dialog: dialogs[type],
+        currentDialog: 0,
+    };
+}
+
+export function generateFloor(floor: number): DungeonFloor {
+    const w = 40 + Math.floor(floor * 0.3);
+    const h = 30 + Math.floor(floor * 0.2);
+    const tiles = createGrid(w, h, 'WALL');
+
+    const root: BSPNode = { x: 0, y: 0, w, h };
+    const depth = 4 + Math.floor(Math.random() * 2);
+    splitBSP(root, depth);
+    createRoomInNode(root);
+    const rooms: Room[] = [];
+    collectRooms(root, rooms);
+
+    // Carve rooms
+    rooms.forEach(room => {
+        for (let ry = room.y; ry < room.y + room.h; ry++) {
+            for (let rx = room.x; rx < room.x + room.w; rx++) {
+                if (ry > 0 && ry < h - 1 && rx > 0 && rx < w - 1) {
+                    tiles[ry][rx] = 'FLOOR';
+                }
+            }
+        }
+    });
+
+    // Connect rooms
+    connectBSP(tiles, root);
+
+    // Place stairs
+    const firstRoom = rooms[0];
+    const lastRoom = rooms[rooms.length - 1];
+    const stairsUp: Position = getRoomCenter(firstRoom);
+    const stairsDown: Position = getRoomCenter(lastRoom);
+    tiles[stairsUp.y][stairsUp.x] = 'STAIRS_UP';
+    tiles[stairsDown.y][stairsDown.x] = 'STAIRS_DOWN';
+
+    // Place chests
+    const chests: ChestState[] = [];
+    const chestCount = 1 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < chestCount && rooms.length > 2; i++) {
+        const room = rooms[1 + Math.floor(Math.random() * (rooms.length - 2))];
+        const cx = room.x + 1 + Math.floor(Math.random() * (room.w - 2));
+        const cy = room.y + 1 + Math.floor(Math.random() * (room.h - 2));
+        if (tiles[cy][cx] === 'FLOOR') {
+            tiles[cy][cx] = 'CHEST';
+            chests.push({ x: cx, y: cy, opened: false });
+        }
+    }
+
+    // Place traps
+    const trapCount = Math.floor(floor * 0.3 + Math.random() * 3);
+    for (let i = 0; i < trapCount; i++) {
+        const room = rooms[Math.floor(Math.random() * rooms.length)];
+        const tx = room.x + 1 + Math.floor(Math.random() * (room.w - 2));
+        const ty = room.y + 1 + Math.floor(Math.random() * (room.h - 2));
+        if (tiles[ty][tx] === 'FLOOR') {
+            tiles[ty][tx] = 'TRAP';
+        }
+    }
+
+    // Place doors at corridor entrances (simplified)
+    for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+            if (tiles[y][x] === 'FLOOR') {
+                const horizDoor = tiles[y][x - 1] === 'WALL' && tiles[y][x + 1] === 'WALL' && tiles[y - 1][x] === 'FLOOR' && tiles[y + 1][x] === 'FLOOR';
+                const vertDoor = tiles[y - 1][x] === 'WALL' && tiles[y + 1][x] === 'WALL' && tiles[y][x - 1] === 'FLOOR' && tiles[y][x + 1] === 'FLOOR';
+                if ((horizDoor || vertDoor) && Math.random() < 0.25) {
+                    tiles[y][x] = 'DOOR';
+                }
+            }
+        }
+    }
+
+    // Spawn enemies
+    const enemies: EnemyState[] = [];
+    const enemyCount = 3 + Math.floor(floor * 0.5 + Math.random() * 5);
+    const pool = getEnemyPool(floor);
+
+    for (let i = 0; i < enemyCount; i++) {
+        const room = rooms[1 + Math.floor(Math.random() * (rooms.length - 1))];
+        const ex = room.x + 1 + Math.floor(Math.random() * (room.w - 2));
+        const ey = room.y + 1 + Math.floor(Math.random() * (room.h - 2));
+        if (tiles[ey][ex] === 'FLOOR') {
+            const type = pool[Math.floor(Math.random() * pool.length)];
+            enemies.push(createEnemy(type, ex, ey, floor, false));
+        }
+    }
+
+    // Boss every 10 floors
+    if (floor % 10 === 0 && rooms.length > 1) {
+        const bossRoom = rooms[rooms.length - 1];
+        const bc = getRoomCenter(bossRoom);
+        // Boss is placed near stairs down
+        const bx = Math.min(bc.x + 2, bossRoom.x + bossRoom.w - 2);
+        const by = bc.y;
+        if (tiles[by][bx] === 'FLOOR') {
+            const bossPool = getEnemyPool(floor);
+            const bossType = bossPool[bossPool.length - 1]; // strongest type for this range
+            enemies.push(createEnemy(bossType, bx, by, floor, true));
+        }
+    }
+
+    // Spawn NPCs (one per floor, random type)
+    const npcs: NPCState[] = [];
+    if (rooms.length > 2 && Math.random() < 0.4) {
+        const npcRoom = rooms[1 + Math.floor(Math.random() * (rooms.length - 2))];
+        const nc = getRoomCenter(npcRoom);
+        const npcTypes: NPCType[] = ['merchant', 'healer', 'sage'];
+        const npcType = npcTypes[Math.floor(Math.random() * npcTypes.length)];
+        npcs.push(createNPC(npcType, nc.x, nc.y, floor));
+    }
+
+    const explored = createBoolGrid(w, h, false);
+    const visible = createBoolGrid(w, h, false);
+
+    return {
+        width: w, height: h, tiles, rooms, explored, visible,
+        enemies, npcs, items: [] as DroppedItem[], stairsDown, stairsUp, chests,
+    };
+}
+
+export function isWalkable(tiles: TileType[][], x: number, y: number): boolean {
+    if (y < 0 || y >= tiles.length || x < 0 || x >= tiles[0].length) return false;
+    return tiles[y][x] !== 'WALL';
+}
