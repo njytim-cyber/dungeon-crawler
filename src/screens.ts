@@ -22,15 +22,41 @@ export function getClassDef(name: ClassName): ClassDef {
 
 export function getSelectedClass(): ClassName | null { return selectedClass; }
 
-export function initTitleScreen(onStart: (className: ClassName) => void, hasSave: boolean, saveFloor: number): void {
+// Update signature to include SaveData for better continue button info
+export function initTitleScreen(onStart: (className: ClassName, name?: string) => void, hasSave: boolean, saveData?: any): void {
+    const mainMenu = document.getElementById('main-menu')!;
+    const classSelect = document.getElementById('class-select')!;
     const classGrid = document.getElementById('class-grid')!;
     const classDesc = document.getElementById('class-description')!;
-    const startBtn = document.getElementById('start-btn')!;
+    const startRunBtn = document.getElementById('start-run-btn') as HTMLButtonElement;
+    const backBtn = document.getElementById('back-to-menu-btn')!;
     const continueBtn = document.getElementById('continue-btn')!;
-    const saveFloorSpan = document.getElementById('save-floor')!;
+    const newGameBtn = document.getElementById('new-game-btn')!;
+    const nameInput = document.getElementById('player-name-input') as HTMLInputElement;
 
+    // Reset UI state
+    document.getElementById('title-screen')!.classList.remove('hidden');
+    mainMenu.classList.remove('hidden');
+    classSelect.classList.add('hidden');
     classGrid.innerHTML = '';
+    selectedClass = null;
+    startRunBtn.classList.add('hidden');
+    startRunBtn.disabled = true;
+    nameInput.value = '';
 
+    const checkStartEnabled = () => {
+        const nameValid = nameInput.value.trim().length > 0;
+        if (selectedClass && nameValid) {
+            startRunBtn.classList.remove('hidden');
+            startRunBtn.disabled = false;
+        } else {
+            startRunBtn.disabled = true;
+        }
+    };
+
+    nameInput.oninput = () => checkStartEnabled();
+
+    // Populate Class Grid
     CLASS_DEFS.forEach(cls => {
         const card = document.createElement('div');
         card.className = 'class-card';
@@ -40,25 +66,44 @@ export function initTitleScreen(onStart: (className: ClassName) => void, hasSave
             card.classList.add('selected');
             selectedClass = cls.name;
             classDesc.textContent = `${cls.description} | HP:${cls.baseStats.hp} ATK:${cls.baseStats.atk} DEF:${cls.baseStats.def} SPD:${cls.baseStats.spd} CRIT:${Math.floor(cls.baseStats.critChance * 100)}%`;
-            startBtn.classList.remove('hidden');
+            checkStartEnabled();
         });
         classGrid.appendChild(card);
     });
 
-    startBtn.addEventListener('click', () => {
-        if (selectedClass) {
-            document.getElementById('title-screen')!.classList.add('hidden');
-            onStart(selectedClass);
-        }
-    });
+    // New Game -> Show Class Select
+    newGameBtn.onclick = () => {
+        mainMenu.classList.add('hidden');
+        classSelect.classList.remove('hidden');
+        nameInput.focus();
+    };
 
-    if (hasSave) {
+    // Back -> Show Main Menu
+    backBtn.onclick = () => {
+        classSelect.classList.add('hidden');
+        mainMenu.classList.remove('hidden');
+    };
+
+    // Start Run
+    startRunBtn.onclick = () => {
+        if (selectedClass && nameInput.value.trim().length > 0) {
+            document.getElementById('title-screen')!.classList.add('hidden');
+            onStart(selectedClass, nameInput.value.trim());
+        }
+    };
+
+    // Continue
+    if (hasSave && saveData && saveData.player) {
         continueBtn.classList.remove('hidden');
-        saveFloorSpan.textContent = `${saveFloor}`;
-        continueBtn.addEventListener('click', () => {
+        const p = saveData.player;
+        // e.g. "Continue (Conan - Warrior Lv.5 - Floor 3)"
+        continueBtn.innerHTML = `Continue<br><span style="font-size: 0.6em; color: #aaa;">${p.name || 'Unknown'} (${p.className} Lv.${p.level}) - Floor ${saveData.floor}</span>`;
+        continueBtn.onclick = () => {
             document.getElementById('title-screen')!.classList.add('hidden');
             onStart('__continue__' as ClassName);
-        });
+        };
+    } else {
+        continueBtn.classList.add('hidden');
     }
 }
 

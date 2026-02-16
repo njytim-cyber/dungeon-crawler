@@ -58,6 +58,7 @@ export interface Equipment {
 }
 
 export interface PlayerState {
+    name: string;
     className: ClassName;
     x: number;
     y: number;
@@ -84,6 +85,7 @@ export interface PlayerState {
     totalKills: number;
     totalDamageDealt: number;
     totalFloorsCleared: number;
+    maxReachedFloor: number;
 }
 
 export interface EnemyState {

@@ -17,8 +17,12 @@ let dialogOpen = false;
 
 export function isDialogOpen(): boolean { return dialogOpen; }
 
-export function openDialog(npc: NPCState, player: PlayerState): void {
+
+let currentActionCallback: ((action: string) => void) | undefined;
+
+export function openDialog(npc: NPCState, player: PlayerState, onAction?: (action: string) => void): void {
     dialogOpen = true;
+    currentActionCallback = onAction;
 
     GameAudio.npcGreet();
     showDialogNode(npc, npc.currentDialog, player);
@@ -27,6 +31,7 @@ export function openDialog(npc: NPCState, player: PlayerState): void {
 
 export function closeDialog(): void {
     dialogOpen = false;
+    currentActionCallback = undefined;
     dialogEl.classList.add('hidden');
 }
 
@@ -47,6 +52,10 @@ function showDialogNode(npc: NPCState, index: number, player: PlayerState): void
 }
 
 function handleDialogAction(action: string, cost: number | undefined, npc: NPCState, player: PlayerState): void {
+    if (currentActionCallback) {
+        currentActionCallback(action);
+    }
+
     switch (action) {
         case 'close':
             closeDialog();

@@ -79,11 +79,12 @@ function showDamageFlash(): void {
 }
 
 // ===== CREATE PLAYER =====
-function createPlayer(className: ClassName): PlayerState {
+function createPlayer(className: ClassName, name: string): PlayerState {
   const classDef = getClassDef(className);
   const stats = { ...classDef.baseStats };
 
   return {
+    name,
     className,
     x: 0, y: 0,
     px: 0, py: 0,
@@ -108,6 +109,7 @@ function createPlayer(className: ClassName): PlayerState {
     totalKills: 0,
     totalDamageDealt: 0,
     totalFloorsCleared: 0,
+    maxReachedFloor: 1,
   };
 }
 
@@ -193,6 +195,10 @@ function generateHubFloor(): DungeonFloor {
 
 // ===== FLOOR TRANSITION =====
 function enterFloor(floor: number): void {
+  if (floor > 0 && floor > player.maxReachedFloor) {
+    player.maxReachedFloor = floor;
+  }
+
   if (floor === 0) {
     currentFloor = generateHubFloor();
   } else {
@@ -229,9 +235,11 @@ function enterFloor(floor: number): void {
 function saveGame(): void {
   const data: SaveData = {
     player: {
+      name: player.name,
       className: player.className,
       level: player.level,
       floor: player.floor,
+      maxReachedFloor: player.maxReachedFloor,
       xp: player.xp,
       xpToLevel: player.xpToLevel,
       gold: player.gold,
@@ -261,8 +269,11 @@ function loadSave(): SaveData | null {
 
 function loadGame(data: SaveData): void {
   const p = data.player;
-  player = createPlayer(p.className!);
+  player = createPlayer(p.className!, p.name || 'Hero');
   Object.assign(player, p);
+  // Ensure maxReachedFloor satisfies constraint
+  if (!player.maxReachedFloor) player.maxReachedFloor = player.floor || 1;
+
   player.alive = true;
 
   // Restore hotbar from save data (fix: preserve hotbar)
@@ -287,7 +298,7 @@ function loadGame(data: SaveData): void {
 }
 
 // ===== START GAME =====
-function startGame(className: ClassName): void {
+function startGame(className: ClassName, name?: string): void {
   GameAudio.init();
 
   if (className === '__continue__' as ClassName) {
@@ -304,7 +315,7 @@ function startGame(className: ClassName): void {
     }
   }
 
-  player = createPlayer(className);
+  player = createPlayer(className, name || 'Hero');
   gameState = 'PLAYING';
   showHUD();
 
@@ -341,7 +352,7 @@ function resetGame(): void {
   GameAudio.stopAmbient();
 
   const save = loadSave();
-  initTitleScreen(startGame, !!save, save?.floor || 1);
+  initTitleScreen(startGame, !!save, save);
 }
 
 // ===== UPDATE =====
@@ -415,12 +426,46 @@ function update(dt: number): void {
         // Check tile interactions
         const tile = currentFloor.tiles[ny][nx];
         if (tile === 'STAIRS_DOWN') {
-          if (player.floor >= 100) {
-            gameState = 'VICTORY';
-            showVictory(player, resetGame);
+          if (player.floor === 0) {
+            // Hub stairs logic
+            if (player.maxReachedFloor > 1) {
+              // Dialog to choose floor
+              openDialog({
+                type: 'sage', // Just for icon
+                name: 'Dungeon Entrance',
+                x: 0, y: 0,
+                currentDialog: 0,
+                dialog: [{
+                  text: `Return to safest camp at floor ${player.maxReachedFloor} or start over?`,
+                  options: [
+                    { label: `Floor ${player.maxReachedFloor}`, action: 'enter_max' },
+                    { label: 'Floor 1', action: 'enter_1' },
+                    { label: 'Cancel', action: 'close' }
+                  ]
+                }]
+              }, player, (action) => {
+                if (action === 'enter_max') {
+                  enterFloor(player.maxReachedFloor);
+                  closeDialog();
+                } else if (action === 'enter_1') {
+                  enterFloor(1);
+                  closeDialog();
+                }
+              });
+              // Step back to avoid immediate re-trigger?
+              // Actually if dialog opens, input is blocked, so handling it is fine.
+            } else {
+              enterFloor(1);
+            }
           } else {
-            player.totalFloorsCleared++;
-            enterFloor(player.floor + 1);
+            // Normal dungeon
+            if (player.floor >= 100) {
+              gameState = 'VICTORY';
+              showVictory(player, resetGame);
+            } else {
+              player.totalFloorsCleared++;
+              enterFloor(player.floor + 1);
+            }
           }
         } else if (tile === 'STAIRS_UP') {
           // Go to hub or previous floor
@@ -673,12 +718,14 @@ function render(): void {
     const sy = npc.y * tileSize - camY;
     const sprite = Assets.getNPC(npc.type);
     if (sprite) {
-      ctx.drawImage(sprite, sx, sy, tileSize, tileSize);
+      // Offset Y by -16 (tileSize) because sprite is 32px tall
+      ctx.drawImage(sprite, sx, sy - tileSize, tileSize, tileSize * 2);
+
       // Name tag
       ctx.fillStyle = '#f1c40f';
       ctx.font = '6px "Press Start 2P"';
       ctx.textAlign = 'center';
-      ctx.fillText(npc.name, sx + tileSize / 2, sy - 4);
+      ctx.fillText(npc.name, sx + tileSize / 2, sy - tileSize - 4);
       ctx.textAlign = 'left';
     }
   });
@@ -699,6 +746,10 @@ function render(): void {
     } else {
       const sprite = Assets.getEnemy(enemy.type, enemy.animFrame);
       if (sprite) {
+        // Enemies are still 16x16 for now, or 16x32?
+        // Assets.ts says generic enemies are 16x16 centered in 16x16 canvas.
+        // Wait, I updated generateEnemy to be 16x16 on a 16x16 canvas in the last edit? 
+        // No, I kept them 16x16. 
         ctx.drawImage(sprite, sx, sy, tileSize, tileSize);
       }
     }
@@ -741,7 +792,12 @@ function render(): void {
 
     const sprite = Assets.getPlayer(player.className, player.dir, player.animFrame);
     if (sprite) {
-      ctx.drawImage(sprite, psx, psy, tileSize, tileSize);
+      // Draw player 1x2 (width=32 (upscaled?), height=64? No tileSize is 32)
+      // Original: 16x16 tile size. 
+      // Sprite: 16x32 pixels.
+      // Canvas draw: width=tileSize, height=tileSize*2
+      // Offset y: -tileSize
+      ctx.drawImage(sprite, psx, psy - tileSize, tileSize, tileSize * 2);
     }
 
     ctx.globalAlpha = 1;
@@ -756,7 +812,7 @@ function render(): void {
     }
 
     // Torch ember particles
-    spawnTorchEmbers(player.px + 8, player.py - 4);
+    spawnTorchEmbers(player.px + 8, player.py - 12); // Higher for taller sprite
   }
 
   // Lighting / fog of war (skip on hub — always lit)
@@ -802,7 +858,7 @@ function init(): void {
 
   // Check for save
   const save = loadSave();
-  initTitleScreen(startGame, !!save, save?.floor || 1);
+  initTitleScreen(startGame, !!save, save);
 
   requestAnimationFrame(gameLoop);
 }

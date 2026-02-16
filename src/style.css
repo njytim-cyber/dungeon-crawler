@@ -907,6 +907,9 @@ canvas#gameCanvas {
 }
 
 #start-btn,
+#start-run-btn,
+#new-game-btn,
+#back-to-menu-btn,
 #continue-btn,
 #retry-btn,
 #victory-retry-btn {
@@ -921,6 +924,31 @@ canvas#gameCanvas {
   transition: all 0.2s;
   margin: 4px;
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.3);
+}
+
+#main-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+#class-actions {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+#back-to-menu-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid #555;
+}
+
+#back-to-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: #888;
 }
 
 #start-btn:hover,

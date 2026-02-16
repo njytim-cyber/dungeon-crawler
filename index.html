@@ -150,14 +150,26 @@
     <div id="title-content">
       <h1 id="game-title">⚔️ DUNGEON CRAWLER</h1>
       <p id="game-subtitle">Descend into the depths...</p>
-      <div id="class-select">
-        <h2>Choose Your Class</h2>
-        <div id="class-grid"></div>
-        <div id="class-description"></div>
+
+      <div id="main-menu">
+        <button id="continue-btn" class="hidden">Continue (Floor <span id="save-floor">1</span>)</button>
+        <button id="new-game-btn">New Game</button>
+        <button id="title-settings-btn">⚙️ Settings</button>
       </div>
-      <button id="start-btn" class="hidden">Begin Adventure</button>
-      <button id="continue-btn" class="hidden">Continue (Floor <span id="save-floor">1</span>)</button>
-      <button id="title-settings-btn">⚙️ Settings</button>
+
+      <div id="class-select" class="hidden">
+        <h2>Choose Your Class</h2>
+        <div id="name-input-container" style="text-align: center; margin-bottom: 1rem;">
+          <input type="text" id="player-name-input" placeholder="Enter Name" maxlength="12"
+            style="padding: 8px; font-family: 'Press Start 2P'; font-size: 12px; width: 200px; text-align: center;">
+        </div>
+        <div id="class-grid"></div>
+        <div id="class-description">Select a class to see details</div>
+        <div id="class-actions">
+          <button id="start-run-btn" class="hidden" disabled>Begin Adventure</button>
+          <button id="back-to-menu-btn">Back</button>
+        </div>
+      </div>
     </div>
   </div>
 
