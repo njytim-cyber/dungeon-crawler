@@ -79,6 +79,7 @@
           <span id="level-text">Lv. 1</span>
           <span id="floor-text">Floor 1</span>
           <span id="gold-text">💰 0</span>
+          <span id="time-text" style="color: #f39c12; margin-left: 8px;">08:00</span>
         </div>
       </div>
       <div id="minimap-container">
@@ -96,6 +97,25 @@
     <button id="inventory-btn" title="Inventory (I)">🎒</button>
     <button id="save-btn" title="Save Game">💾</button>
     <button id="settings-ingame-btn" title="Settings (Esc)">⚙️</button>
+    <div id="systems-buttons">
+      <button class="sys-btn" data-panel="bestiary" title="Bestiary (B)">📖</button>
+      <button class="sys-btn" data-panel="achievements" title="Achievements">🏆</button>
+      <button class="sys-btn" data-panel="skills" title="Skills (K)">🌟</button>
+      <button class="sys-btn" data-panel="quests" title="Quests (J)">📋</button>
+      <button class="sys-btn" data-panel="museum" title="Museum">🏛️</button>
+      <button class="sys-btn" data-panel="hearts" title="Relationships">❤️</button>
+    </div>
+  </div>
+
+  <!-- Systems Overlay (Bestiary, Skills, etc) -->
+  <div id="systems-overlay" class="hidden">
+    <div id="systems-panel">
+      <div id="systems-header">
+        <h2 id="systems-title">Systems</h2>
+        <button id="systems-close">✕</button>
+      </div>
+      <div id="systems-content"></div>
+    </div>
   </div>
 
   <!-- Inventory Panel -->

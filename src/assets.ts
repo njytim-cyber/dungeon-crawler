@@ -19,18 +19,55 @@ function createCanvas(w: number, h: number): HTMLCanvasElement {
 function generateFloor(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE);
     const ctx = c.getContext('2d')!;
+
+    // Base stone color
     ctx.fillStyle = '#4a3b2a';
     ctx.fillRect(0, 0, TILE, TILE);
-    // Stone tile pattern
-    ctx.fillStyle = '#56473a'; ctx.fillRect(1, 1, 6, 6);
-    ctx.fillStyle = '#4e3f30'; ctx.fillRect(9, 1, 6, 6);
-    ctx.fillStyle = '#52432e'; ctx.fillRect(1, 9, 6, 6);
-    ctx.fillStyle = '#584c3c'; ctx.fillRect(9, 9, 6, 6);
-    // Grout lines
-    ctx.fillStyle = '#3a2e20'; ctx.fillRect(0, 7, 16, 1); ctx.fillRect(0, 0, 16, 1); ctx.fillRect(0, 15, 16, 1);
-    ctx.fillRect(7, 0, 1, 16); ctx.fillRect(0, 0, 1, 16); ctx.fillRect(15, 0, 1, 16);
-    // Pebble detail
-    for (let i = 0; i < 3; i++) { const x = 2 + Math.floor(Math.random() * 12); const y = 2 + Math.floor(Math.random() * 12); ctx.fillStyle = '#5c4a35'; ctx.fillRect(x, y, 1, 1); }
+
+    // Stone tile pattern — 4 stones with distinct shading
+    const stones = [
+        { x: 1, y: 1, w: 6, h: 6, base: '#56473a', hi: '#635443', lo: '#4e3f30' },
+        { x: 9, y: 1, w: 6, h: 6, base: '#52432e', hi: '#5e4f3a', lo: '#493a26' },
+        { x: 1, y: 9, w: 6, h: 6, base: '#584c3c', hi: '#645844', lo: '#4c4030' },
+        { x: 9, y: 9, w: 6, h: 6, base: '#504234', hi: '#5c4e3e', lo: '#463828' },
+    ];
+    for (const s of stones) {
+        ctx.fillStyle = s.base;
+        ctx.fillRect(s.x, s.y, s.w, s.h);
+        // Top/left highlight
+        ctx.fillStyle = s.hi;
+        ctx.fillRect(s.x, s.y, s.w, 1);
+        ctx.fillRect(s.x, s.y, 1, s.h);
+        // Bottom/right shadow
+        ctx.fillStyle = s.lo;
+        ctx.fillRect(s.x, s.y + s.h - 1, s.w, 1);
+        ctx.fillRect(s.x + s.w - 1, s.y, 1, s.h);
+    }
+
+    // Deep grout lines
+    ctx.fillStyle = '#2a1e14';
+    ctx.fillRect(0, 7, 16, 2); ctx.fillRect(7, 0, 2, 16);
+    ctx.fillStyle = '#3a2e20';
+    ctx.fillRect(0, 0, 16, 1); ctx.fillRect(0, 15, 16, 1);
+    ctx.fillRect(0, 0, 1, 16); ctx.fillRect(15, 0, 1, 16);
+
+    // Subtle pebble scatter
+    for (let i = 0; i < 4; i++) {
+        const x = 2 + Math.floor(Math.random() * 12);
+        const y = 2 + Math.floor(Math.random() * 12);
+        ctx.fillStyle = Math.random() > 0.5 ? '#5c4a35' : '#685a48';
+        ctx.fillRect(x, y, 1, 1);
+    }
+
+    // Occasional moss spots
+    if (Math.random() > 0.7) {
+        ctx.fillStyle = 'rgba(60, 120, 60, 0.3)';
+        const mx = Math.floor(Math.random() * 12) + 2;
+        const my = Math.floor(Math.random() * 12) + 2;
+        ctx.fillRect(mx, my, 2, 1);
+        ctx.fillRect(mx + 1, my + 1, 1, 1);
+    }
+
     return c;
 }
 
@@ -38,28 +75,70 @@ function generateWall(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE);
     const ctx = c.getContext('2d')!;
 
-    // Top face (visible because of 3/4 view perspective)
+    // Top face (3/4 perspective)
     ctx.fillStyle = '#2c3e50';
     ctx.fillRect(0, 0, TILE, 4);
+    // Top face highlight
+    ctx.fillStyle = '#354d63';
+    ctx.fillRect(1, 0, 14, 1);
 
-    // Front face
+    // Front face base
     ctx.fillStyle = '#34495e';
     ctx.fillRect(0, 4, TILE, 12);
 
-    // Bricks
-    ctx.fillStyle = '#2c3e50';
-    // Row 1
-    ctx.fillRect(0, 4, 1, 12); // Left edge shadow
-    ctx.fillRect(15, 4, 1, 12); // Right edge highlight
+    // Brick pattern with individual highlights
+    const bricks = [
+        { x: 1, y: 5, w: 6, h: 3 },
+        { x: 9, y: 5, w: 6, h: 3 },
+        { x: 5, y: 9, w: 6, h: 3 },
+        { x: 1, y: 9, w: 3, h: 3 },
+        { x: 12, y: 9, w: 3, h: 3 },
+        { x: 1, y: 13, w: 6, h: 2 },
+        { x: 9, y: 13, w: 6, h: 2 },
+    ];
+    for (const b of bricks) {
+        // Brick face
+        ctx.fillStyle = '#3d566e';
+        ctx.fillRect(b.x, b.y, b.w, b.h);
+        // Top highlight
+        ctx.fillStyle = '#4a6580';
+        ctx.fillRect(b.x, b.y, b.w, 1);
+        // Left highlight
+        ctx.fillStyle = '#456078';
+        ctx.fillRect(b.x, b.y, 1, b.h);
+        // Bottom shadow
+        ctx.fillStyle = '#1a252f';
+        ctx.fillRect(b.x, b.y + b.h - 1, b.w, 1);
+        // Right shadow
+        ctx.fillStyle = '#1e2d3d';
+        ctx.fillRect(b.x + b.w - 1, b.y, 1, b.h);
+    }
 
+    // Mortar lines (between bricks)
     ctx.fillStyle = '#1a252f';
-    ctx.fillRect(2, 6, 4, 3);
-    ctx.fillRect(8, 10, 5, 3);
-    ctx.fillRect(10, 4, 4, 2);
+    ctx.fillRect(0, 4, TILE, 1);
+    ctx.fillRect(0, 8, TILE, 1);
+    ctx.fillRect(0, 12, TILE, 1);
+    ctx.fillRect(8, 4, 1, 4);
+    ctx.fillRect(4, 8, 1, 5);
+    ctx.fillRect(11, 8, 1, 5);
+
+    // Edge shadows
+    ctx.fillStyle = '#111820';
+    ctx.fillRect(0, 4, 1, 12);
+    ctx.fillRect(15, 4, 1, 12);
 
     // Cracks
-    ctx.fillStyle = '#111';
-    ctx.fillRect(4, 12, 1, 2);
+    if (Math.random() > 0.5) {
+        ctx.fillStyle = '#0d1520';
+        const cx = 3 + Math.floor(Math.random() * 10);
+        ctx.fillRect(cx, 10, 1, 3);
+        ctx.fillRect(cx + 1, 12, 1, 2);
+    }
+
+    // Subtle highlight top edge
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fillRect(0, 4, TILE, 1);
 
     return c;
 }
@@ -193,22 +272,53 @@ function generateTrap(): HTMLCanvasElement {
 function generateGrass(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
     ctx.fillStyle = '#3a7d44'; ctx.fillRect(0, 0, TILE, TILE);
-    for (let i = 0; i < 8; i++) { const x = Math.floor(Math.random() * 14) + 1; const y = Math.floor(Math.random() * 14) + 1; ctx.fillStyle = ['#2d6b36', '#4a9e56', '#5cb85c', '#348a40'][Math.floor(Math.random() * 4)]; ctx.fillRect(x, y, 1, 2); }
-    ctx.fillStyle = '#2d6b36'; ctx.globalAlpha = 0.2; ctx.strokeRect(0, 0, TILE, TILE); ctx.globalAlpha = 1;
+    // Layered grass blades
+    const bladeColors = ['#2d6b36', '#4a9e56', '#5cb85c', '#348a40', '#2a5e2e'];
+    for (let i = 0; i < 12; i++) {
+        const x = Math.floor(Math.random() * 14) + 1;
+        const y = Math.floor(Math.random() * 12) + 2;
+        ctx.fillStyle = bladeColors[Math.floor(Math.random() * bladeColors.length)];
+        ctx.fillRect(x, y, 1, 2 + Math.floor(Math.random() * 2));
+    }
+    // Light patches
+    ctx.fillStyle = 'rgba(255,255,200,0.06)';
+    ctx.fillRect(Math.floor(Math.random() * 10) + 2, Math.floor(Math.random() * 10) + 2, 4, 4);
+    // Subtle edge tinting
+    ctx.fillStyle = '#2d6b36'; ctx.globalAlpha = 0.2; ctx.fillRect(0, 0, TILE, 1); ctx.fillRect(0, 15, TILE, 1);
+    ctx.fillRect(0, 0, 1, TILE); ctx.fillRect(15, 0, 1, TILE); ctx.globalAlpha = 1;
     return c;
 }
 function generatePath(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
     ctx.fillStyle = '#c4a97d'; ctx.fillRect(0, 0, TILE, TILE);
-    for (let i = 0; i < 5; i++) { const x = Math.floor(Math.random() * 14) + 1; const y = Math.floor(Math.random() * 14) + 1; ctx.fillStyle = Math.random() > 0.5 ? '#b89b6a' : '#d4b98e'; ctx.fillRect(x, y, 2, 1); }
-    ctx.fillStyle = '#a88f64'; ctx.globalAlpha = 0.3; ctx.fillRect(0, 0, 16, 1); ctx.fillRect(0, 15, 16, 1); ctx.globalAlpha = 1;
+    // Stone pattern
+    for (let i = 0; i < 6; i++) {
+        const x = Math.floor(Math.random() * 12) + 1;
+        const y = Math.floor(Math.random() * 12) + 1;
+        ctx.fillStyle = Math.random() > 0.5 ? '#b89b6a' : '#d4b98e';
+        ctx.fillRect(x, y, 2 + Math.floor(Math.random() * 2), 1);
+    }
+    // Edges
+    ctx.fillStyle = '#a88f64'; ctx.globalAlpha = 0.3;
+    ctx.fillRect(0, 0, 16, 1); ctx.fillRect(0, 15, 16, 1);
+    ctx.globalAlpha = 1;
     return c;
 }
 function generateWater(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
-    ctx.fillStyle = '#2980b9'; ctx.fillRect(0, 0, TILE, TILE);
-    ctx.fillStyle = '#3498db'; ctx.fillRect(2, 3, 4, 1); ctx.fillRect(9, 8, 5, 1); ctx.fillRect(4, 12, 3, 1);
-    ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(3, 4, 3, 1); ctx.fillRect(10, 9, 3, 1);
+    // Deep base
+    ctx.fillStyle = '#1a6fa0'; ctx.fillRect(0, 0, TILE, TILE);
+    // Mid layer
+    ctx.fillStyle = '#2980b9'; ctx.fillRect(0, 0, TILE, 12);
+    // Surface
+    ctx.fillStyle = '#3498db';
+    ctx.fillRect(2, 3, 5, 1); ctx.fillRect(10, 7, 4, 1); ctx.fillRect(4, 11, 3, 1);
+    // Specular highlights
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.fillRect(3, 4, 3, 1); ctx.fillRect(11, 8, 3, 1);
+    // Subtle wave shadow
+    ctx.fillStyle = 'rgba(0,0,50,0.15)';
+    ctx.fillRect(1, 5, 4, 1); ctx.fillRect(8, 9, 5, 1);
     return c;
 }
 function generateBuilding(): HTMLCanvasElement {
@@ -218,22 +328,38 @@ function generateBuilding(): HTMLCanvasElement {
     ctx.fillStyle = '#795548'; ctx.fillRect(2, 3, 5, 4); ctx.fillRect(9, 3, 5, 4); // planks
     ctx.fillStyle = '#5d4037'; ctx.fillRect(7, 3, 2, TILE - 3); // center beam
     ctx.fillStyle = '#4e342e'; ctx.fillRect(0, 0, 1, TILE); ctx.fillRect(15, 0, 1, TILE);
+    // Highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.fillRect(2, 4, 5, 1); ctx.fillRect(9, 4, 5, 1);
     return c;
 }
 function generateFence(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
-    ctx.fillStyle = '#3a7d44'; ctx.fillRect(0, 0, TILE, TILE); // grass bg
-    ctx.fillStyle = '#8d6e63'; ctx.fillRect(2, 4, 2, 10); ctx.fillRect(12, 4, 2, 10); // posts
-    ctx.fillStyle = '#a1887f'; ctx.fillRect(1, 6, 14, 2); ctx.fillRect(1, 10, 14, 2); // rails
+    ctx.fillStyle = '#3a7d44'; ctx.fillRect(0, 0, TILE, TILE);
+    ctx.fillStyle = '#8d6e63'; ctx.fillRect(2, 4, 2, 10); ctx.fillRect(12, 4, 2, 10);
+    ctx.fillStyle = '#a1887f'; ctx.fillRect(1, 6, 14, 2); ctx.fillRect(1, 10, 14, 2);
+    // Highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.fillRect(1, 6, 14, 1); ctx.fillRect(1, 10, 14, 1);
     return c;
 }
 function generateTree(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
     ctx.fillStyle = '#3a7d44'; ctx.fillRect(0, 0, TILE, TILE);
-    ctx.fillStyle = '#5d4037'; ctx.fillRect(6, 9, 4, 7); // trunk
-    ctx.fillStyle = '#2d6b36'; ctx.beginPath(); ctx.arc(8, 6, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#4a9e56'; ctx.beginPath(); ctx.arc(6, 5, 3, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(10, 4, 3, 0, Math.PI * 2); ctx.fill();
+    // Trunk with bark texture
+    ctx.fillStyle = '#5d4037'; ctx.fillRect(6, 9, 4, 7);
+    ctx.fillStyle = '#4e342e'; ctx.fillRect(7, 10, 1, 5);
+    // Shadow under tree
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.beginPath(); ctx.ellipse(8, 15, 5, 2, 0, 0, Math.PI * 2); ctx.fill();
+    // Multi-tone canopy
+    ctx.fillStyle = '#1e5631'; ctx.beginPath(); ctx.arc(8, 6, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2d6b36'; ctx.beginPath(); ctx.arc(6, 5, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#4a9e56'; ctx.beginPath(); ctx.arc(10, 4, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#5cb85c'; ctx.beginPath(); ctx.arc(7, 3, 2, 0, Math.PI * 2); ctx.fill();
+    // Highlight
+    ctx.fillStyle = 'rgba(255,255,200,0.12)';
+    ctx.beginPath(); ctx.arc(6, 3, 2, 0, Math.PI * 2); ctx.fill();
     return c;
 }
 function generateFlower(): HTMLCanvasElement {
@@ -287,61 +413,92 @@ function generateCharacter(className: ClassName, dir: number, frame: number): HT
     const bob = frame % 2 === 0 ? 0 : 1;
     const y = 9 + bob;
 
-    // Legs
+    // Legs with better detail
     const legColor = '#333';
+    const legHi = '#444';
     const shoeColor = '#111';
 
-    // Scissor animation for side view
     if (dir === 2 || dir === 3) {
-        // Side view (2=Left, 3=Right)
-        // Frame 0: Left leg fwd, Right leg back
-        // Frame 1: Right leg fwd, Left leg back
-
+        // Side view legs with scissor animation
         const offset = frame === 0 ? 3 : -3;
 
         // Back Leg (Darker)
         ctx.fillStyle = '#222';
-        ctx.fillRect(7 - offset, y + 10, 3, 9); // Leg
+        ctx.fillRect(7 - offset, y + 10, 3, 9);
+        ctx.fillStyle = '#2a2a2a';
+        ctx.fillRect(7 - offset, y + 10, 1, 9); // highlight edge
         ctx.fillStyle = shoeColor;
-        ctx.fillRect(7 - offset + (dir === 3 ? 1 : -1), y + 19, 3, 2); // Shoe
+        ctx.fillRect(7 - offset + (dir === 3 ? 1 : -1), y + 19, 3, 2);
 
         // Front Leg
         ctx.fillStyle = legColor;
-        ctx.fillRect(7 + offset, y + 10, 3, 9); // Leg
+        ctx.fillRect(7 + offset, y + 10, 3, 9);
+        ctx.fillStyle = legHi;
+        ctx.fillRect(7 + offset, y + 10, 1, 9); // highlight edge
+        // Knee detail
+        ctx.fillStyle = '#3a3a3a';
+        ctx.fillRect(7 + offset, y + 15, 3, 1);
         ctx.fillStyle = shoeColor;
-        ctx.fillRect(7 + offset + (dir === 3 ? 1 : -1), y + 19, 3, 2); // Shoe
-
+        ctx.fillRect(7 + offset + (dir === 3 ? 1 : -1), y + 19, 3, 2);
     } else {
-        // Front/Back view
-        // Frame 0: Neutral / Wide
-        // Frame 1: Stepping / Narrow
-
         if (frame === 0) {
             // Standing wide
             ctx.fillStyle = legColor;
-            ctx.fillRect(4, y + 10, 3, 9); // L
-            ctx.fillRect(9, y + 10, 3, 9); // R
+            ctx.fillRect(4, y + 10, 3, 9);
+            ctx.fillRect(9, y + 10, 3, 9);
+            ctx.fillStyle = legHi;
+            ctx.fillRect(4, y + 10, 1, 9);
+            ctx.fillRect(9, y + 10, 1, 9);
             ctx.fillStyle = shoeColor;
-            ctx.fillRect(4, y + 19, 3, 2); // L Shoe
-            ctx.fillRect(9, y + 19, 3, 2); // R Shoe
+            ctx.fillRect(4, y + 19, 3, 2);
+            ctx.fillRect(9, y + 19, 3, 2);
+            // Boot trim
+            ctx.fillStyle = '#222';
+            ctx.fillRect(4, y + 18, 3, 1);
+            ctx.fillRect(9, y + 18, 3, 1);
         } else {
-            // Mid-step (one leg lifted/centered slightly)
+            // Mid-step
             ctx.fillStyle = legColor;
-            ctx.fillRect(5, y + 10, 3, 8); // L (lifted)
-            ctx.fillRect(9, y + 10, 3, 9); // R (planted)
+            ctx.fillRect(5, y + 10, 3, 8);
+            ctx.fillRect(9, y + 10, 3, 9);
+            ctx.fillStyle = legHi;
+            ctx.fillRect(5, y + 10, 1, 8);
+            ctx.fillRect(9, y + 10, 1, 9);
             ctx.fillStyle = shoeColor;
-            ctx.fillRect(5, y + 18, 3, 2); // L Shoe
-            ctx.fillRect(9, y + 19, 3, 2); // R Shoe
+            ctx.fillRect(5, y + 18, 3, 2);
+            ctx.fillRect(9, y + 19, 3, 2);
         }
     }
 
     // Torso (Armor/Clothing)
     ctx.fillStyle = colors.body;
     ctx.fillRect(4, y, 9, 11);
+    // Armor highlight (top-left)
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.fillRect(4, y, 9, 1);
+    ctx.fillRect(4, y, 1, 4);
+    // Armor shadow (bottom-right)
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.fillRect(4, y + 10, 9, 1);
+    ctx.fillRect(12, y, 1, 11);
 
     // Detail (belt/emblem)
     ctx.fillStyle = colors.detail;
     ctx.fillRect(4, y + 8, 9, 2);
+    // Belt buckle
+    ctx.fillStyle = '#f1c40f';
+    ctx.fillRect(7, y + 8, 2, 2);
+
+    // Shoulder pads (front/back view)
+    if (dir === 0 || dir === 1) {
+        ctx.fillStyle = colors.detail;
+        ctx.fillRect(2, y, 3, 3);
+        ctx.fillRect(12, y, 3, 3);
+        // Highlight
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.fillRect(2, y, 3, 1);
+        ctx.fillRect(12, y, 3, 1);
+    }
 
     // Head
     const headY = y - 8;
@@ -350,11 +507,11 @@ function generateCharacter(className: ClassName, dir: number, frame: number): HT
 
     // Hair
     ctx.fillStyle = colors.hair;
-    ctx.fillRect(4, headY - 2, 9, 3); // Top
-    ctx.fillRect(3, headY, 1, 5); // Side L
-    ctx.fillRect(13, headY, 1, 5); // Side R
-    if (dir === 0) { // Front
-        ctx.fillRect(4, headY, 3, 2); // Bangs
+    ctx.fillRect(4, headY - 2, 9, 3);
+    ctx.fillRect(3, headY, 1, 5);
+    ctx.fillRect(13, headY, 1, 5);
+    if (dir === 0) {
+        ctx.fillRect(4, headY, 3, 2);
         ctx.fillRect(10, headY, 3, 2);
     }
 
@@ -362,11 +519,22 @@ function generateCharacter(className: ClassName, dir: number, frame: number): HT
     if (dir === 0 || dir === 2 || dir === 3) {
         ctx.fillStyle = '#222'; // Eyes
         if (dir === 0) {
+            ctx.fillRect(6, headY + 3, 1, 2);
+            ctx.fillRect(10, headY + 3, 1, 2);
+            // Eye whites
+            ctx.fillStyle = '#fff';
             ctx.fillRect(6, headY + 3, 1, 1);
             ctx.fillRect(10, headY + 3, 1, 1);
-        } else if (dir === 3) { // Right
+            // Mouth
+            ctx.fillStyle = '#b88a6a';
+            ctx.fillRect(7, headY + 6, 3, 1);
+        } else if (dir === 3) {
+            ctx.fillRect(10, headY + 3, 1, 2);
+            ctx.fillStyle = '#fff';
             ctx.fillRect(10, headY + 3, 1, 1);
-        } else if (dir === 2) { // Left
+        } else if (dir === 2) {
+            ctx.fillRect(6, headY + 3, 1, 2);
+            ctx.fillStyle = '#fff';
             ctx.fillRect(6, headY + 3, 1, 1);
         }
     }
@@ -374,14 +542,49 @@ function generateCharacter(className: ClassName, dir: number, frame: number): HT
     // Arms
     ctx.fillStyle = colors.body;
     if (dir === 2) {
-        // Left arm only visible
         ctx.fillRect(6, y + 2, 3, 6);
+        ctx.fillStyle = colors.head; // Hand
+        ctx.fillRect(6, y + 7, 2, 2);
     } else if (dir === 3) {
-        // Right arm
         ctx.fillRect(8, y + 2, 3, 6);
+        ctx.fillStyle = colors.head;
+        ctx.fillRect(9, y + 7, 2, 2);
     } else {
-        ctx.fillRect(2, y + 1, 3, 7); // L
-        ctx.fillRect(12, y + 1, 3, 7); // R
+        ctx.fillRect(2, y + 1, 3, 7);
+        ctx.fillRect(12, y + 1, 3, 7);
+        // Hands
+        ctx.fillStyle = colors.head;
+        ctx.fillRect(2, y + 7, 2, 2);
+        ctx.fillRect(13, y + 7, 2, 2);
+    }
+
+    // Class-specific weapon hint (front view only)
+    if (dir === 0) {
+        if (className === 'warrior' || className === 'berserker') {
+            // Sword/Axe hint
+            ctx.fillStyle = '#aaa';
+            ctx.fillRect(14, y + 2, 1, 6);
+            ctx.fillStyle = '#888';
+            ctx.fillRect(14, y + 7, 1, 2);
+        } else if (className === 'mage' || className === 'necromancer') {
+            // Staff
+            ctx.fillStyle = '#8b6914';
+            ctx.fillRect(14, y - 2, 1, 10);
+            ctx.fillStyle = '#9b59b6';
+            ctx.fillRect(13, y - 3, 3, 2);
+        } else if (className === 'ranger') {
+            // Bow
+            ctx.fillStyle = '#8b6914';
+            ctx.fillRect(14, y + 1, 1, 7);
+            ctx.fillStyle = '#aaa';
+            ctx.fillRect(15, y + 2, 1, 5);
+        } else if (className === 'cleric') {
+            // Holy symbol glow
+            ctx.fillStyle = 'rgba(241,196,15,0.3)';
+            ctx.beginPath();
+            ctx.arc(8, headY - 2, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
     }
 
     return c;
@@ -403,14 +606,10 @@ const ENEMY_COLORS: Record<EnemyType, { color: string; eyeColor: string }> = {
 };
 
 function generateEnemy(type: EnemyType, frame: number): HTMLCanvasElement {
-    // Enemies also 32px tall? Let's make small ones 16x16, big ones 16x24?
-    // For simplicity, let's keep basic enemies 16x16 but centered in 16x32 canvas for sorting? 
-    // Or just 16x16 tile size. 
-    // ACTUALLY: Let's make them 16x16 mostly, but bosses bigger.
-
     const c = createCanvas(TILE, TILE);
     const ctx = c.getContext('2d')!;
     const info = ENEMY_COLORS[type];
+    const bob = frame % 2 === 0 ? 0 : 1;
 
     // Shadow
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
@@ -419,56 +618,366 @@ function generateEnemy(type: EnemyType, frame: number): HTMLCanvasElement {
     ctx.fill();
 
     if (type === 'slime') {
-        const bounce = frame % 2 === 0 ? 0 : -1;
+        const bounce = frame % 2 === 0 ? 0 : -2;
+        const squash = frame % 2 === 0 ? 0 : 1;
+        // Body
         ctx.fillStyle = info.color;
         ctx.beginPath();
-        ctx.arc(8, 10 + bounce, 5, Math.PI, 0); // Top half
-        ctx.rect(3, 10 + bounce, 10, 4); // Bottom rect
+        ctx.arc(8, 10 + bounce, 5 + squash, Math.PI, 0);
+        ctx.rect(3 - squash, 10 + bounce, 10 + squash * 2, 4 - squash);
         ctx.fill();
-
+        // Shine highlight
+        ctx.fillStyle = 'rgba(255,255,255,0.25)';
+        ctx.fillRect(5, 7 + bounce, 2, 2);
+        // Darker bottom
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.fillRect(3 - squash, 12 + bounce, 10 + squash * 2, 2 - squash);
+        // Eyes
         ctx.fillStyle = info.eyeColor;
         ctx.fillRect(5, 8 + bounce, 2, 2);
         ctx.fillRect(9, 8 + bounce, 2, 2);
+        // Pupils
+        ctx.fillStyle = '#000';
+        ctx.fillRect(6, 9 + bounce, 1, 1);
+        ctx.fillRect(10, 9 + bounce, 1, 1);
+
     } else if (type === 'bat') {
         const y = frame % 2 === 0 ? 4 : 6;
-        ctx.fillStyle = info.color;
+        const wingUp = frame % 2 === 0;
         // Wings
+        ctx.fillStyle = info.color;
         ctx.beginPath();
-        ctx.moveTo(8, y + 4);
-        ctx.lineTo(1, y);
-        ctx.lineTo(4, y + 6);
-        ctx.lineTo(8, y + 4);
-        ctx.lineTo(12, y + 6);
-        ctx.lineTo(15, y);
+        ctx.moveTo(8, y + 3);
+        ctx.lineTo(wingUp ? 0 : 2, wingUp ? y - 1 : y + 2);
+        ctx.lineTo(3, y + 5);
+        ctx.lineTo(8, y + 3);
+        ctx.lineTo(13, y + 5);
+        ctx.lineTo(wingUp ? 16 : 14, wingUp ? y - 1 : y + 2);
         ctx.closePath();
         ctx.fill();
+        // Wing membrane
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.fillRect(2, y + 2, 3, 2);
+        ctx.fillRect(11, y + 2, 3, 2);
         // Body
-        ctx.fillRect(6, y + 2, 4, 4);
+        ctx.fillStyle = info.color;
+        ctx.fillRect(6, y + 1, 4, 5);
+        // Ears
+        ctx.fillRect(6, y, 1, 2);
+        ctx.fillRect(9, y, 1, 2);
         // Eyes
         ctx.fillStyle = info.eyeColor;
-        ctx.fillRect(7, y + 3, 1, 1);
-        ctx.fillRect(9, y + 3, 1, 1);
-    } else {
-        // Generic humanoid/monster shape
-        const bob = frame % 2 === 0 ? 0 : 1;
+        ctx.fillRect(7, y + 2, 1, 1);
+        ctx.fillRect(9, y + 2, 1, 1);
+        // Fangs
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(7, y + 4, 1, 1);
+        ctx.fillRect(9, y + 4, 1, 1);
+
+    } else if (type === 'skeleton') {
+        // Skull
         ctx.fillStyle = info.color;
-
-        // Body
-        ctx.fillRect(4, 5 + bob, 8, 8);
-
-        // Head/Top
-        ctx.fillRect(5, 2 + bob, 6, 4);
-
+        ctx.fillRect(5, 1 + bob, 6, 5);
+        ctx.fillStyle = '#ddd';
+        ctx.fillRect(6, 2 + bob, 4, 3);
+        // Eye sockets
+        ctx.fillStyle = '#111';
+        ctx.fillRect(6, 2 + bob, 1, 2);
+        ctx.fillRect(9, 2 + bob, 1, 2);
+        // Jaw
+        ctx.fillStyle = '#bbb';
+        ctx.fillRect(7, 5 + bob, 2, 1);
+        // Ribcage
+        ctx.fillStyle = info.color;
+        ctx.fillRect(6, 6 + bob, 4, 5);
+        ctx.fillStyle = '#333';
+        ctx.fillRect(7, 7 + bob, 2, 1);
+        ctx.fillRect(7, 9 + bob, 2, 1);
+        // Arms (bones)
+        ctx.fillStyle = '#aaa';
+        ctx.fillRect(4, 7 + bob, 2, 1);
+        ctx.fillRect(10, 7 + bob, 2, 1);
+        ctx.fillRect(3, 8 + bob, 1, 3);
+        ctx.fillRect(12, 8 + bob, 1, 3);
         // Legs
-        ctx.fillStyle = '#222';
-        ctx.fillRect(5, 13, 2, 2);
-        ctx.fillRect(9, 13, 2, 2);
+        ctx.fillStyle = info.color;
+        ctx.fillRect(6, 11 + bob, 2, 3);
+        ctx.fillRect(8, 11 + bob, 2, 3);
+        // Eyes glow
+        ctx.fillStyle = info.eyeColor;
+        ctx.fillRect(6, 3 + bob, 1, 1);
+        ctx.fillRect(9, 3 + bob, 1, 1);
 
+    } else if (type === 'spider') {
+        // Body
+        ctx.fillStyle = info.color;
+        ctx.fillRect(6, 5 + bob, 4, 4);
+        ctx.fillRect(5, 7 + bob, 6, 3);
+        // Head
+        ctx.fillRect(7, 4 + bob, 3, 2);
+        // Legs (4 per side)
+        ctx.fillStyle = '#1a2533';
+        ctx.fillRect(3, 5 + bob, 3, 1); ctx.fillRect(2, 6 + bob, 1, 2);
+        ctx.fillRect(3, 8 + bob, 3, 1); ctx.fillRect(1, 7 + bob, 2, 1);
+        ctx.fillRect(10, 5 + bob, 3, 1); ctx.fillRect(13, 6 + bob, 1, 2);
+        ctx.fillRect(10, 8 + bob, 3, 1); ctx.fillRect(13, 7 + bob, 2, 1);
+        // Animated leg movement
+        if (frame % 2) {
+            ctx.fillRect(2, 5 + bob, 1, 1);
+            ctx.fillRect(14, 8 + bob, 1, 1);
+        } else {
+            ctx.fillRect(2, 8 + bob, 1, 1);
+            ctx.fillRect(14, 5 + bob, 1, 1);
+        }
+        // Eyes (8 eyes!)
+        ctx.fillStyle = info.eyeColor;
+        ctx.fillRect(7, 4 + bob, 1, 1);
+        ctx.fillRect(9, 4 + bob, 1, 1);
+        // Mandibles
+        ctx.fillStyle = '#e74c3c';
+        ctx.fillRect(7, 6 + bob, 1, 1);
+        ctx.fillRect(9, 6 + bob, 1, 1);
+
+    } else if (type === 'ghost') {
+        ctx.globalAlpha = 0.7;
+        // Hovering body
+        const gy = 2 + bob;
+        ctx.fillStyle = info.color;
+        ctx.fillRect(5, gy, 6, 8);
+        ctx.fillRect(4, gy + 1, 8, 6);
+        // Wavy bottom
+        ctx.fillRect(4, gy + 8, 2, 2);
+        ctx.fillRect(7, gy + 9, 2, 1);
+        ctx.fillRect(10, gy + 8, 2, 2);
+        // Eyes
+        ctx.fillStyle = info.eyeColor;
+        ctx.fillRect(6, gy + 3, 2, 2);
+        ctx.fillRect(9, gy + 3, 2, 2);
+        // Pupils
+        ctx.fillStyle = '#000';
+        ctx.fillRect(7, gy + 4, 1, 1);
+        ctx.fillRect(10, gy + 4, 1, 1);
+        // Mouth
+        ctx.fillRect(7, gy + 6, 2, 1);
+        ctx.globalAlpha = 1;
+
+    } else if (type === 'goblin') {
+        // Head
+        ctx.fillStyle = info.color;
+        ctx.fillRect(5, 2 + bob, 6, 5);
+        // Pointed ears
+        ctx.fillRect(3, 3 + bob, 2, 2);
+        ctx.fillRect(11, 3 + bob, 2, 2);
+        // Body (leather armor)
+        ctx.fillStyle = '#5d4037';
+        ctx.fillRect(5, 7 + bob, 6, 5);
+        // Belt
+        ctx.fillStyle = '#3e2723';
+        ctx.fillRect(5, 10 + bob, 6, 1);
         // Eyes
         ctx.fillStyle = info.eyeColor;
         ctx.fillRect(6, 4 + bob, 1, 1);
         ctx.fillRect(9, 4 + bob, 1, 1);
+        // Mouth
+        ctx.fillStyle = '#000';
+        ctx.fillRect(7, 6 + bob, 2, 1);
+        // Dagger
+        ctx.fillStyle = '#aaa';
+        ctx.fillRect(12, 8 + bob, 1, 3);
+        ctx.fillRect(12, 7 + bob, 1, 1);
+        ctx.fillStyle = '#5d4037';
+        ctx.fillRect(12, 11 + bob, 1, 1);
+        // Legs
+        ctx.fillStyle = info.color;
+        ctx.fillRect(5, 12, 2, 2);
+        ctx.fillRect(9, 12, 2, 2);
+
+    } else if (type === 'orc') {
+        // Head
+        ctx.fillStyle = info.color;
+        ctx.fillRect(4, 2 + bob, 8, 5);
+        // Tusks
+        ctx.fillStyle = '#f5f5dc';
+        ctx.fillRect(5, 6 + bob, 1, 2);
+        ctx.fillRect(10, 6 + bob, 1, 2);
+        // Body (heavy armor)
+        ctx.fillStyle = '#5d4037';
+        ctx.fillRect(3, 7 + bob, 10, 6);
+        ctx.fillStyle = '#4e342e';
+        ctx.fillRect(3, 7 + bob, 10, 1);
+        // Shoulder pads
+        ctx.fillStyle = '#7f8c8d';
+        ctx.fillRect(2, 7 + bob, 2, 3);
+        ctx.fillRect(12, 7 + bob, 2, 3);
+        // Eyes
+        ctx.fillStyle = info.eyeColor;
+        ctx.fillRect(6, 4 + bob, 1, 1);
+        ctx.fillRect(9, 4 + bob, 1, 1);
+        // Legs
+        ctx.fillStyle = '#333';
+        ctx.fillRect(5, 13, 2, 2);
+        ctx.fillRect(9, 13, 2, 2);
+
+    } else if (type === 'demon') {
+        // Horns
+        ctx.fillStyle = '#8b0000';
+        ctx.fillRect(4, 0 + bob, 1, 3);
+        ctx.fillRect(11, 0 + bob, 1, 3);
+        // Head
+        ctx.fillStyle = info.color;
+        ctx.fillRect(5, 2 + bob, 6, 5);
+        // Body
+        ctx.fillRect(4, 7 + bob, 8, 5);
+        // Wings (behind)
+        ctx.fillStyle = '#8b0000';
+        ctx.fillRect(1, 5 + bob, 3, 5);
+        ctx.fillRect(12, 5 + bob, 3, 5);
+        ctx.fillStyle = '#660000';
+        ctx.fillRect(1, 6 + bob, 2, 3);
+        ctx.fillRect(13, 6 + bob, 2, 3);
+        // Eyes
+        ctx.fillStyle = info.eyeColor;
+        ctx.fillRect(6, 4 + bob, 2, 1);
+        ctx.fillRect(9, 4 + bob, 2, 1);
+        // Mouth
+        ctx.fillStyle = '#ff4444';
+        ctx.fillRect(7, 6 + bob, 2, 1);
+        // Legs
+        ctx.fillStyle = '#333';
+        ctx.fillRect(5, 12, 2, 3);
+        ctx.fillRect(9, 12, 2, 3);
+        // Tail
+        ctx.fillStyle = info.color;
+        ctx.fillRect(3, 11 + bob, 1, 1);
+        ctx.fillRect(2, 12 + bob, 1, 1);
+
+    } else if (type === 'wraith') {
+        ctx.globalAlpha = 0.8;
+        // Hooded robes
+        ctx.fillStyle = info.color;
+        ctx.fillRect(5, 1 + bob, 6, 4);
+        ctx.fillRect(4, 2 + bob, 8, 3);
+        // Body/cloak
+        ctx.fillStyle = '#6c3483';
+        ctx.fillRect(3, 5 + bob, 10, 7);
+        ctx.fillRect(4, 12 + bob, 3, 2);
+        ctx.fillRect(9, 12 + bob, 3, 2);
+        // Wavy bottom
+        ctx.fillStyle = '#5b2c6f';
+        ctx.fillRect(3, 11 + bob, 2, 2);
+        ctx.fillRect(11, 11 + bob, 2, 2);
+        // Eyes
+        ctx.fillStyle = info.eyeColor;
+        ctx.fillRect(6, 3 + bob, 2, 1);
+        ctx.fillRect(9, 3 + bob, 2, 1);
+        // Soul orb
+        ctx.fillStyle = '#00ffff';
+        ctx.globalAlpha = 0.5 + Math.sin(frame * Math.PI) * 0.3;
+        ctx.fillRect(7, 8 + bob, 2, 2);
+        ctx.globalAlpha = 1;
+
+    } else if (type === 'golem') {
+        // Heavy stone body
+        ctx.fillStyle = info.color;
+        ctx.fillRect(3, 4 + bob, 10, 8);
+        // Head
+        ctx.fillRect(5, 1 + bob, 6, 4);
+        // Cracks
+        ctx.fillStyle = '#5a6268';
+        ctx.fillRect(5, 6 + bob, 1, 3);
+        ctx.fillRect(9, 5 + bob, 1, 4);
+        // Stone texture
+        ctx.fillStyle = '#95a5a6';
+        ctx.fillRect(4, 5 + bob, 3, 2);
+        ctx.fillRect(9, 7 + bob, 3, 2);
+        // Arms (thick)
+        ctx.fillStyle = '#6d7b7d';
+        ctx.fillRect(1, 5 + bob, 2, 6);
+        ctx.fillRect(13, 5 + bob, 2, 6);
+        // Fists
+        ctx.fillRect(1, 10 + bob, 3, 2);
+        ctx.fillRect(12, 10 + bob, 3, 2);
+        // Legs
+        ctx.fillRect(4, 12, 3, 3);
+        ctx.fillRect(9, 12, 3, 3);
+        // Eyes
+        ctx.fillStyle = info.eyeColor;
+        ctx.fillRect(6, 3 + bob, 2, 1);
+        ctx.fillRect(9, 3 + bob, 2, 1);
+
+    } else if (type === 'drake') {
+        // Neck/head
+        ctx.fillStyle = info.color;
+        ctx.fillRect(6, 1 + bob, 5, 4);
+        // Snout
+        ctx.fillRect(11, 2 + bob, 2, 2);
+        // Horns
+        ctx.fillStyle = '#a0522d';
+        ctx.fillRect(6, 0 + bob, 1, 2);
+        ctx.fillRect(9, 0 + bob, 1, 2);
+        // Body
+        ctx.fillStyle = info.color;
+        ctx.fillRect(4, 5 + bob, 8, 6);
+        // Belly scales
+        ctx.fillStyle = '#e67e22';
+        ctx.fillRect(5, 7 + bob, 6, 3);
+        // Wings
+        ctx.fillStyle = '#b34700';
+        ctx.fillRect(1, 3 + bob, 3, 5);
+        ctx.fillRect(12, 3 + bob, 3, 5);
+        // Tail
+        ctx.fillStyle = info.color;
+        ctx.fillRect(3, 10 + bob, 2, 1);
+        ctx.fillRect(2, 11 + bob, 2, 1);
+        // Eye
+        ctx.fillStyle = info.eyeColor;
+        ctx.fillRect(9, 2 + bob, 1, 1);
+        // Fire breath hint
+        ctx.fillStyle = '#f39c12';
+        ctx.fillRect(13, 3 + bob, 1, 1);
+        ctx.fillStyle = '#e74c3c';
+        ctx.fillRect(14, 2 + bob, 1, 1);
+        // Legs
+        ctx.fillStyle = '#333';
+        ctx.fillRect(5, 11, 2, 3);
+        ctx.fillRect(9, 11, 2, 3);
+
+    } else if (type === 'lich') {
+        // Crown
+        ctx.fillStyle = '#f1c40f';
+        ctx.fillRect(5, 0 + bob, 1, 2);
+        ctx.fillRect(7, 0 + bob, 2, 1);
+        ctx.fillRect(10, 0 + bob, 1, 2);
+        // Skull head
+        ctx.fillStyle = '#ddd';
+        ctx.fillRect(5, 2 + bob, 6, 4);
+        ctx.fillStyle = '#bbb';
+        ctx.fillRect(6, 5 + bob, 4, 1);
+        // Robes
+        ctx.fillStyle = info.color;
+        ctx.fillRect(4, 6 + bob, 8, 6);
+        ctx.fillStyle = '#1a1a30';
+        ctx.fillRect(4, 6 + bob, 8, 1);
+        // Robe detail
+        ctx.fillStyle = '#3d1f6d';
+        ctx.fillRect(5, 8 + bob, 6, 1);
+        // Staff
+        ctx.fillStyle = '#5d4037';
+        ctx.fillRect(13, 2 + bob, 1, 11);
+        ctx.fillStyle = '#9b59b6';
+        ctx.fillRect(12, 1 + bob, 3, 2);
+        ctx.fillStyle = '#e74cff';
+        ctx.fillRect(13, 1 + bob, 1, 1);
+        // Eyes
+        ctx.fillStyle = info.eyeColor;
+        ctx.fillRect(6, 3 + bob, 1, 1);
+        ctx.fillRect(9, 3 + bob, 1, 1);
+        // Legs
+        ctx.fillStyle = '#111';
+        ctx.fillRect(5, 12, 2, 2);
+        ctx.fillRect(9, 12, 2, 2);
     }
+
     return c;
 }
 

@@ -1807,3 +1807,288 @@ white-space: nowrap;
 ::-webkit-scrollbar-thumb:hover {
   background: #666;
 }
+
+/* ===== SYSTEMS BUTTONS ===== */
+#systems-buttons {
+  position: fixed;
+  right: 8px;
+  top: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 50;
+}
+
+.sys-btn {
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.sys-btn:hover {
+  background: rgba(241, 196, 15, 0.2);
+  border-color: #f1c40f;
+  transform: scale(1.1);
+}
+
+/* ===== SYSTEMS OVERLAY ===== */
+#systems-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s ease;
+}
+
+#systems-panel {
+  background: linear-gradient(180deg, #1a1a2e, #16213e);
+  border: 2px solid #f1c40f;
+  border-radius: 12px;
+  width: min(600px, 90vw);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 0 30px rgba(241, 196, 15, 0.2);
+}
+
+#systems-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+#systems-title {
+  font-size: 14px;
+  color: #f1c40f;
+  text-shadow: 0 0 10px rgba(241, 196, 15, 0.5);
+}
+
+#systems-close {
+  background: rgba(231, 76, 60, 0.3);
+  border: 1px solid #e74c3c;
+  color: #fff;
+  font-size: 14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+#systems-close:hover {
+  background: #e74c3c;
+}
+
+#systems-content {
+  padding: 12px;
+  overflow-y: auto;
+  max-height: calc(80vh - 60px);
+}
+
+/* Systems Grid (Bestiary, Achievements, Museum) */
+.systems-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.sys-card {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 10px;
+  transition: all 0.2s;
+}
+
+.sys-card.discovered,
+.sys-card.unlocked,
+.sys-card.donated {
+  border-color: rgba(46, 204, 113, 0.4);
+  background: rgba(46, 204, 113, 0.08);
+}
+
+.sys-card.unknown,
+.sys-card.locked,
+.sys-card.empty {
+  opacity: 0.5;
+}
+
+.sys-card.learnable {
+  border-color: rgba(241, 196, 15, 0.6);
+  cursor: pointer;
+}
+
+.sys-card.learnable:hover {
+  background: rgba(241, 196, 15, 0.15);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(241, 196, 15, 0.2);
+}
+
+.sys-card-icon {
+  font-size: 20px;
+  margin-bottom: 4px;
+}
+
+.sys-card-title {
+  font-size: 8px;
+  color: #f1c40f;
+  margin-bottom: 4px;
+}
+
+.sys-card-desc {
+  font-size: 7px;
+  color: #aaa;
+  line-height: 1.4;
+}
+
+.sys-card-stat {
+  font-size: 7px;
+  color: #2ecc71;
+  margin-top: 4px;
+}
+
+.sys-card-action {
+  font-size: 7px;
+  color: #f1c40f;
+  margin-top: 6px;
+  animation: pulse 1.5s infinite;
+}
+
+.sys-summary {
+  text-align: center;
+  font-size: 8px;
+  color: #888;
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Systems List (Quests, Hearts) */
+.systems-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sys-quest {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.sys-quest.complete {
+  border-color: rgba(241, 196, 15, 0.5);
+  background: rgba(241, 196, 15, 0.08);
+}
+
+.sys-quest.claimed {
+  opacity: 0.5;
+}
+
+.quest-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.quest-icon {
+  font-size: 16px;
+}
+
+.quest-name {
+  font-size: 9px;
+  color: #f1c40f;
+}
+
+.quest-claim {
+  font-size: 8px;
+  color: #2ecc71;
+  background: rgba(46, 204, 113, 0.2);
+  border: 1px solid #2ecc71;
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  margin-left: auto;
+  animation: pulse 1.5s infinite;
+}
+
+.quest-claim:hover {
+  background: rgba(46, 204, 113, 0.4);
+}
+
+.quest-desc {
+  font-size: 7px;
+  color: #aaa;
+  margin-bottom: 6px;
+}
+
+.quest-progress-bar {
+  position: relative;
+  height: 12px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.quest-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2ecc71, #27ae60);
+  border-radius: 6px;
+  transition: width 0.3s ease;
+}
+
+.quest-progress-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 6px;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.quest-reward {
+  font-size: 7px;
+  color: #f39c12;
+}
+
+.sys-empty {
+  text-align: center;
+  color: #666;
+  font-size: 9px;
+  padding: 40px 20px;
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}

@@ -9,17 +9,20 @@ import { generateFloor, isWalkable, generateTown } from './dungeon';
 import { getItemsByFloor, rollLoot } from './items';
 import { playerAttack, enemyAttack, checkLevelUp, recalcStats, updateScreenShake, getScreenShake } from './combat';
 import { updateParticles, renderParticles, renderFloatingTexts, clearParticles, spawnTorchEmbers, spawnLevelUpParticles, addFloatingText, spawnHitParticles } from './particles';
-import { updateVisibility, renderLighting } from './lighting';
+import { updateVisibility, renderLighting, renderDayNightOverlay } from './lighting';
 import { renderMinimap } from './minimap';
 import { updateHUD, updateHotbar, addMessage, showHUD, hideHUD } from './hud';
 import { initInventory, toggleInventory, isInventoryOpen, closeInventory, addItemToInventory, useHotbarSlot } from './inventory';
-import { initTitleScreen, showGameOver, showVictory, getClassDef } from './screens';
+import { initTitleScreen, showGameOver, showVictory, getClassDef, isHardcoreSelected } from './screens';
 import { checkNPCInteraction, openDialog, isDialogOpen, closeDialog } from './npc';
 import { initI18n, t } from './i18n';
 import { initSettings, loadSettings, isSettingsOpen, closeSettings, openSettings, isTutorialOpen, closeTutorial, openTutorial } from './settings';
 import { APP_VERSION } from './version';
 import { startFishing, fishingCatch, isFishingActive, updateFishingCooldown, interactWithCrop, updateCrops, getAdjacentFishSpot, getAdjacentCropTile, initTownActivities } from './town';
 import { isForgeOpen, initForge } from './forge';
+import { getBiome } from './biomes';
+import { createGameSystems, checkAchievements, updateQuestProgress, refreshQuests, updatePet } from './systems';
+import { initSystemsUI, isSystemsUIOpen, closeSystemsUI, openBestiary, openAchievements, openSkillTree, openQuests, openMuseum, openHearts } from './systems-ui';
 
 // Canvas setup
 const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
@@ -33,6 +36,7 @@ let cameraY = 0;
 let tileSize = 32;
 let lastTime = 0;
 let footstepTimer = 0;
+let vignetteCanvas: HTMLCanvasElement | null = null;
 
 // Floor transition state
 let transitioning = false;
@@ -159,9 +163,12 @@ function createPlayer(className: ClassName, name: string): PlayerState {
     buffs: [],
     fishCaught: 0,
     cropsHarvested: 0,
+    gameTime: 480, // Start at 8:00 AM
+    day: 1,
     crops: [],
     hasFishingRod: false,
     hasWateringCan: false,
+    systems: createGameSystems(),
   };
 }
 
@@ -272,11 +279,24 @@ function enterFloor(floor: number): void {
   } else {
     GameAudio.stairsDescend();
     GameAudio.startAmbient(floor);
-    addMessage(t('entered_floor', floor), floor % 10 === 0 ? 'msg-legendary' : 'msg-xp');
+    const biome = getBiome(floor);
+    addMessage(`${biome.icon} Floor ${floor} — ${biome.name}`, floor % 10 === 0 ? 'msg-legendary' : 'msg-xp');
+
+    if (currentFloor.hasSecretRoom) {
+      addMessage('You sense a hidden passage nearby...', 'msg-uncommon');
+    }
+    if (currentFloor.isTrapRoom) {
+      addMessage('⚠️ Beware! This floor is rigged with traps!', 'msg-damage');
+    }
 
     if (floor % 10 === 0) {
       GameAudio.bossAppear();
       addMessage(t('boss_warning'), 'msg-damage');
+    }
+
+    // Update quest progress for floor type
+    if (player.systems) {
+      updateQuestProgress(player.systems.quests, 'floor', '', floor);
     }
   }
 
@@ -304,6 +324,10 @@ function saveGame(): void {
       inventory: player.inventory.map(i => ({ def: i.def, count: i.count })),
       equipment: { ...player.equipment },
       hotbar: player.hotbar.map(h => h ? { def: h.def, count: h.count } : null),
+      gameTime: player.gameTime,
+      day: player.day,
+      crops: player.crops,
+      systems: player.systems,
     },
     floor: player.floor,
     timestamp: Date.now(),
@@ -325,6 +349,8 @@ function loadGame(data: SaveData): void {
   Object.assign(player, p);
   // Ensure maxReachedFloor satisfies constraint
   if (!player.maxReachedFloor) player.maxReachedFloor = player.floor || 1;
+  // Ensure systems exists for old saves
+  if (!player.systems) player.systems = createGameSystems();
 
   player.alive = true;
 
@@ -368,6 +394,9 @@ function startGame(className: ClassName, name?: string): void {
   }
 
   player = createPlayer(className, name || 'Hero');
+  if (player.systems && isHardcoreSelected()) {
+    player.systems.hardcore = true;
+  }
   gameState = 'PLAYING';
   showHUD();
 
@@ -418,13 +447,14 @@ function update(dt: number): void {
     if (isSettingsOpen()) { closeSettings(); Input.clearJustPressed(); return; }
     if (isDialogOpen()) { closeDialog(); Input.clearJustPressed(); return; }
     if (isInventoryOpen()) { closeInventory(); Input.clearJustPressed(); return; }
+    if (isSystemsUIOpen()) { closeSystemsUI(); Input.clearJustPressed(); return; }
     openSettings(true);
     Input.clearJustPressed();
     return;
   }
 
   // Block gameplay when overlays open
-  if (isInventoryOpen() || isDialogOpen() || isSettingsOpen() || isTutorialOpen() || isForgeOpen()) return;
+  if (isInventoryOpen() || isDialogOpen() || isSettingsOpen() || isTutorialOpen() || isForgeOpen() || isSystemsUIOpen()) return;
 
   // Block movement during fishing (but still allow interact/tap to catch)
   if (isFishingActive()) {
@@ -443,6 +473,11 @@ function update(dt: number): void {
       minimapContainer.style.display = Input.isMinimapVisible() ? '' : 'none';
     }
   }
+
+  // B: Bestiary, K: Skills, J: Quests
+  if (Input.wasPressed('KeyB')) { openBestiary(player); return; }
+  if (Input.wasPressed('KeyK')) { openSkillTree(player); return; }
+  if (Input.wasPressed('KeyJ')) { openQuests(player); return; }
 
   // R: use first consumable in hotbar
   if (Input.wantsQuickUse()) {
@@ -558,6 +593,16 @@ function update(dt: number): void {
           currentFloor.tiles[ny][nx] = 'FLOOR';
           showDamageFlash();
           if (player.stats.hp <= 0) { player.stats.hp = 0; player.alive = false; }
+        } else if (tile === 'SPIKES') {
+          // Spike damage (repeating, not destroyed)
+          const spikeDmg = Math.floor(3 + player.floor * 0.3);
+          player.stats.hp -= spikeDmg;
+          player.invincibleTimer = 0.3;
+          spawnHitParticles(player.px + 8, player.py + 8);
+          addFloatingText(player.px + 8, player.py, `-${spikeDmg}`, '#636e72');
+          addMessage(`Ouch! Spikes! -${spikeDmg} HP`, 'msg-damage');
+          showDamageFlash();
+          if (player.stats.hp <= 0) { player.stats.hp = 0; player.alive = false; }
         } else if (tile === 'CHEST') {
           const chest = currentFloor.chests.find(c => c.x === nx && c.y === ny);
           if (chest && !chest.opened) {
@@ -629,6 +674,17 @@ function update(dt: number): void {
       // In town, tapping the screen acts as interact (fish/farm/NPC)
       _pendingTownInteract = true;
     } else {
+      // Check if attacking a SECRET_WALL
+      const atkDir = player.dir;
+      const atkX = player.x + (atkDir === 3 ? 1 : atkDir === 2 ? -1 : 0);
+      const atkY = player.y + (atkDir === 0 ? 1 : atkDir === 1 ? -1 : 0);
+      if (atkY >= 0 && atkY < currentFloor.height && atkX >= 0 && atkX < currentFloor.width &&
+        currentFloor.tiles[atkY][atkX] === 'SECRET_WALL') {
+        currentFloor.tiles[atkY][atkX] = 'FLOOR';
+        addMessage('💫 You discovered a secret room!', 'msg-legendary');
+        addFloatingText(atkX * tileSize, atkY * tileSize, '💫 SECRET!', '#f1c40f');
+        GameAudio.chestOpen();
+      }
       playerAttack(player, currentFloor, addMessage);
     }
     attackHeld = true;
@@ -739,10 +795,39 @@ function update(dt: number): void {
   updateCrops(player, dt);
   updateFishingCooldown(dt);
 
+  // Time Cycle (1 real sec = 1 game min -> 24m day)
+  player.gameTime += dt;
+  if (player.gameTime >= 1440) {
+    player.gameTime = 0;
+    player.day++;
+    addMessage(`Day ${player.day} has begun!`, 'msg-rare');
+    if (player.crops) player.crops.forEach(c => c.wateredToday = false);
+    // Refresh daily quests
+    if (player.systems) refreshQuests(player.systems.quests, player.day, player.maxReachedFloor);
+  }
+
+  // Check achievements
+  if (player.systems) {
+    const newAch = checkAchievements(player, player.systems);
+    for (const ach of newAch) {
+      addMessage(`🏆 Achievement: ${ach.name} — ${ach.desc}`, 'msg-legendary');
+      addFloatingText(player.px + 8, player.py - 16, `🏆 ${ach.name}`, '#f1c40f');
+    }
+  }
+
+  // Update pet
+  if (player.systems?.pet) {
+    updatePet(player.systems.pet, dt, player.totalKills);
+  }
+
   // Check death
   if (!player.alive && gameState === 'PLAYING') {
     gameState = 'GAME_OVER';
     GameAudio.stopAmbient();
+    // Hardcore: delete save permanently
+    if (player.systems?.hardcore) {
+      localStorage.removeItem(SAVE_KEY);
+    }
     setTimeout(() => showGameOver(player, resetGame), 1000);
   }
 
@@ -833,10 +918,39 @@ function render(): void {
         case 'FLOWER': sprite = Assets.get('flower'); break;
         case 'CROP': sprite = Assets.get('crop'); break;
         case 'FISH_SPOT': sprite = Assets.get('fishSpot'); break;
+        case 'SECRET_WALL': sprite = Assets.get('wall'); break; // looks like wall until broken
+        case 'SPIKES': sprite = Assets.get('floor'); break; // draw floor, spikes on top
       }
 
       if (sprite) {
         ctx.drawImage(sprite, sx, sy, tileSize, tileSize);
+      }
+
+      // Draw spike overlay
+      if (tile === 'SPIKES' && visible[y][x]) {
+        const spikePhase = Math.sin(Date.now() / 600 + x * 3 + y * 7);
+        if (spikePhase > -0.3) {
+          ctx.fillStyle = '#636e72';
+          for (let si = 0; si < 3; si++) {
+            const spx = sx + 4 + si * 10;
+            const spy = sy + 8 + (spikePhase > 0.5 ? 0 : 4);
+            ctx.beginPath();
+            ctx.moveTo(spx, spy + 8);
+            ctx.lineTo(spx + 4, spy);
+            ctx.lineTo(spx + 8, spy + 8);
+            ctx.fill();
+          }
+        }
+      }
+
+      // Subtle crack overlay for secret walls (hint)
+      if (tile === 'SECRET_WALL' && visible[y][x]) {
+        ctx.strokeStyle = 'rgba(180,160,120,0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(sx + 8, sy + 2); ctx.lineTo(sx + 12, sy + 14);
+        ctx.moveTo(sx + 20, sy + 6); ctx.lineTo(sx + 16, sy + 18);
+        ctx.stroke();
       }
 
       // Render crop growth overlays
@@ -941,6 +1055,24 @@ function render(): void {
     ctx.fillStyle = hpPct > 0.5 ? '#2ecc71' : hpPct > 0.25 ? '#f39c12' : '#e74c3c';
     ctx.fillRect(barX, barY, barW * hpPct, 3);
 
+    // Elite glow effect
+    if (enemy.isElite && enemy.eliteColor) {
+      ctx.save();
+      const glowPulse = 0.3 + Math.sin(Date.now() / 300) * 0.2;
+      ctx.shadowColor = enemy.eliteColor;
+      ctx.shadowBlur = 10 + Math.sin(Date.now() / 200) * 5;
+      ctx.fillStyle = `rgba(${parseInt(enemy.eliteColor.slice(1, 3), 16)},${parseInt(enemy.eliteColor.slice(3, 5), 16)},${parseInt(enemy.eliteColor.slice(5, 7), 16)},${glowPulse})`;
+      ctx.fillRect(sx - 2, sy - 2, tileSize + 4, tileSize + 4);
+      ctx.restore();
+      // Elite label
+      ctx.save();
+      ctx.fillStyle = enemy.eliteColor;
+      ctx.font = '5px "Press Start 2P"';
+      ctx.textAlign = 'center';
+      ctx.fillText(enemy.eliteName || 'Elite', sx + tileSize / 2, barY - 3);
+      ctx.restore();
+    }
+
     // AGGRO INDICATOR: show "!" when enemy is chasing player
     const edx = player.x - enemy.x;
     const edy = player.y - enemy.y;
@@ -1019,14 +1151,34 @@ function render(): void {
     spawnTorchEmbers(player.px + 8, player.py - 12); // Higher for taller sprite
   }
 
-  // Lighting / fog of war (skip on hub and town — always lit)
+  // Lighting / fog of war (skip on hub and town — always lit, but apply Day/Night cycle)
   if (player.floor !== 0 && !currentFloor.isTown) {
     renderLighting(ctx, currentFloor, player, camX, camY, canvas.width, canvas.height, tileSize);
+  } else {
+    // Town / Hub Day/Night Cycle
+    renderDayNightOverlay(ctx, canvas.width, canvas.height, player.gameTime);
   }
 
   // Particles
   renderParticles(ctx, camX, camY);
   renderFloatingTexts(ctx, camX, camY);
+
+  // Vignette overlay (cinematic darkened edges)
+  if (!vignetteCanvas || vignetteCanvas.width !== canvas.width || vignetteCanvas.height !== canvas.height) {
+    vignetteCanvas = document.createElement('canvas');
+    vignetteCanvas.width = canvas.width;
+    vignetteCanvas.height = canvas.height;
+    const vCtx = vignetteCanvas.getContext('2d')!;
+    const gradient = vCtx.createRadialGradient(
+      canvas.width / 2, canvas.height / 2, canvas.width * 0.3,
+      canvas.width / 2, canvas.height / 2, canvas.width * 0.8
+    );
+    gradient.addColorStop(0, 'rgba(0,0,0,0)');
+    gradient.addColorStop(1, 'rgba(0,0,0,0.4)');
+    vCtx.fillStyle = gradient;
+    vCtx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+  ctx.drawImage(vignetteCanvas, 0, 0);
 
   // Minimap
   if (Input.isMinimapVisible()) {
@@ -1065,6 +1217,21 @@ function init(): void {
   // Save button
   document.getElementById('save-btn')!.addEventListener('click', () => {
     if (gameState === 'PLAYING') saveGame();
+  });
+
+  // Systems UI
+  initSystemsUI();
+  const panelOpeners: Record<string, (p: PlayerState) => void> = {
+    bestiary: openBestiary, achievements: openAchievements, skills: openSkillTree,
+    quests: openQuests, museum: openMuseum, hearts: openHearts,
+  };
+  document.querySelectorAll('.sys-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (gameState !== 'PLAYING') return;
+      const panel = (btn as HTMLElement).dataset.panel!;
+      const opener = panelOpeners[panel];
+      if (opener) opener(player);
+    });
   });
 
   // Check for save

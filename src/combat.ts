@@ -4,6 +4,7 @@ import type { PlayerState, EnemyState, DungeonFloor, Direction } from './types';
 import { spawnHitParticles, addFloatingText, spawnDeathParticles } from './particles';
 import { rollLoot, getBossWeapon } from './items';
 import { GameAudio } from './audio';
+import { recordKill, updateQuestProgress, applySkillBonuses, applyRuneBonuses, getMuseumReward } from './systems';
 
 let screenShake = 0;
 let screenShakeX = 0;
@@ -76,6 +77,12 @@ export function playerAttack(player: PlayerState, floor: DungeonFloor, addMsg: (
                 player.totalDamageDealt += damage;
                 addMsg(`Defeated ${enemy.type}! +${xpGain} XP`, 'msg-xp');
 
+                // Track in bestiary & quests
+                if (player.systems) {
+                    recordKill(player.systems.bestiary, enemy.type, player.floor);
+                    updateQuestProgress(player.systems.quests, 'kill', enemy.type);
+                }
+
                 // Drop loot
                 const loot = rollLoot(enemy.dropTable);
                 if (loot) {
@@ -93,8 +100,9 @@ export function playerAttack(player: PlayerState, floor: DungeonFloor, addMsg: (
                     }
                 }
 
-                // Gold drop
-                const gold = Math.floor(5 + Math.random() * 10 * (1 + player.floor * 0.1));
+                // Gold drop (with elite multiplier)
+                const eliteGoldMult = enemy.eliteGoldMult || 1;
+                const gold = Math.floor((5 + Math.random() * 10 * (1 + player.floor * 0.1)) * eliteGoldMult);
                 player.gold += gold;
                 addFloatingText(enemy.px + 8, enemy.py + 16, `+${gold}g`, '#f1c40f');
             }
@@ -144,6 +152,13 @@ export function checkLevelUp(player: PlayerState, addMsg: (msg: string, cls?: st
 
     GameAudio.levelUp();
     addMsg(`Level up! You are now level ${player.level}!`, 'msg-xp');
+
+    // Grant skill point every 3 levels
+    if (player.systems && player.level % 3 === 0) {
+        player.systems.skillPoints++;
+        addMsg(`🌟 Skill point earned! Open Skills to spend it.`, 'msg-uncommon');
+    }
+
     return true;
 }
 
@@ -171,6 +186,30 @@ export function recalcStats(player: PlayerState): void {
             else if (fx.type === 'crit_boost') s.critChance += fx.value;
             else if (fx.type === 'maxhp_boost') s.maxHp += fx.value;
         }
+    }
+
+    // Apply skill bonuses
+    if (player.systems?.skills) {
+        const skillBonus = applySkillBonuses(player.systems.skills);
+        for (const [key, val] of Object.entries(skillBonus)) {
+            if (key in s) (s as any)[key] += val;
+        }
+    }
+
+    // Apply rune bonuses
+    if (player.systems?.runes) {
+        const runeBonus = applyRuneBonuses(player.systems.runes);
+        for (const [key, val] of Object.entries(runeBonus)) {
+            if (key in s) (s as any)[key] += val;
+        }
+    }
+
+    // Apply museum bonus
+    if (player.systems?.museum && player.systems.museum.length > 0) {
+        const museumBonus = getMuseumReward(player.systems.museum.length);
+        s.atk += museumBonus.atk;
+        s.def += museumBonus.def;
+        s.maxHp += museumBonus.maxHp;
     }
 
     s.hp = Math.min(player.stats.hp, s.maxHp);

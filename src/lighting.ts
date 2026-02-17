@@ -100,3 +100,62 @@ export function renderLighting(
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvasW, canvasH);
 }
+
+export function renderDayNightOverlay(ctx: CanvasRenderingContext2D, width: number, height: number, time: number): void {
+    // time is in minutes (0-1440)
+    // 0 = 00:00 midnight
+    // 360 = 06:00
+    // 720 = 12:00
+    // 1080 = 18:00
+    // 1440 = 24:00
+
+    // Night: 22:00 (1320) -> 05:00 (300)
+    // Dawn: 05:00 (300) -> 07:00 (420)
+    // Day: 07:00 (420) -> 17:00 (1020)
+    // Sunset: 17:00 (1020) -> 20:00 (1200)
+    // Dusk: 20:00 (1200) -> 22:00 (1320)
+
+
+
+    if (time >= 300 && time < 420) {
+        // Dawn (Blue/Black to Orange/Yellow)
+        const ratio = (time - 300) / 120;
+        // 0.6 alpha -> 0.0 alpha? No, transition colors.
+        // Simple: 0.5 Dark Blue -> 0.2 Yellow/Orange -> 0.0
+        // Use separate fill for simplicity
+
+        // Fading out Night
+        ctx.fillStyle = `rgba(10, 10, 30, ${0.4 * (1 - ratio)})`;
+        ctx.fillRect(0, 0, width, height);
+
+        // Fading in Sunrise
+        ctx.fillStyle = `rgba(255, 200, 100, ${0.2 * ratio})`;
+        ctx.fillRect(0, 0, width, height);
+    }
+    else if (time >= 420 && time < 1020) {
+        // Day - Clear
+    }
+    else if (time >= 1020 && time < 1200) {
+        // Sunset (Orange)
+        const ratio = (time - 1020) / 180;
+        ctx.fillStyle = `rgba(255, 100, 50, ${0.3 * ratio})`;
+        ctx.fillRect(0, 0, width, height);
+    }
+    else if (time >= 1200 && time < 1320) {
+        // Dusk (Orange -> Dark Blue)
+        const ratio = (time - 1200) / 120;
+
+        // Fading out Sunset
+        ctx.fillStyle = `rgba(255, 100, 50, ${0.3 * (1 - ratio)})`;
+        ctx.fillRect(0, 0, width, height);
+
+        // Fading in Night
+        ctx.fillStyle = `rgba(10, 10, 30, ${0.4 * ratio})`;
+        ctx.fillRect(0, 0, width, height);
+    }
+    else {
+        // Night
+        ctx.fillStyle = 'rgba(10, 10, 30, 0.4)';
+        ctx.fillRect(0, 0, width, height);
+    }
+}

@@ -11,6 +11,7 @@ const xpText = document.getElementById('xp-text')!;
 const levelText = document.getElementById('level-text')!;
 const floorText = document.getElementById('floor-text')!;
 const goldText = document.getElementById('gold-text');
+const timeText = document.getElementById('time-text');
 
 export function updateHUD(player: PlayerState, inTown = false): void {
     const hpPct = Math.max(0, player.stats.hp / player.stats.maxHp * 100);
@@ -26,6 +27,16 @@ export function updateHUD(player: PlayerState, inTown = false): void {
 
     // Gold counter
     if (goldText) goldText.textContent = `💰 ${player.gold}`;
+
+    // Time
+    if (timeText) {
+        const hour = Math.floor(player.gameTime / 60); // 0-23
+        const min = Math.floor(player.gameTime % 60);
+        const ampm = hour >= 12 && hour < 24 ? 'PM' : 'AM';
+        const h12 = hour % 12 || 12;
+        const mStr = min < 10 ? `0${min}` : min;
+        timeText.textContent = `${h12}:${mStr} ${ampm}`;
+    }
 
     // Update health bar color based on HP pct
     if (hpPct < 25) {

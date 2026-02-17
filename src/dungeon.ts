@@ -3,6 +3,8 @@
 
 import type { TileType, Room, DungeonFloor, EnemyState, NPCState, Position, ChestState, DroppedItem, EnemyType, NPCType, DialogNode } from './types';
 import { getItemsByFloor } from './items';
+import { getBiome } from './biomes';
+import { rollEliteModifier } from './systems';
 
 const MIN_ROOM_SIZE = 4;
 const MAX_ROOM_SIZE = 10;
@@ -347,7 +349,28 @@ export function generateFloor(floor: number): DungeonFloor {
         const ey = room.y + 1 + Math.floor(Math.random() * (room.h - 2));
         if (tiles[ey][ex] === 'FLOOR') {
             const type = pool[Math.floor(Math.random() * pool.length)];
-            enemies.push(createEnemy(type, ex, ey, floor, false));
+            const enemy = createEnemy(type, ex, ey, floor, false);
+
+            // Roll for elite modifier
+            const elite = rollEliteModifier(floor);
+            if (elite) {
+                enemy.isElite = true;
+                enemy.eliteModifier = elite.modifier;
+                enemy.eliteColor = elite.color;
+                enemy.eliteName = elite.name;
+                enemy.eliteXpMult = elite.xpMult;
+                enemy.eliteGoldMult = elite.goldMult;
+                // Apply stat multipliers
+                enemy.hp = Math.floor(enemy.hp * elite.statMult.hp);
+                enemy.maxHp = enemy.hp;
+                enemy.atk = Math.floor(enemy.atk * elite.statMult.atk);
+                enemy.def = Math.floor(enemy.def * elite.statMult.def);
+                enemy.spd = enemy.spd * elite.statMult.spd;
+                enemy.xpReward = Math.floor(enemy.xpReward * elite.xpMult);
+                enemy.aggroRange = Math.min(12, enemy.aggroRange + 2);
+            }
+
+            enemies.push(enemy);
         }
     }
 
@@ -378,16 +401,80 @@ export function generateFloor(floor: number): DungeonFloor {
     const explored = createBoolGrid(w, h, false);
     const visible = createBoolGrid(w, h, false);
 
+    // ===== SECRET ROOMS =====
+    let hasSecretRoom = false;
+    if (rooms.length > 3 && Math.random() < 0.3 + floor * 0.005) {
+        // Create a small secret room off the side of an existing room
+        const sourceRoom = rooms[1 + Math.floor(Math.random() * (rooms.length - 2))];
+        const side = Math.floor(Math.random() * 4); // 0=top, 1=bottom, 2=left, 3=right
+        let sx: number, sy: number, sw = 3, sh = 3;
+
+        switch (side) {
+            case 0: sx = sourceRoom.x + 1; sy = sourceRoom.y - sh - 1; break;
+            case 1: sx = sourceRoom.x + 1; sy = sourceRoom.y + sourceRoom.h + 1; break;
+            case 2: sx = sourceRoom.x - sw - 1; sy = sourceRoom.y + 1; break;
+            default: sx = sourceRoom.x + sourceRoom.w + 1; sy = sourceRoom.y + 1; break;
+        }
+
+        // Check bounds
+        if (sx > 1 && sy > 1 && sx + sw < w - 1 && sy + sh < h - 1) {
+            // Carve secret room
+            for (let ry = sy; ry < sy + sh; ry++) {
+                for (let rx = sx; rx < sx + sw; rx++) {
+                    tiles[ry][rx] = 'FLOOR';
+                }
+            }
+            // Place a secret wall (breakable) connecting to source room
+            let doorX: number, doorY: number;
+            switch (side) {
+                case 0: doorX = sx + 1; doorY = sy + sh; break;
+                case 1: doorX = sx + 1; doorY = sy - 1; break;
+                case 2: doorX = sx + sw; doorY = sy + 1; break;
+                default: doorX = sx - 1; doorY = sy + 1; break;
+            }
+            if (doorX > 0 && doorY > 0 && doorX < w - 1 && doorY < h - 1) {
+                tiles[doorY][doorX] = 'SECRET_WALL';
+                // Place a chest in the secret room
+                const cx = sx + Math.floor(sw / 2);
+                const cy = sy + Math.floor(sh / 2);
+                tiles[cy][cx] = 'CHEST';
+                chests.push({ x: cx, y: cy, opened: false });
+                hasSecretRoom = true;
+            }
+        }
+    }
+
+    // ===== TRAP ROOM (occasional special floor) =====
+    let isTrapRoom = false;
+    if (floor > 5 && floor % 10 !== 0 && Math.random() < 0.15) {
+        // Add spike traps to a random room
+        const trapRoom = rooms[1 + Math.floor(Math.random() * Math.max(1, rooms.length - 2))];
+        for (let ry = trapRoom.y + 1; ry < trapRoom.y + trapRoom.h - 1; ry++) {
+            for (let rx = trapRoom.x + 1; rx < trapRoom.x + trapRoom.w - 1; rx++) {
+                if (tiles[ry][rx] === 'FLOOR' && Math.random() < 0.4) {
+                    tiles[ry][rx] = 'SPIKES';
+                }
+            }
+        }
+        isTrapRoom = true;
+    }
+
+    // Biome
+    const biome = getBiome(floor);
+
     return {
         width: w, height: h, tiles, rooms, explored, visible,
         enemies, npcs, items: [] as DroppedItem[], stairsDown, stairsUp, chests,
+        biome: biome.name,
+        hasSecretRoom,
+        isTrapRoom,
     };
 }
 
 export function isWalkable(tiles: TileType[][], x: number, y: number): boolean {
     if (y < 0 || y >= tiles.length || x < 0 || x >= tiles[0].length) return false;
     const t = tiles[y][x];
-    return t !== 'WALL' && t !== 'WATER' && t !== 'BUILDING' && t !== 'TREE';
+    return t !== 'WALL' && t !== 'WATER' && t !== 'BUILDING' && t !== 'TREE' && t !== 'SECRET_WALL';
 }
 
 export function generateTown(): DungeonFloor {

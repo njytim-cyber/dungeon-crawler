@@ -15,6 +15,9 @@ const CLASS_DEFS: ClassDef[] = [
 ];
 
 let selectedClass: ClassName | null = null;
+let _hardcoreSelected = false;
+
+export function isHardcoreSelected(): boolean { return _hardcoreSelected; }
 
 export function getClassDef(name: ClassName): ClassDef {
     return CLASS_DEFS.find(c => c.name === name)!;
@@ -33,6 +36,7 @@ export function initTitleScreen(onStart: (className: ClassName, name?: string) =
     const continueBtn = document.getElementById('continue-btn')!;
     const newGameBtn = document.getElementById('new-game-btn')!;
     const nameInput = document.getElementById('player-name-input') as HTMLInputElement;
+    let hardcoreMode = false;
 
     // Reset UI state
     document.getElementById('title-screen')!.classList.remove('hidden');
@@ -40,6 +44,7 @@ export function initTitleScreen(onStart: (className: ClassName, name?: string) =
     classSelect.classList.add('hidden');
     classGrid.innerHTML = '';
     selectedClass = null;
+    _hardcoreSelected = false;
     startRunBtn.classList.add('hidden');
     startRunBtn.disabled = true;
     nameInput.value = '';
@@ -76,6 +81,18 @@ export function initTitleScreen(onStart: (className: ClassName, name?: string) =
         mainMenu.classList.add('hidden');
         classSelect.classList.remove('hidden');
         nameInput.focus();
+        // Add hardcore toggle if not already present
+        if (!document.getElementById('hardcore-toggle')) {
+            const toggleDiv = document.createElement('div');
+            toggleDiv.style.cssText = 'text-align:center;margin:8px 0;';
+            toggleDiv.innerHTML = `<label style="cursor:pointer;font-size:8px;color:#e74c3c;"><input type="checkbox" id="hardcore-toggle" style="margin-right:6px;">💀 Hardcore Mode (Permadeath)</label>`;
+            const startBtn = document.getElementById('start-run-btn');
+            startBtn?.parentNode?.insertBefore(toggleDiv, startBtn);
+            document.getElementById('hardcore-toggle')!.addEventListener('change', (e) => {
+                hardcoreMode = (e.target as HTMLInputElement).checked;
+                _hardcoreSelected = hardcoreMode;
+            });
+        }
     };
 
     // Back -> Show Main Menu
@@ -112,7 +129,9 @@ export function showGameOver(player: PlayerState, onRetry: () => void): void {
     const statsEl = document.getElementById('death-stats')!;
     screen.classList.remove('hidden');
 
+    const isHardcore = player.systems?.hardcore || false;
     statsEl.innerHTML = `
+    ${isHardcore ? '<div style="color:#e74c3c;font-size:12px;margin-bottom:8px;">💀 HARDCORE - Save Deleted!</div>' : ''}
     Class: ${player.className}<br>
     Level: ${player.level}<br>
     Floor reached: ${player.floor}<br>

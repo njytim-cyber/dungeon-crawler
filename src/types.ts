@@ -5,7 +5,8 @@ export type GameState = 'TITLE' | 'PLAYING' | 'INVENTORY' | 'DIALOG' | 'GAME_OVE
 export type Direction = 0 | 1 | 2 | 3; // down, up, left, right
 
 export type TileType = 'WALL' | 'FLOOR' | 'DOOR' | 'STAIRS_DOWN' | 'STAIRS_UP' | 'CHEST' | 'TRAP'
-    | 'GRASS' | 'WATER' | 'PATH' | 'BUILDING' | 'FENCE' | 'CROP' | 'FISH_SPOT' | 'FLOWER' | 'TREE';
+    | 'GRASS' | 'WATER' | 'PATH' | 'BUILDING' | 'FENCE' | 'CROP' | 'FISH_SPOT' | 'FLOWER' | 'TREE'
+    | 'SECRET_WALL' | 'SPIKES' | 'MOVING_TRAP';
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'legendary';
 
@@ -119,9 +120,13 @@ export interface PlayerState {
     buffs: ActiveBuff[];
     fishCaught: number;
     cropsHarvested: number;
+    gameTime: number; // 0-1440 (minutes)
+    day: number;      // Day counter
     crops: CropPlot[];
     hasFishingRod: boolean;
     hasWateringCan: boolean;
+    // Systems
+    systems?: import('./systems').GameSystems;
 }
 
 export interface EnemyState {
@@ -144,6 +149,13 @@ export interface EnemyState {
     aggroRange: number;
     dropTable: LootDrop[];
     xpReward: number;
+    // Elite system
+    isElite?: boolean;
+    eliteModifier?: string;
+    eliteColor?: string;
+    eliteName?: string;
+    eliteXpMult?: number;
+    eliteGoldMult?: number;
 }
 
 export interface LootDrop {
@@ -193,6 +205,9 @@ export interface DungeonFloor {
     stairsUp: Position;
     chests: ChestState[];
     isTown?: boolean;
+    biome?: string;
+    hasSecretRoom?: boolean;
+    isTrapRoom?: boolean;
 }
 
 export interface DroppedItem {

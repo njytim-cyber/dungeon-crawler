@@ -156,12 +156,78 @@ function initJoystick(): void {
 // Minimap toggle
 let minimapVisible = true;
 
+// ===== GAMEPAD SUPPORT =====
+let gamepadDir: Position | null = null;
+let gamepadAttack = false;
+let gamepadInteract = false;
+let gamepadInventory = false;
+let gamepadEscape = false;
+let gamepadQuickUse = false;
+const gamepadJustPressed: Record<number, boolean> = {};
+const gamepadPrevButtons: Record<number, boolean> = {};
+
+function pollGamepad(): void {
+    const gamepads = navigator.getGamepads();
+    const gp = gamepads[0] || gamepads[1] || gamepads[2] || gamepads[3];
+    if (!gp) {
+        gamepadDir = null;
+        gamepadAttack = false;
+        gamepadInteract = false;
+        gamepadInventory = false;
+        gamepadEscape = false;
+        gamepadQuickUse = false;
+        return;
+    }
+
+    // Track just-pressed
+    for (let i = 0; i < gp.buttons.length; i++) {
+        const pressed = gp.buttons[i].pressed;
+        gamepadJustPressed[i] = pressed && !gamepadPrevButtons[i];
+        gamepadPrevButtons[i] = pressed;
+    }
+
+    // Left stick (axes 0,1) with dead zone
+    let lx = gp.axes[0] || 0;
+    let ly = gp.axes[1] || 0;
+    const deadZone = 0.3;
+
+    if (Math.abs(lx) < deadZone) lx = 0;
+    if (Math.abs(ly) < deadZone) ly = 0;
+
+    // D-pad (buttons 12-15: up, down, left, right)
+    let dx = 0, dy = 0;
+    if (gp.buttons[12]?.pressed || ly < -deadZone) dy = -1;
+    if (gp.buttons[13]?.pressed || ly > deadZone) dy = 1;
+    if (gp.buttons[14]?.pressed || lx < -deadZone) dx = -1;
+    if (gp.buttons[15]?.pressed || lx > deadZone) dx = 1;
+
+    // Only one axis
+    if (dx !== 0 && dy !== 0) dy = 0;
+    gamepadDir = (dx !== 0 || dy !== 0) ? { x: dx, y: dy } : null;
+
+    // Buttons: A(0)=interact, B(1)/X(2)=attack, Y(3)=inventory
+    gamepadAttack = gp.buttons[1]?.pressed || gp.buttons[2]?.pressed || false;
+    gamepadInteract = !!gamepadJustPressed[0];
+    gamepadInventory = !!gamepadJustPressed[3];
+    gamepadEscape = !!gamepadJustPressed[9]; // Start
+    gamepadQuickUse = !!gamepadJustPressed[4] || !!gamepadJustPressed[5]; // LB/RB
+}
+
 export const Input = {
     isDown: (code: string): boolean => !!keys[code],
     wasPressed: (code: string): boolean => !!justPressed[code],
-    clearJustPressed: (): void => { Object.keys(justPressed).forEach(k => delete justPressed[k]); },
+    clearJustPressed: (): void => {
+        Object.keys(justPressed).forEach(k => delete justPressed[k]);
+        Object.keys(gamepadJustPressed).forEach(k => delete gamepadJustPressed[Number(k)]);
+    },
 
     getDirection(): Position | null {
+        // Poll gamepad
+        pollGamepad();
+
+        // Gamepad has high priority
+        if (gamepadDir) return gamepadDir;
+
         // Joystick has priority
         if (joystickDirX !== 0 || joystickDirY !== 0) {
             return { x: joystickDirX, y: joystickDirY };
@@ -194,21 +260,22 @@ export const Input = {
         return null;
     },
 
-    // Attack: Space, Q, screen tap, or mobile button
-    isAttacking: (): boolean => !!keys['Space'] || !!keys['KeyQ'] || _touchAttack || _screenAttack,
+    // Attack: Space, Q, screen tap, or mobile button, or gamepad B/X
+    isAttacking: (): boolean => !!keys['Space'] || !!keys['KeyQ'] || _touchAttack || _screenAttack || gamepadAttack,
 
-    // Interact: E key or mobile button (one-shot — consumes the flag)
+    // Interact: E key or mobile button or gamepad A (one-shot — consumes the flag)
     isInteracting: (): boolean => {
         if (justPressed['KeyE']) return true;
         if (_touchInteract) { _touchInteract = false; return true; }
+        if (gamepadInteract) { gamepadInteract = false; return true; }
         return false;
     },
 
-    // Inventory: I key
-    wantsInventory: (): boolean => !!justPressed['KeyI'],
+    // Inventory: I key or gamepad Y
+    wantsInventory: (): boolean => !!justPressed['KeyI'] || gamepadInventory,
 
-    // Escape: close menus / open settings
-    wantsEscape: (): boolean => !!justPressed['Escape'],
+    // Escape: close menus / open settings, or gamepad Start
+    wantsEscape: (): boolean => !!justPressed['Escape'] || gamepadEscape,
 
     // Tab: toggle minimap
     wantsMinimapToggle: (): boolean => !!justPressed['Tab'],
@@ -216,8 +283,8 @@ export const Input = {
     // M: fullscreen map (not implemented yet, placeholder)
     wantsMap: (): boolean => !!justPressed['KeyM'],
 
-    // R: use first potion in hotbar
-    wantsQuickUse: (): boolean => !!justPressed['KeyR'],
+    // R: use first potion in hotbar, or gamepad LB/RB
+    wantsQuickUse: (): boolean => !!justPressed['KeyR'] || gamepadQuickUse,
 
     // Minimap visibility
     isMinimapVisible: (): boolean => minimapVisible,
