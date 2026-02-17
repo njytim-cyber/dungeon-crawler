@@ -48,8 +48,8 @@ export function off(event: string, cb: EventCallback): void {
 }
 
 // ===== CONNECTION =====
-const SERVER_URL = location.hostname === 'localhost'
-    ? `ws://localhost:8787`
+const SERVER_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ? `ws://${location.host}/ws`
     : `wss://${location.hostname}/ws`; // Production URL
 
 let hasEverConnected = false;

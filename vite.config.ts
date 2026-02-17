@@ -7,4 +7,12 @@ export default defineConfig({
     define: {
         __APP_VERSION__: JSON.stringify(pkg.version),
     },
+    server: {
+        proxy: {
+            '/ws': {
+                target: 'ws://127.0.0.1:8787',
+                ws: true,
+            },
+        },
+    },
 });

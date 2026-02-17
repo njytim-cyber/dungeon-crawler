@@ -76,8 +76,8 @@ let uidCounter = 0;
 // ===== ADMIN SYSTEM =====
 // Add admin emails here — admins get +1 level & skill point per player login
 const ADMIN_EMAILS = new Set<string>([
-    // Add your admin emails below, e.g.:
-    // 'admin@example.com',
+    'evanngjianen@gmail.com',
+    'ethanngjianheng@gmail.com',
 ]);
 
 function rewardAdminsForLogin(loginUsername: string): void {
@@ -549,7 +549,7 @@ function handleMessage(client: ConnectedClient, data: string): void {
 
 // ===== SERVER SETUP =====
 const PORT = parseInt(process.env.PORT || '8787');
-const wss = new WebSocketServer({ port: PORT });
+const wss = new WebSocketServer({ port: PORT, host: '0.0.0.0' });
 
 console.log(`🎮 Dungeon Crawler Co-op Server`);
 console.log(`   Listening on ws://localhost:${PORT}`);
