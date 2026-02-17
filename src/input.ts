@@ -3,7 +3,7 @@
 import type { Position } from './types';
 
 const keys: Record<string, boolean> = {};
-const justPressed: Record<string, boolean> = {};
+let justPressed: Record<string, boolean> = {};
 let touchDir: string | null = null;
 let _touchAttack = false;
 let _screenAttack = false;
@@ -217,8 +217,8 @@ export const Input = {
     isDown: (code: string): boolean => !!keys[code],
     wasPressed: (code: string): boolean => !!justPressed[code],
     clearJustPressed: (): void => {
-        Object.keys(justPressed).forEach(k => delete justPressed[k]);
-        Object.keys(gamepadJustPressed).forEach(k => delete gamepadJustPressed[Number(k)]);
+        justPressed = {};
+        for (const k in gamepadJustPressed) gamepadJustPressed[k] = false;
     },
 
     getDirection(): Position | null {

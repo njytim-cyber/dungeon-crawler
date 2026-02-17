@@ -1,15 +1,19 @@
 // ===== PARTICLE SYSTEM =====
+// Optimized: swap-and-pop removal, for-loops, single globalAlpha restore
 
 import type { Particle, FloatingText } from './types';
 
-const particles: Particle[] = [];
-const floatingTexts: FloatingText[] = [];
+// Use pre-allocated pool with active count instead of dynamic arrays
+let particles: Particle[] = [];
+let particleCount = 0;
+let floatingTexts: FloatingText[] = [];
+let textCount = 0;
 
 export function spawnParticles(x: number, y: number, count: number, color: string, speed = 2, gravity = 0.05, size = 2): void {
     for (let i = 0; i < count; i++) {
         const angle = Math.random() * Math.PI * 2;
         const spd = Math.random() * speed;
-        particles.push({
+        const p: Particle = {
             x, y,
             vx: Math.cos(angle) * spd,
             vy: Math.sin(angle) * spd,
@@ -18,7 +22,13 @@ export function spawnParticles(x: number, y: number, count: number, color: strin
             color,
             size: size + Math.random() * size,
             gravity,
-        });
+        };
+        if (particleCount < particles.length) {
+            particles[particleCount] = p;
+        } else {
+            particles.push(p);
+        }
+        particleCount++;
     }
 }
 
@@ -47,49 +57,70 @@ export function spawnTorchEmbers(x: number, y: number): void {
 }
 
 export function addFloatingText(x: number, y: number, text: string, color: string): void {
-    floatingTexts.push({ x, y, text, color, life: 1, vy: -1.5 });
+    const ft: FloatingText = { x, y, text, color, life: 1, vy: -1.5 };
+    if (textCount < floatingTexts.length) {
+        floatingTexts[textCount] = ft;
+    } else {
+        floatingTexts.push(ft);
+    }
+    textCount++;
 }
 
 export function updateParticles(dt: number): void {
-    for (let i = particles.length - 1; i >= 0; i--) {
+    // Swap-and-pop removal (O(1) per removal instead of O(n) splice)
+    for (let i = particleCount - 1; i >= 0; i--) {
         const p = particles[i];
         p.x += p.vx;
         p.y += p.vy;
         p.vy += p.gravity;
         p.life -= dt / p.maxLife;
-        if (p.life <= 0) particles.splice(i, 1);
+        if (p.life <= 0) {
+            // Swap with last active particle
+            particleCount--;
+            if (i < particleCount) {
+                particles[i] = particles[particleCount];
+            }
+        }
     }
 
-    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+    for (let i = textCount - 1; i >= 0; i--) {
         const ft = floatingTexts[i];
         ft.y += ft.vy * dt * 30;
         ft.life -= dt;
-        if (ft.life <= 0) floatingTexts.splice(i, 1);
+        if (ft.life <= 0) {
+            textCount--;
+            if (i < textCount) {
+                floatingTexts[i] = floatingTexts[textCount];
+            }
+        }
     }
 }
 
 export function renderParticles(ctx: CanvasRenderingContext2D, camX: number, camY: number): void {
-    particles.forEach(p => {
+    for (let i = 0; i < particleCount; i++) {
+        const p = particles[i];
         ctx.globalAlpha = Math.max(0, p.life);
         ctx.fillStyle = p.color;
-        ctx.fillRect(p.x - camX - p.size / 2, p.y - camY - p.size / 2, p.size, p.size);
-    });
+        ctx.fillRect(p.x - camX - p.size * 0.5, p.y - camY - p.size * 0.5, p.size, p.size);
+    }
     ctx.globalAlpha = 1;
 }
 
 export function renderFloatingTexts(ctx: CanvasRenderingContext2D, camX: number, camY: number): void {
-    floatingTexts.forEach(ft => {
+    if (textCount === 0) return;
+    ctx.font = '8px "Press Start 2P"';
+    ctx.textAlign = 'center';
+    for (let i = 0; i < textCount; i++) {
+        const ft = floatingTexts[i];
         ctx.globalAlpha = Math.max(0, ft.life);
         ctx.fillStyle = ft.color;
-        ctx.font = '8px "Press Start 2P"';
-        ctx.textAlign = 'center';
         ctx.fillText(ft.text, ft.x - camX, ft.y - camY);
-    });
+    }
     ctx.globalAlpha = 1;
     ctx.textAlign = 'left';
 }
 
 export function clearParticles(): void {
-    particles.length = 0;
-    floatingTexts.length = 0;
+    particleCount = 0;
+    textCount = 0;
 }

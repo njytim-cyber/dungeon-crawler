@@ -156,6 +156,7 @@ export interface EnemyState {
     eliteName?: string;
     eliteXpMult?: number;
     eliteGoldMult?: number;
+    _eliteRGB?: number[];  // cached parsed RGB for perf
 }
 
 export interface LootDrop {

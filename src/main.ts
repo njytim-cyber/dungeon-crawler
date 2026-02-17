@@ -880,20 +880,41 @@ function render(): void {
 
   const { width, height, tiles, visible, explored, enemies, npcs, items, chests } = currentFloor;
 
+  // Cache time once per frame instead of calling Date.now() multiple times
+  const frameTime = performance.now();
+
+  // Build chest lookup map (O(1) instead of O(n) find per tile)
+  const chestMap = new Map<string, boolean>();
+  for (let i = 0; i < chests.length; i++) {
+    chestMap.set(`${chests[i].x},${chests[i].y}`, chests[i].opened);
+  }
+
+  // Build crop lookup map
+  const cropMap = new Map<string, { growthStage: number }>();
+  if (player.crops) {
+    for (let i = 0; i < player.crops.length; i++) {
+      const c = player.crops[i];
+      cropMap.set(`${c.x},${c.y}`, c);
+    }
+  }
+
   // Determine visible tile range
-  const startX = Math.max(0, Math.floor(camX / tileSize) - 1);
-  const startY = Math.max(0, Math.floor(camY / tileSize) - 1);
+  const startX = Math.max(0, (camX / tileSize) | 0);
+  const startY = Math.max(0, (camY / tileSize) | 0);
   const endX = Math.min(width, Math.ceil((camX + canvas.width) / tileSize) + 1);
   const endY = Math.min(height, Math.ceil((camY + canvas.height) / tileSize) + 1);
 
   // Render tiles
   for (let y = startY; y < endY; y++) {
+    const expRow = explored[y];
+    const visRow = visible[y];
+    const tileRow = tiles[y];
     for (let x = startX; x < endX; x++) {
-      if (!explored[y][x]) continue;
+      if (!expRow[x]) continue;
 
       const sx = x * tileSize - camX;
       const sy = y * tileSize - camY;
-      const tile = tiles[y][x];
+      const tile = tileRow[x];
 
       let sprite: HTMLCanvasElement | null = null;
       switch (tile) {
@@ -903,11 +924,11 @@ function render(): void {
         case 'STAIRS_DOWN': sprite = Assets.get('stairsDown'); break;
         case 'STAIRS_UP': sprite = Assets.get('stairsUp'); break;
         case 'CHEST': {
-          const chest = chests.find(c => c.x === x && c.y === y);
-          sprite = chest?.opened ? Assets.get('chestOpen') : Assets.get('chest');
+          const opened = chestMap.get(`${x},${y}`);
+          sprite = opened ? Assets.get('chestOpen') : Assets.get('chest');
           break;
         }
-        case 'TRAP': sprite = visible[y][x] ? Assets.get('trap') : Assets.get('floor'); break;
+        case 'TRAP': sprite = visRow[x] ? Assets.get('trap') : Assets.get('floor'); break;
         // Town tiles
         case 'GRASS': sprite = Assets.get('grass'); break;
         case 'PATH': sprite = Assets.get('path'); break;
@@ -927,8 +948,8 @@ function render(): void {
       }
 
       // Draw spike overlay
-      if (tile === 'SPIKES' && visible[y][x]) {
-        const spikePhase = Math.sin(Date.now() / 600 + x * 3 + y * 7);
+      if (tile === 'SPIKES' && visRow[x]) {
+        const spikePhase = Math.sin(frameTime * 0.00167 + x * 3 + y * 7);
         if (spikePhase > -0.3) {
           ctx.fillStyle = '#636e72';
           for (let si = 0; si < 3; si++) {
@@ -944,7 +965,7 @@ function render(): void {
       }
 
       // Subtle crack overlay for secret walls (hint)
-      if (tile === 'SECRET_WALL' && visible[y][x]) {
+      if (tile === 'SECRET_WALL' && visRow[x]) {
         ctx.strokeStyle = 'rgba(180,160,120,0.3)';
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -954,16 +975,14 @@ function render(): void {
       }
 
       // Render crop growth overlays
-      if (tile === 'CROP' && player.crops) {
-        const crop = player.crops.find(c => c.x === x && c.y === y);
+      if (tile === 'CROP') {
+        const crop = cropMap.get(`${x},${y}`);
         if (crop) {
           if (crop.growthStage === 1) {
-            // Seedling — tiny green dot
             ctx.fillStyle = '#2ecc71';
             ctx.fillRect(sx + 6, sy + 10, 4, 4);
             ctx.fillRect(sx + 7, sy + 7, 2, 3);
           } else if (crop.growthStage === 2) {
-            // Growing — medium plant
             ctx.fillStyle = '#27ae60';
             ctx.fillRect(sx + 5, sy + 6, 6, 8);
             ctx.fillStyle = '#2ecc71';
@@ -971,7 +990,6 @@ function render(): void {
             ctx.fillRect(sx + 9, sy + 5, 4, 3);
             ctx.fillRect(sx + 6, sy + 3, 4, 3);
           } else if (crop.growthStage >= 3) {
-            // Ready to harvest — full plant with glow
             ctx.fillStyle = '#1e8449';
             ctx.fillRect(sx + 4, sy + 4, 8, 10);
             ctx.fillStyle = '#27ae60';
@@ -980,8 +998,7 @@ function render(): void {
             ctx.fillStyle = '#f1c40f';
             ctx.fillRect(sx + 6, sy + 5, 4, 3);
             ctx.fillRect(sx + 5, sy + 8, 6, 2);
-            // Pulse glow
-            const pulse = 0.4 + Math.sin(Date.now() / 400) * 0.3;
+            const pulse = 0.4 + Math.sin(frameTime * 0.0025) * 0.3;
             ctx.fillStyle = `rgba(241, 196, 15, ${pulse})`;
             ctx.fillRect(sx + 4, sy + 3, 8, 10);
           }
@@ -991,40 +1008,41 @@ function render(): void {
   }
 
   // Render dropped items
-  items.forEach(item => {
-    if (!visible[item.y]?.[item.x]) return;
+  for (let ii = 0; ii < items.length; ii++) {
+    const item = items[ii];
+    if (!visible[item.y]?.[item.x]) continue;
     const sx = item.x * tileSize - camX;
     const sy = item.y * tileSize - camY;
     const icon = Assets.getItem(item.def.icon, item.def.rarity);
     if (icon) {
-      const bob = Math.sin(Date.now() * 0.004 + item.x * 7) * 2;
+      const bob = Math.sin(frameTime * 0.004 + item.x * 7) * 2;
       ctx.drawImage(icon, sx + 4, sy + bob + 2, tileSize - 8, tileSize - 8);
     }
-  });
+  }
 
   // Render NPCs
-  npcs.forEach(npc => {
-    if (!visible[npc.y]?.[npc.x]) return;
+  ctx.font = '6px "Press Start 2P"';
+  for (let ni = 0; ni < npcs.length; ni++) {
+    const npc = npcs[ni];
+    if (!visible[npc.y]?.[npc.x]) continue;
     const sx = npc.x * tileSize - camX;
     const sy = npc.y * tileSize - camY;
     const sprite = Assets.getNPC(npc.type);
     if (sprite) {
-      // Offset Y by -16 (tileSize) because sprite is 32px tall
       ctx.drawImage(sprite, sx, sy - tileSize, tileSize, tileSize * 2);
-
       // Name tag
       ctx.fillStyle = '#f1c40f';
-      ctx.font = '6px "Press Start 2P"';
       ctx.textAlign = 'center';
       ctx.fillText(npc.name, sx + tileSize / 2, sy - tileSize - 4);
-      ctx.textAlign = 'left';
     }
-  });
+  }
+  ctx.textAlign = 'left';
 
   // Render enemies
-  enemies.forEach(enemy => {
-    if (!enemy.alive) return;
-    if (!visible[enemy.y]?.[enemy.x]) return;
+  for (let ei = 0; ei < enemies.length; ei++) {
+    const enemy = enemies[ei];
+    if (!enemy.alive) continue;
+    if (!visible[enemy.y]?.[enemy.x]) continue;
 
     const sx = enemy.px - camX;
     const sy = enemy.py - camY;
@@ -1058,10 +1076,19 @@ function render(): void {
     // Elite glow effect
     if (enemy.isElite && enemy.eliteColor) {
       ctx.save();
-      const glowPulse = 0.3 + Math.sin(Date.now() / 300) * 0.2;
+      const glowPulse = 0.3 + Math.sin(frameTime * 0.00333) * 0.2;
       ctx.shadowColor = enemy.eliteColor;
-      ctx.shadowBlur = 10 + Math.sin(Date.now() / 200) * 5;
-      ctx.fillStyle = `rgba(${parseInt(enemy.eliteColor.slice(1, 3), 16)},${parseInt(enemy.eliteColor.slice(3, 5), 16)},${parseInt(enemy.eliteColor.slice(5, 7), 16)},${glowPulse})`;
+      ctx.shadowBlur = 10 + Math.sin(frameTime * 0.005) * 5;
+      // Use pre-parsed RGB if available, else parse once
+      if (!enemy._eliteRGB) {
+        enemy._eliteRGB = [
+          parseInt(enemy.eliteColor.slice(1, 3), 16),
+          parseInt(enemy.eliteColor.slice(3, 5), 16),
+          parseInt(enemy.eliteColor.slice(5, 7), 16)
+        ];
+      }
+      const [er, eg, eb] = enemy._eliteRGB;
+      ctx.fillStyle = `rgba(${er},${eg},${eb},${glowPulse})`;
       ctx.fillRect(sx - 2, sy - 2, tileSize + 4, tileSize + 4);
       ctx.restore();
       // Elite label
@@ -1083,11 +1110,11 @@ function render(): void {
       ctx.font = 'bold 10px "Press Start 2P"';
       ctx.textAlign = 'center';
       // Bounce animation
-      const bounce = Math.sin(Date.now() * 0.008) * 3;
+      const bounce = Math.sin(frameTime * 0.008) * 3;
       ctx.fillText('!', sx + tileSize / 2, sy - 10 + bounce);
       ctx.restore();
     }
-  });
+  }
 
   // Render player
   if (player.alive) {
@@ -1125,7 +1152,7 @@ function render(): void {
       const fishSpot = getAdjacentFishSpot(player, currentFloor);
       if (fishSpot) {
         const bobX = fishSpot.x * tileSize - camX + tileSize / 2;
-        const bobY = fishSpot.y * tileSize - camY + tileSize / 2 + Math.sin(Date.now() / 300) * 2;
+        const bobY = fishSpot.y * tileSize - camY + tileSize / 2 + Math.sin(frameTime * 0.00333) * 2;
         const rodX = psx + tileSize / 2;
         const rodY = psy - tileSize / 2;
         // Line
