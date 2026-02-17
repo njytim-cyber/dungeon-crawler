@@ -21,8 +21,13 @@ import { APP_VERSION } from './version';
 import { startFishing, fishingCatch, isFishingActive, updateFishingCooldown, interactWithCrop, updateCrops, getAdjacentFishSpot, getAdjacentCropTile, initTownActivities } from './town';
 import { isForgeOpen, initForge } from './forge';
 import { getBiome } from './biomes';
+import { getBiomeTiles, renderWallShadows, renderWallTops, renderTorchGlows, renderDungeonParticles, renderBiomeAmbient, updateDungeonParticles, findTorchPositions, clearDungeonParticles } from './dungeon-renderer';
 import { createGameSystems, checkAchievements, updateQuestProgress, refreshQuests, updatePet } from './systems';
 import { initSystemsUI, isSystemsUIOpen, closeSystemsUI, openBestiary, openAchievements, openSkillTree, openQuests, openMuseum, openHearts } from './systems-ui';
+import * as MP from './multiplayer';
+import { isCoopOpen, isMultiplayerActive } from './multiplayer-ui';
+import { AVATARS } from './multiplayer-types';
+import type { RemotePlayerState } from './multiplayer-types';
 
 // Canvas setup
 const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
@@ -38,6 +43,10 @@ let lastTime = 0;
 let footstepTimer = 0;
 let vignetteCanvas: HTMLCanvasElement | null = null;
 
+// 2.5D renderer state
+let currentTorchPositions: { x: number; y: number }[] = [];
+let lastTorchFloor = -999;
+
 // Floor transition state
 let transitioning = false;
 
@@ -45,6 +54,16 @@ let transitioning = false;
 let attackHeld = false;
 // In town, screen taps trigger interact instead of attack
 let _pendingTownInteract = false;
+
+// ===== MULTIPLAYER SYNC =====
+let mpSyncTimer = 0;
+let mpStatsSyncTimer = 0;
+let lastSentX = -1;
+let lastSentY = -1;
+let lastSentDir = -1;
+let chatMessages: { uid: string; username: string; message: string; nameColor?: string; time: number }[] = [];
+let chatInput = '';
+let chatOpen = false;
 
 const SAVE_KEY = 'dungeon-crawler-save';
 
@@ -273,6 +292,8 @@ function enterFloor(floor: number): void {
   player.py = player.y * tileSize;
 
   clearParticles();
+  clearDungeonParticles();
+  lastTorchFloor = -999; // Force torch recalculation
   setFloorItems(currentFloor.items);
   updateVisibility(currentFloor, player);
 
@@ -445,6 +466,7 @@ function update(dt: number): void {
 
   // Escape key: close overlays or open settings
   if (Input.wantsEscape()) {
+    if (chatOpen) { chatOpen = false; closeChatInput(); Input.clearJustPressed(); return; }
     if (isTutorialOpen()) { closeTutorial(); Input.clearJustPressed(); return; }
     if (isSettingsOpen()) { closeSettings(); Input.clearJustPressed(); return; }
     if (isDialogOpen()) { closeDialog(); Input.clearJustPressed(); return; }
@@ -454,6 +476,9 @@ function update(dt: number): void {
     Input.clearJustPressed();
     return;
   }
+
+  // Block gameplay when co-op overlays open
+  if (isCoopOpen()) return;
 
   // Block gameplay when overlays open
   if (isInventoryOpen() || isDialogOpen() || isSettingsOpen() || isTutorialOpen() || isForgeOpen() || isSystemsUIOpen()) return;
@@ -834,9 +859,41 @@ function update(dt: number): void {
     setTimeout(() => showGameOver(player, resetGame), 1000);
   }
 
+  // ===== MULTIPLAYER SYNC =====
+  if (isMultiplayerActive() && player.alive) {
+    mpSyncTimer += dt;
+    mpStatsSyncTimer += dt;
+
+    // Send position every 100ms (or on change)
+    if (mpSyncTimer >= 0.1) {
+      mpSyncTimer = 0;
+      if (player.x !== lastSentX || player.y !== lastSentY || player.dir !== lastSentDir) {
+        MP.sendPlayerMove(player.x, player.y, player.dir, player.px, player.py, player.animFrame);
+        lastSentX = player.x;
+        lastSentY = player.y;
+        lastSentDir = player.dir;
+      }
+    }
+
+    // Send stats every 2 seconds
+    if (mpStatsSyncTimer >= 2) {
+      mpStatsSyncTimer = 0;
+      MP.sendPlayerStats(player.stats, player.level, player.equipment, player.alive);
+    }
+  }
+
+  // Expire old chat messages (after 8 seconds)
+  const now = performance.now();
+  chatMessages = chatMessages.filter(m => now - m.time < 8000);
+
   // Update particles and shake
   updateParticles(dt);
   updateScreenShake(dt);
+
+  // Update dungeon atmospheric particles
+  if (player.floor > 0 && !currentFloor.isTown) {
+    updateDungeonParticles(dt, player, currentFloor);
+  }
 
   // Camera
   const targetCamX = player.px - canvas.width / 2 + tileSize / 2;
@@ -907,7 +964,18 @@ function render(): void {
   const endX = Math.min(width, Math.ceil((camX + canvas.width) / tileSize) + 1);
   const endY = Math.min(height, Math.ceil((camY + canvas.height) / tileSize) + 1);
 
-  // Render tiles
+  // Get biome tiles for dungeon floors
+  const isDungeon = player.floor > 0 && !currentFloor.isTown;
+  const biome = isDungeon ? getBiome(player.floor) : null;
+  const biomeTiles = isDungeon && biome ? getBiomeTiles(biome) : null;
+
+  // Cache torch positions per floor
+  if (isDungeon && player.floor !== lastTorchFloor) {
+    currentTorchPositions = findTorchPositions(currentFloor);
+    lastTorchFloor = player.floor;
+  }
+
+  // ===== PASS 1: Render floor tiles (everything except walls) =====
   for (let y = startY; y < endY; y++) {
     const expRow = explored[y];
     const visRow = visible[y];
@@ -920,30 +988,72 @@ function render(): void {
       const tile = tileRow[x];
 
       let sprite: HTMLCanvasElement | null = null;
-      switch (tile) {
-        case 'WALL': sprite = Assets.get('wall'); break;
-        case 'FLOOR': sprite = Assets.get('floor'); break;
-        case 'DOOR': sprite = Assets.get('door'); break;
-        case 'STAIRS_DOWN': sprite = Assets.get('stairsDown'); break;
-        case 'STAIRS_UP': sprite = Assets.get('stairsUp'); break;
-        case 'CHEST': {
-          const opened = chestMap.get(`${x},${y}`);
-          sprite = opened ? Assets.get('chestOpen') : Assets.get('chest');
-          break;
+
+      if (isDungeon && biomeTiles) {
+        // Use biome-tinted tiles for dungeon
+        switch (tile) {
+          case 'WALL':
+          case 'SECRET_WALL':
+            // Walls drawn in floor color first (they get overdrawn in pass 2)
+            sprite = biomeTiles.floor;
+            break;
+          case 'FLOOR': sprite = biomeTiles.floor; break;
+          case 'DOOR': sprite = biomeTiles.door; break;
+          case 'STAIRS_DOWN': sprite = biomeTiles.stairsDown; break;
+          case 'STAIRS_UP': sprite = biomeTiles.stairsUp; break;
+          case 'CHEST': {
+            // Draw floor underneath chest
+            ctx.drawImage(biomeTiles.floor, sx, sy, tileSize, tileSize);
+            const opened = chestMap.get(`${x},${y}`);
+            sprite = opened ? Assets.get('chestOpen') : Assets.get('chest');
+            break;
+          }
+          case 'TRAP':
+            sprite = visRow[x] ? Assets.get('trap') : biomeTiles.floor;
+            break;
+          case 'SPIKES':
+            sprite = biomeTiles.floor;
+            break;
+          default:
+            // Fallback for any non-dungeon tiles
+            switch (tile) {
+              case 'GRASS': sprite = Assets.get('grass'); break;
+              case 'PATH': sprite = Assets.get('path'); break;
+              case 'WATER': sprite = Assets.get('water'); break;
+              case 'BUILDING': sprite = Assets.get('building'); break;
+              case 'FENCE': sprite = Assets.get('fence'); break;
+              case 'TREE': sprite = Assets.get('tree'); break;
+              case 'FLOWER': sprite = Assets.get('flower'); break;
+              case 'CROP': sprite = Assets.get('crop'); break;
+              case 'FISH_SPOT': sprite = Assets.get('fishSpot'); break;
+            }
         }
-        case 'TRAP': sprite = visRow[x] ? Assets.get('trap') : Assets.get('floor'); break;
-        // Town tiles
-        case 'GRASS': sprite = Assets.get('grass'); break;
-        case 'PATH': sprite = Assets.get('path'); break;
-        case 'WATER': sprite = Assets.get('water'); break;
-        case 'BUILDING': sprite = Assets.get('building'); break;
-        case 'FENCE': sprite = Assets.get('fence'); break;
-        case 'TREE': sprite = Assets.get('tree'); break;
-        case 'FLOWER': sprite = Assets.get('flower'); break;
-        case 'CROP': sprite = Assets.get('crop'); break;
-        case 'FISH_SPOT': sprite = Assets.get('fishSpot'); break;
-        case 'SECRET_WALL': sprite = Assets.get('wall'); break; // looks like wall until broken
-        case 'SPIKES': sprite = Assets.get('floor'); break; // draw floor, spikes on top
+      } else {
+        // Town / Hub — use original tiles
+        switch (tile) {
+          case 'WALL': sprite = Assets.get('wall'); break;
+          case 'FLOOR': sprite = Assets.get('floor'); break;
+          case 'DOOR': sprite = Assets.get('door'); break;
+          case 'STAIRS_DOWN': sprite = Assets.get('stairsDown'); break;
+          case 'STAIRS_UP': sprite = Assets.get('stairsUp'); break;
+          case 'CHEST': {
+            const opened = chestMap.get(`${x},${y}`);
+            sprite = opened ? Assets.get('chestOpen') : Assets.get('chest');
+            break;
+          }
+          case 'TRAP': sprite = visRow[x] ? Assets.get('trap') : Assets.get('floor'); break;
+          case 'GRASS': sprite = Assets.get('grass'); break;
+          case 'PATH': sprite = Assets.get('path'); break;
+          case 'WATER': sprite = Assets.get('water'); break;
+          case 'BUILDING': sprite = Assets.get('building'); break;
+          case 'FENCE': sprite = Assets.get('fence'); break;
+          case 'TREE': sprite = Assets.get('tree'); break;
+          case 'FLOWER': sprite = Assets.get('flower'); break;
+          case 'CROP': sprite = Assets.get('crop'); break;
+          case 'FISH_SPOT': sprite = Assets.get('fishSpot'); break;
+          case 'SECRET_WALL': sprite = Assets.get('wall'); break;
+          case 'SPIKES': sprite = Assets.get('floor'); break;
+        }
       }
 
       if (sprite) {
@@ -1008,6 +1118,16 @@ function render(): void {
         }
       }
     }
+  }
+
+  // ===== PASS 1.5: Wall shadows on floor tiles (dungeon only) =====
+  if (isDungeon) {
+    renderWallShadows(ctx, currentFloor, camX, camY, tileSize, startX, startY, endX, endY);
+  }
+
+  // ===== PASS 2: Render 3D walls on top (dungeon only) =====
+  if (isDungeon && biome) {
+    renderWallTops(ctx, currentFloor, biome, camX, camY, tileSize, startX, startY, endX, endY);
   }
 
   // Render dropped items
@@ -1119,6 +1239,54 @@ function render(): void {
     }
   }
 
+  // ===== RENDER REMOTE PLAYERS (CO-OP) =====
+  if (isMultiplayerActive()) {
+    const remotePlayers = MP.getRemotePlayers();
+    ctx.font = '6px "Press Start 2P"';
+    remotePlayers.forEach((rp: RemotePlayerState) => {
+      if (!rp.alive) return;
+      // Lerp remote player pixel positions smoothly
+      const rpx = rp.px - camX;
+      const rpy = rp.py - camY;
+
+      // Skip if off-screen
+      if (rpx < -tileSize * 2 || rpx > canvas.width + tileSize || rpy < -tileSize * 2 || rpy > canvas.height + tileSize) return;
+
+      // Draw remote player sprite (use same sprite system)
+      ctx.globalAlpha = 0.85;
+      const rpSprite = Assets.getPlayer(rp.className, rp.dir, rp.animFrame);
+      if (rpSprite) {
+        ctx.drawImage(rpSprite, rpx, rpy - tileSize, tileSize, tileSize * 2);
+      } else {
+        // Fallback: colored circle with avatar emoji
+        const avDef = AVATARS[rp.avatar] || AVATARS[0];
+        ctx.fillStyle = avDef.colors.body;
+        ctx.beginPath();
+        ctx.arc(rpx + tileSize / 2, rpy + tileSize / 2, tileSize / 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      // Username tag above head
+      ctx.textAlign = 'center';
+      ctx.fillStyle = rp.nameColor || '#a29bfe';
+      ctx.fillText(rp.username, rpx + tileSize / 2, rpy - tileSize - 6);
+
+      // Health bar
+      if (rp.stats) {
+        const hpPct = rp.stats.hp / rp.stats.maxHp;
+        const barW = tileSize - 4;
+        const barX = rpx + 2;
+        const barY = rpy - tileSize - 2;
+        ctx.fillStyle = '#333';
+        ctx.fillRect(barX, barY, barW, 3);
+        ctx.fillStyle = hpPct > 0.5 ? '#2ecc71' : hpPct > 0.25 ? '#f39c12' : '#e74c3c';
+        ctx.fillRect(barX, barY, barW * hpPct, 3);
+      }
+    });
+    ctx.textAlign = 'left';
+  }
+
   // Render player
   if (player.alive) {
     const psx = player.px - camX;
@@ -1131,11 +1299,6 @@ function render(): void {
 
     const sprite = Assets.getPlayer(player.className, player.dir, player.animFrame);
     if (sprite) {
-      // Draw player 1x2 (width=32 (upscaled?), height=64? No tileSize is 32)
-      // Original: 16x16 tile size. 
-      // Sprite: 16x32 pixels.
-      // Canvas draw: width=tileSize, height=tileSize*2
-      // Offset y: -tileSize
       ctx.drawImage(sprite, psx, psy - tileSize, tileSize, tileSize * 2);
     }
 
@@ -1158,14 +1321,12 @@ function render(): void {
         const bobY = fishSpot.y * tileSize - camY + tileSize / 2 + Math.sin(frameTime * 0.00333) * 2;
         const rodX = psx + tileSize / 2;
         const rodY = psy - tileSize / 2;
-        // Line
         ctx.strokeStyle = '#bdc3c7';
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(rodX, rodY);
         ctx.quadraticCurveTo(rodX + (bobX - rodX) * 0.5, rodY - 8, bobX, bobY);
         ctx.stroke();
-        // Bobber
         ctx.fillStyle = '#e74c3c';
         ctx.beginPath();
         ctx.arc(bobX, bobY, 3, 0, Math.PI * 2);
@@ -1178,7 +1339,7 @@ function render(): void {
     }
 
     // Torch ember particles
-    spawnTorchEmbers(player.px + 8, player.py - 12); // Higher for taller sprite
+    spawnTorchEmbers(player.px + 8, player.py - 12);
   }
 
   // Lighting / fog of war (skip on hub and town — always lit, but apply Day/Night cycle)
@@ -1189,22 +1350,37 @@ function render(): void {
     renderDayNightOverlay(ctx, canvas.width, canvas.height, player.gameTime);
   }
 
+  // ===== 2.5D DUNGEON ATMOSPHERE =====
+  if (isDungeon && biome) {
+    // Torch glow on walls
+    renderTorchGlows(ctx, currentTorchPositions, biome, camX, camY, tileSize, canvas.width, canvas.height);
+    // Atmospheric dungeon particles (dust, fog, embers)
+    renderDungeonParticles(ctx, camX, camY);
+    // Biome ambient color overlay
+    renderBiomeAmbient(ctx, biome, canvas.width, canvas.height);
+  }
+
   // Particles
   renderParticles(ctx, camX, camY);
   renderFloatingTexts(ctx, camX, camY);
 
-  // Vignette overlay (cinematic darkened edges)
-  if (!vignetteCanvas || vignetteCanvas.width !== canvas.width || vignetteCanvas.height !== canvas.height) {
+  // Vignette overlay (cinematic darkened edges — stronger in dungeons)
+  const vignetteStrength = isDungeon ? 0.6 : 0.35;
+  const vignetteInner = isDungeon ? 0.2 : 0.3;
+  const vignetteOuter = isDungeon ? 0.7 : 0.8;
+  const vigKey = `${canvas.width}_${canvas.height}_${vignetteStrength}`;
+  if (!vignetteCanvas || (vignetteCanvas as any)._vigKey !== vigKey) {
     vignetteCanvas = document.createElement('canvas');
     vignetteCanvas.width = canvas.width;
     vignetteCanvas.height = canvas.height;
+    (vignetteCanvas as any)._vigKey = vigKey;
     const vCtx = vignetteCanvas.getContext('2d')!;
     const gradient = vCtx.createRadialGradient(
-      canvas.width / 2, canvas.height / 2, canvas.width * 0.3,
-      canvas.width / 2, canvas.height / 2, canvas.width * 0.8
+      canvas.width / 2, canvas.height / 2, canvas.width * vignetteInner,
+      canvas.width / 2, canvas.height / 2, canvas.width * vignetteOuter
     );
     gradient.addColorStop(0, 'rgba(0,0,0,0)');
-    gradient.addColorStop(1, 'rgba(0,0,0,0.4)');
+    gradient.addColorStop(1, `rgba(0,0,0,${vignetteStrength})`);
     vCtx.fillStyle = gradient;
     vCtx.fillRect(0, 0, canvas.width, canvas.height);
   }
@@ -1213,6 +1389,46 @@ function render(): void {
   // Minimap
   if (Input.isMinimapVisible()) {
     renderMinimap(currentFloor, player);
+  }
+
+  // ===== RENDER CHAT MESSAGES (CO-OP) =====
+  if (isMultiplayerActive() && chatMessages.length > 0) {
+    ctx.save();
+    ctx.font = '8px "Press Start 2P"';
+    const chatX = 10;
+    let chatY = canvas.height - 140;
+    for (let i = Math.max(0, chatMessages.length - 6); i < chatMessages.length; i++) {
+      const msg = chatMessages[i];
+      const age = (performance.now() - msg.time) / 8000;
+      ctx.globalAlpha = Math.max(0, 1 - age * 1.5);
+      // Background
+      const text = `${msg.username}: ${msg.message}`;
+      const tw = ctx.measureText(text).width;
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(chatX - 2, chatY - 8, tw + 8, 12);
+      // Username
+      ctx.fillStyle = msg.nameColor || '#a29bfe';
+      const usernameText = `${msg.username}: `;
+      ctx.fillText(usernameText, chatX, chatY);
+      // Message
+      ctx.fillStyle = '#e0d8c0';
+      ctx.fillText(msg.message, chatX + ctx.measureText(usernameText).width, chatY);
+      chatY += 14;
+    }
+    ctx.restore();
+  }
+
+  // Chat input indicator
+  if (chatOpen) {
+    ctx.save();
+    ctx.font = '9px "Press Start 2P"';
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(8, canvas.height - 130, 300, 18);
+    ctx.strokeStyle = '#ffd54f';
+    ctx.strokeRect(8, canvas.height - 130, 300, 18);
+    ctx.fillStyle = '#ffd54f';
+    ctx.fillText('💬 ' + chatInput + '▏', 12, canvas.height - 116);
+    ctx.restore();
   }
 }
 
@@ -1226,6 +1442,62 @@ function gameLoop(timestamp: number): void {
   Input.clearJustPressed();
 
   requestAnimationFrame(gameLoop);
+}
+
+// ===== CHAT HELPERS =====
+function openChatInput(): void {
+  chatOpen = true;
+  chatInput = '';
+  // Create a hidden input to capture text on mobile
+  let chatEl = document.getElementById('chat-hidden-input') as HTMLInputElement;
+  if (!chatEl) {
+    chatEl = document.createElement('input');
+    chatEl.id = 'chat-hidden-input';
+    chatEl.type = 'text';
+    chatEl.maxLength = 100;
+    chatEl.style.cssText = 'position:fixed;bottom:0;left:0;width:300px;opacity:0;pointer-events:none;z-index:-1;';
+    document.body.appendChild(chatEl);
+  }
+  chatEl.value = '';
+  chatEl.style.pointerEvents = 'auto';
+  chatEl.style.opacity = '0';
+  chatEl.focus();
+
+  chatEl.oninput = () => { chatInput = chatEl.value; };
+  chatEl.onkeydown = (e: KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      if (chatInput.trim()) {
+        MP.sendChat(chatInput.trim());
+        const profile = MP.getProfile();
+        if (profile) {
+          chatMessages.push({
+            uid: profile.uid,
+            username: profile.username,
+            message: chatInput.trim(),
+            nameColor: profile.nameColor,
+            time: performance.now()
+          });
+        }
+      }
+      chatOpen = false;
+      closeChatInput();
+      e.preventDefault();
+    } else if (e.key === 'Escape') {
+      chatOpen = false;
+      closeChatInput();
+      e.preventDefault();
+    }
+  };
+}
+
+function closeChatInput(): void {
+  chatOpen = false;
+  chatInput = '';
+  const chatEl = document.getElementById('chat-hidden-input') as HTMLInputElement;
+  if (chatEl) {
+    chatEl.blur();
+    chatEl.style.pointerEvents = 'none';
+  }
 }
 
 // ===== INIT =====
@@ -1262,6 +1534,79 @@ function init(): void {
       const opener = panelOpeners[panel];
       if (opener) opener(player);
     });
+  });
+
+  // ===== MULTIPLAYER EVENT HANDLERS =====
+  // Handle remote enemy damage
+  MP.on('enemy_damage', (enemyIndex: number, damage: number, _fromUid: string) => {
+    if (!currentFloor || !currentFloor.enemies[enemyIndex]) return;
+    const enemy = currentFloor.enemies[enemyIndex];
+    if (enemy.alive) {
+      enemy.hp -= damage;
+      spawnHitParticles(enemy.px + 8, enemy.py + 8);
+      addFloatingText(enemy.px + 8, enemy.py, `-${damage}`, '#a29bfe');
+      if (enemy.hp <= 0) {
+        enemy.hp = 0;
+        enemy.alive = false;
+      }
+    }
+  });
+
+  MP.on('enemy_killed', (enemyIndex: number, _killerUid: string) => {
+    if (!currentFloor || !currentFloor.enemies[enemyIndex]) return;
+    const enemy = currentFloor.enemies[enemyIndex];
+    enemy.hp = 0;
+    enemy.alive = false;
+  });
+
+  // Handle chat messages from other players
+  MP.on('chat_msg', (fromUid: string, fromUsername: string, message: string, nameColor?: string) => {
+    chatMessages.push({ uid: fromUid, username: fromUsername, message, nameColor, time: performance.now() });
+    addMessage(`💬 ${fromUsername}: ${message}`, 'msg-uncommon');
+  });
+
+  // Handle player join/leave notifications
+  MP.on('player_joined', (rp: RemotePlayerState) => {
+    addMessage(`🟢 ${rp.username} joined the dungeon!`, 'msg-rare');
+  });
+
+  MP.on('player_left', (_uid: string) => {
+    addMessage(`🔴 A player left the dungeon.`, 'msg-common');
+  });
+
+  // Handle starter gear from login
+  window.addEventListener('mp-starter-gear', ((e: CustomEvent) => {
+    if (!player) return;
+    const gear = e.detail;
+    if (Array.isArray(gear)) {
+      for (const item of gear) {
+        addItemToInventory(player, item);
+        addMessage(`🎁 Login reward: ${item.name}!`, 'msg-legendary');
+      }
+    }
+  }) as EventListener);
+
+  // Handle admin rewards (admins get +1 level/skill when players login)
+  MP.on('admin_reward', (reward: any) => {
+    if (!player) return;
+    const levels = reward.levelUp || 0;
+    const sp = reward.skillPoints || 0;
+    if (levels > 0) player.level += levels;
+    if (sp > 0 && player.systems) player.systems.skillPoints += sp;
+    addMessage(`👑 ${reward.message}`, 'msg-legendary');
+  });
+
+  // Chat key binding (T key to open chat in co-op)
+  window.addEventListener('keydown', (e) => {
+    if (gameState !== 'PLAYING') return;
+    if (!isMultiplayerActive()) return;
+    if (chatOpen) return;
+    if (isInventoryOpen() || isDialogOpen() || isSettingsOpen() || isCoopOpen()) return;
+
+    if (e.key === 't' || e.key === 'T') {
+      e.preventDefault();
+      openChatInput();
+    }
   });
 
   // Check for save
