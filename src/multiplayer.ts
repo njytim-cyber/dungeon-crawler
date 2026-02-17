@@ -48,9 +48,12 @@ export function off(event: string, cb: EventCallback): void {
 }
 
 // ===== CONNECTION =====
+// Production WebSocket server URL (set this after deploying to Render)
+const RENDER_WS_URL = 'wss://dungeon-crawler-server.onrender.com';
+
 const SERVER_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
-    ? `ws://${location.host}/ws`
-    : `wss://${location.hostname}/ws`; // Production URL
+    ? `ws://${location.host}/ws`       // Local dev: Vite proxy
+    : RENDER_WS_URL;                   // Production: Render
 
 let hasEverConnected = false;
 let connectionAttempts = 0;
