@@ -12,7 +12,7 @@ import { updateParticles, renderParticles, renderFloatingTexts, clearParticles, 
 import { updateVisibility, renderLighting, renderDayNightOverlay } from './lighting';
 import { renderMinimap } from './minimap';
 import { updateHUD, updateHotbar, addMessage, showHUD, hideHUD } from './hud';
-import { initInventory, toggleInventory, isInventoryOpen, closeInventory, addItemToInventory, useHotbarSlot } from './inventory';
+import { initInventory, toggleInventory, isInventoryOpen, closeInventory, addItemToInventory, useHotbarSlot, setFloorItems } from './inventory';
 import { initTitleScreen, showGameOver, showVictory, getClassDef, isHardcoreSelected } from './screens';
 import { checkNPCInteraction, openDialog, isDialogOpen, closeDialog } from './npc';
 import { initI18n, t } from './i18n';
@@ -66,6 +66,7 @@ window.addEventListener('escape-to-town', () => {
   // Generate or reuse town
   if (!townFloor) townFloor = generateTown();
   currentFloor = townFloor;
+  setFloorItems(currentFloor.items);
   player.x = 15; player.y = 24;
   player.px = player.x * 16; player.py = player.y * 16;
   showFloorTransition(-1); // -1 = town
@@ -272,6 +273,7 @@ function enterFloor(floor: number): void {
   player.py = player.y * tileSize;
 
   clearParticles();
+  setFloorItems(currentFloor.items);
   updateVisibility(currentFloor, player);
 
   if (floor === 0) {
@@ -526,6 +528,7 @@ function update(dt: number): void {
             // Return to dungeon from town
             if (savedDungeonFloor) {
               currentFloor = savedDungeonFloor;
+              setFloorItems(currentFloor.items);
               player.x = savedPlayerPos.x;
               player.y = savedPlayerPos.y;
               player.px = player.x * 16;

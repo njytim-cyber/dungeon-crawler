@@ -118,30 +118,37 @@
     </div>
   </div>
 
-  <!-- Inventory Panel -->
+  <!-- Inventory Panel (Fullscreen) -->
   <div id="inventory-panel" class="hidden">
     <div id="inventory-header">
-      <h2>Inventory</h2>
+      <h2>⚔️ INVENTORY</h2>
       <button id="close-inventory">✕</button>
     </div>
-    <div id="equipment-section">
-      <h3>Equipment</h3>
-      <div id="equipment-slots">
-        <div class="equip-slot" data-slot="weapon"><span class="equip-label">Weapon</span></div>
-        <div class="equip-slot" data-slot="armor"><span class="equip-label">Armor</span></div>
-        <div class="equip-slot" data-slot="ring"><span class="equip-label">Ring</span></div>
+    <div id="inventory-body">
+      <div id="inventory-sidebar">
+        <div id="equipment-section">
+          <h3>Equipment</h3>
+          <div id="equipment-slots">
+            <div class="equip-slot" data-slot="weapon"><span class="equip-label">Weapon</span></div>
+            <div class="equip-slot" data-slot="armor"><span class="equip-label">Armor</span></div>
+            <div class="equip-slot" data-slot="ring"><span class="equip-label">Ring</span></div>
+          </div>
+        </div>
+        <div id="player-stats-panel">
+          <h3>Stats</h3>
+          <div id="stats-display"></div>
+        </div>
       </div>
-    </div>
-    <div id="player-stats-panel">
-      <h3>Stats</h3>
-      <div id="stats-display"></div>
-    </div>
-    <div id="inventory-grid-section">
-      <h3>Items</h3>
-      <div id="inventory-grid"></div>
+      <div id="inventory-grid-section">
+        <h3>Items <span id="inv-count" style="color:#666; font-weight:normal;"></span></h3>
+        <div id="inventory-grid"></div>
+      </div>
     </div>
     <div id="item-tooltip" class="hidden"></div>
   </div>
+
+  <!-- Item Context Menu -->
+  <div id="item-context-menu" class="hidden"></div>
 
   <!-- NPC Dialog -->
   <div id="npc-dialog" class="hidden">

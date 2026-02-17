@@ -334,86 +334,130 @@ canvas#gameCanvas {
   transform: scale(1.1);
 }
 
-/* ===== INVENTORY PANEL ===== */
+/* ===== INVENTORY PANEL (Fullscreen) ===== */
 #inventory-panel {
   position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 520px;
-  max-width: 95vw;
-  max-height: 90vh;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-  border: 3px solid #444;
-  border-radius: 8px;
-  padding: 16px;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(5, 5, 15, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   z-index: 100;
-  box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  animation: invOpen 0.25s ease;
+}
+
+@keyframes invOpen {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 #inventory-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  padding: 12px 20px;
+  background: linear-gradient(180deg, rgba(26, 26, 46, 0.95), rgba(22, 33, 62, 0.9));
+  border-bottom: 2px solid rgba(241, 196, 15, 0.3);
+  flex-shrink: 0;
 }
 
 #inventory-header h2 {
-  font-size: 14px;
+  font-size: 16px;
   color: #f1c40f;
+  text-shadow: 0 0 12px rgba(241, 196, 15, 0.4);
+  letter-spacing: 2px;
 }
 
 #close-inventory {
-  background: none;
-  border: 2px solid #666;
-  color: #e0d8c0;
-  font-size: 16px;
+  background: rgba(231, 76, 60, 0.15);
+  border: 2px solid rgba(231, 76, 60, 0.5);
+  color: #e74c3c;
+  font-size: 18px;
   width: 44px;
   height: 44px;
-  border-radius: 4px;
+  border-radius: 50%;
   cursor: pointer;
   font-family: inherit;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 #close-inventory:hover,
 #close-inventory:active {
+  background: rgba(231, 76, 60, 0.4);
   border-color: #e74c3c;
-  color: #e74c3c;
+  transform: rotate(90deg) scale(1.1);
+}
+
+#inventory-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  gap: 0;
+}
+
+/* Left column: Equipment + Stats */
+#inventory-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  padding: 16px;
+  overflow-y: auto;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
 }
 
 #equipment-section h3,
 #player-stats-panel h3,
 #inventory-grid-section h3 {
   font-size: 10px;
-  color: #aaa;
-  margin-bottom: 8px;
-  border-bottom: 1px solid #333;
-  padding-bottom: 4px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 6px;
 }
 
 #equipment-slots {
   display: flex;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
+  justify-content: center;
 }
 
 .equip-slot {
   width: 64px;
   height: 64px;
-  background: rgba(0, 0, 0, 0.4);
-  border: 2px dashed #555;
-  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 2px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   position: relative;
+  transition: all 0.2s ease;
+}
+
+.equip-slot:hover {
+  border-color: rgba(241, 196, 15, 0.5);
+  background: rgba(241, 196, 15, 0.05);
 }
 
 .equip-slot canvas {
@@ -422,13 +466,16 @@ canvas#gameCanvas {
 
 .equip-label {
   font-size: 7px;
-  color: #666;
+  color: #555;
   position: absolute;
   bottom: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .equip-slot.filled {
   border-style: solid;
+  background: rgba(0, 0, 0, 0.6);
 }
 
 #stats-display {
@@ -436,38 +483,47 @@ canvas#gameCanvas {
   grid-template-columns: 1fr 1fr;
   gap: 4px;
   font-size: 9px;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 .stat-row {
   display: flex;
   justify-content: space-between;
-  padding: 2px 6px;
+  padding: 4px 8px;
   background: rgba(0, 0, 0, 0.3);
-  border-radius: 2px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .stat-label {
-  color: #888;
+  color: #777;
 }
 
 .stat-value {
   color: #e0d8c0;
+  font-weight: bold;
+}
+
+/* Right column: Item Grid */
+#inventory-grid-section {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  min-width: 0;
 }
 
 #inventory-grid {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
-  gap: 4px;
+  gap: 6px;
 }
 
 .inv-slot {
   aspect-ratio: 1;
-  min-width: 36px;
-  min-height: 36px;
-  background: rgba(0, 0, 0, 0.4);
-  border: 2px solid #333;
-  border-radius: 3px;
+  min-width: 0;
+  background: rgba(0, 0, 0, 0.5);
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -476,14 +532,19 @@ canvas#gameCanvas {
   image-rendering: pixelated;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  transition: all 0.15s ease;
 }
 
 .inv-slot:hover {
-  border-color: #777;
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateY(-1px);
 }
 
 .inv-slot canvas {
   image-rendering: pixelated;
+  width: 80%;
+  height: 80%;
 }
 
 .inv-slot .item-count {
@@ -492,51 +553,118 @@ canvas#gameCanvas {
   right: 3px;
   font-size: 7px;
   color: #fff;
-  text-shadow: 1px 1px 0 #000;
+  text-shadow: 1px 1px 0 #000, -1px -1px 0 #000;
 }
 
 .rarity-common {
-  border-color: #888 !important;
+  border-color: rgba(136, 136, 136, 0.6) !important;
 }
 
 .rarity-uncommon {
-  border-color: #2ecc71 !important;
+  border-color: rgba(46, 204, 113, 0.6) !important;
 }
 
 .rarity-rare {
-  border-color: #3498db !important;
+  border-color: rgba(52, 152, 219, 0.6) !important;
 }
 
 .rarity-legendary {
-  border-color: #e67e22 !important;
+  border-color: rgba(230, 126, 34, 0.6) !important;
+  box-shadow: 0 0 8px rgba(230, 126, 34, 0.15);
 }
 
+/* Item Context Menu */
+#item-context-menu {
+  position: fixed;
+  z-index: 300;
+  background: linear-gradient(180deg, rgba(26, 26, 46, 0.98), rgba(15, 15, 30, 0.98));
+  border: 2px solid rgba(241, 196, 15, 0.4);
+  border-radius: 8px;
+  padding: 4px;
+  min-width: 140px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8), 0 0 12px rgba(241, 196, 15, 0.1);
+  animation: ctxPop 0.15s ease;
+}
+
+@keyframes ctxPop {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.ctx-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  color: #e0d8c0;
+  font-family: inherit;
+  font-size: 9px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.1s ease;
+}
+
+.ctx-item:hover {
+  background: rgba(241, 196, 15, 0.15);
+  color: #f1c40f;
+}
+
+.ctx-item.ctx-drop {
+  color: #e74c3c;
+}
+
+.ctx-item.ctx-drop:hover {
+  background: rgba(231, 76, 60, 0.2);
+  color: #ff6b6b;
+}
+
+.ctx-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 4px 8px;
+}
+
+/* Item Tooltip (updated) */
 #item-tooltip {
   position: fixed;
-  z-index: 200;
-  background: rgba(10, 10, 20, 0.95);
+  z-index: 250;
+  background: linear-gradient(180deg, rgba(10, 10, 25, 0.97), rgba(15, 10, 30, 0.97));
   border: 2px solid #555;
-  border-radius: 6px;
-  padding: 10px;
-  max-width: 220px;
+  border-radius: 8px;
+  padding: 12px;
+  max-width: 240px;
   font-size: 9px;
-  line-height: 1.5;
+  line-height: 1.6;
   pointer-events: none;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
 }
 
 #item-tooltip .tt-name {
   font-size: 11px;
   margin-bottom: 4px;
+  font-weight: bold;
 }
 
 #item-tooltip .tt-rarity {
-  font-size: 8px;
+  font-size: 7px;
   color: #888;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 #item-tooltip .tt-desc {
   color: #aaa;
-  margin: 4px 0;
+  margin: 6px 0;
 }
 
 #item-tooltip .tt-stats {
@@ -547,6 +675,7 @@ canvas#gameCanvas {
   color: #f1c40f;
   margin-top: 6px;
   font-size: 8px;
+  opacity: 0.8;
 }
 
 /* ===== NPC DIALOG ===== */
@@ -1762,18 +1891,24 @@ white-space: nowrap;
   }
 
   #inventory-panel {
-    padding: 10px;
-    max-height: 85vh;
+    padding: 0;
+  }
+
+  #inventory-body {
+    flex-direction: column;
+  }
+
+  #inventory-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 12px;
+    max-height: 180px;
   }
 
   #inventory-grid {
     grid-template-columns: repeat(5, 1fr);
     gap: 6px;
-  }
-
-  .inv-slot {
-    min-width: 44px;
-    min-height: 44px;
   }
 
   .equip-slot {

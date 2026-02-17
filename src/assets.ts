@@ -20,53 +20,70 @@ function generateFloor(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE);
     const ctx = c.getContext('2d')!;
 
-    // Base stone color
     ctx.fillStyle = '#4a3b2a';
     ctx.fillRect(0, 0, TILE, TILE);
 
-    // Stone tile pattern — 4 stones with distinct shading
     const stones = [
-        { x: 1, y: 1, w: 6, h: 6, base: '#56473a', hi: '#635443', lo: '#4e3f30' },
-        { x: 9, y: 1, w: 6, h: 6, base: '#52432e', hi: '#5e4f3a', lo: '#493a26' },
-        { x: 1, y: 9, w: 6, h: 6, base: '#584c3c', hi: '#645844', lo: '#4c4030' },
-        { x: 9, y: 9, w: 6, h: 6, base: '#504234', hi: '#5c4e3e', lo: '#463828' },
+        { x: 1, y: 1, w: 6, h: 6, base: '#56473a', hi: '#6b5c4c', lo: '#3e3024' },
+        { x: 9, y: 1, w: 6, h: 6, base: '#52432e', hi: '#665840', lo: '#3b2c1e' },
+        { x: 1, y: 9, w: 6, h: 6, base: '#584c3c', hi: '#6e6050', lo: '#423428' },
+        { x: 9, y: 9, w: 6, h: 6, base: '#504234', hi: '#645844', lo: '#3a2c1c' },
     ];
     for (const s of stones) {
         ctx.fillStyle = s.base;
         ctx.fillRect(s.x, s.y, s.w, s.h);
-        // Top/left highlight
+        // Inner texture noise
+        for (let px = 0; px < 3; px++) {
+            ctx.fillStyle = `rgba(${Math.random() > 0.5 ? 200 : 50},${Math.random() > 0.5 ? 180 : 40},${Math.random() > 0.5 ? 160 : 30},0.03)`;
+            ctx.fillRect(s.x + 1 + Math.floor(Math.random() * (s.w - 2)), s.y + 1 + Math.floor(Math.random() * (s.h - 2)), 1, 1);
+        }
+        // Beveled top + left highlight
         ctx.fillStyle = s.hi;
         ctx.fillRect(s.x, s.y, s.w, 1);
         ctx.fillRect(s.x, s.y, 1, s.h);
-        // Bottom/right shadow
+        ctx.fillStyle = 'rgba(255,255,255,0.04)';
+        ctx.fillRect(s.x + 1, s.y + 1, s.w - 2, 1);
+        // Bottom + right shadow
         ctx.fillStyle = s.lo;
         ctx.fillRect(s.x, s.y + s.h - 1, s.w, 1);
         ctx.fillRect(s.x + s.w - 1, s.y, 1, s.h);
+        // Deep corner
+        ctx.fillStyle = 'rgba(0,0,0,0.12)';
+        ctx.fillRect(s.x + s.w - 1, s.y + s.h - 1, 1, 1);
     }
 
-    // Deep grout lines
-    ctx.fillStyle = '#2a1e14';
+    // Deep grout with highlight edge
+    ctx.fillStyle = '#1e1408';
     ctx.fillRect(0, 7, 16, 2); ctx.fillRect(7, 0, 2, 16);
-    ctx.fillStyle = '#3a2e20';
+    ctx.fillStyle = 'rgba(255,255,255,0.03)';
+    ctx.fillRect(0, 7, 16, 1); ctx.fillRect(7, 0, 1, 16);
+    ctx.fillStyle = '#2e2014';
     ctx.fillRect(0, 0, 16, 1); ctx.fillRect(0, 15, 16, 1);
     ctx.fillRect(0, 0, 1, 16); ctx.fillRect(15, 0, 1, 16);
 
-    // Subtle pebble scatter
-    for (let i = 0; i < 4; i++) {
+    // Pebble scatter
+    for (let i = 0; i < 5; i++) {
         const x = 2 + Math.floor(Math.random() * 12);
         const y = 2 + Math.floor(Math.random() * 12);
-        ctx.fillStyle = Math.random() > 0.5 ? '#5c4a35' : '#685a48';
+        ctx.fillStyle = Math.random() > 0.5 ? '#685a48' : '#4a3c2c';
         ctx.fillRect(x, y, 1, 1);
     }
 
-    // Occasional moss spots
-    if (Math.random() > 0.7) {
-        ctx.fillStyle = 'rgba(60, 120, 60, 0.3)';
-        const mx = Math.floor(Math.random() * 12) + 2;
-        const my = Math.floor(Math.random() * 12) + 2;
+    // Moss spots
+    if (Math.random() > 0.55) {
+        ctx.fillStyle = 'rgba(50, 130, 50, 0.25)';
+        const mx = Math.floor(Math.random() * 11) + 2;
+        const my = Math.floor(Math.random() * 11) + 2;
         ctx.fillRect(mx, my, 2, 1);
         ctx.fillRect(mx + 1, my + 1, 1, 1);
+        ctx.fillStyle = 'rgba(70, 150, 70, 0.15)';
+        ctx.fillRect(mx - 1, my, 1, 1);
     }
+
+    // AO corners
+    ctx.fillStyle = 'rgba(0,0,0,0.06)';
+    ctx.fillRect(0, 0, 2, 2); ctx.fillRect(14, 0, 2, 2);
+    ctx.fillRect(0, 14, 2, 2); ctx.fillRect(14, 14, 2, 2);
 
     return c;
 }
@@ -75,70 +92,66 @@ function generateWall(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE);
     const ctx = c.getContext('2d')!;
 
-    // Top face (3/4 perspective)
+    // Top face with gradient sim
     ctx.fillStyle = '#2c3e50';
     ctx.fillRect(0, 0, TILE, 4);
-    // Top face highlight
     ctx.fillStyle = '#354d63';
     ctx.fillRect(1, 0, 14, 1);
+    ctx.fillStyle = '#3a5570';
+    ctx.fillRect(2, 1, 12, 1);
 
-    // Front face base
+    // Front face
     ctx.fillStyle = '#34495e';
     ctx.fillRect(0, 4, TILE, 12);
 
-    // Brick pattern with individual highlights
+    // Bricks with color variation
     const bricks = [
-        { x: 1, y: 5, w: 6, h: 3 },
-        { x: 9, y: 5, w: 6, h: 3 },
-        { x: 5, y: 9, w: 6, h: 3 },
-        { x: 1, y: 9, w: 3, h: 3 },
-        { x: 12, y: 9, w: 3, h: 3 },
-        { x: 1, y: 13, w: 6, h: 2 },
+        { x: 1, y: 5, w: 6, h: 3 }, { x: 9, y: 5, w: 6, h: 3 },
+        { x: 5, y: 9, w: 6, h: 3 }, { x: 1, y: 9, w: 3, h: 3 },
+        { x: 12, y: 9, w: 3, h: 3 }, { x: 1, y: 13, w: 6, h: 2 },
         { x: 9, y: 13, w: 6, h: 2 },
     ];
     for (const b of bricks) {
-        // Brick face
-        ctx.fillStyle = '#3d566e';
+        const r = Math.random() * 10;
+        ctx.fillStyle = r > 7 ? '#3f5872' : r > 3 ? '#3d566e' : '#3b5268';
         ctx.fillRect(b.x, b.y, b.w, b.h);
-        // Top highlight
-        ctx.fillStyle = '#4a6580';
-        ctx.fillRect(b.x, b.y, b.w, 1);
-        // Left highlight
-        ctx.fillStyle = '#456078';
-        ctx.fillRect(b.x, b.y, 1, b.h);
-        // Bottom shadow
-        ctx.fillStyle = '#1a252f';
-        ctx.fillRect(b.x, b.y + b.h - 1, b.w, 1);
-        // Right shadow
-        ctx.fillStyle = '#1e2d3d';
-        ctx.fillRect(b.x + b.w - 1, b.y, 1, b.h);
+        ctx.fillStyle = '#4a6580'; ctx.fillRect(b.x, b.y, b.w, 1);
+        ctx.fillStyle = 'rgba(255,255,255,0.04)'; ctx.fillRect(b.x + 1, b.y, b.w - 2, 1);
+        ctx.fillStyle = '#456078'; ctx.fillRect(b.x, b.y, 1, b.h);
+        ctx.fillStyle = '#1a252f'; ctx.fillRect(b.x, b.y + b.h - 1, b.w, 1);
+        ctx.fillStyle = '#1e2d3d'; ctx.fillRect(b.x + b.w - 1, b.y, 1, b.h);
+        if (Math.random() > 0.5) {
+            ctx.fillStyle = 'rgba(255,255,255,0.03)';
+            ctx.fillRect(b.x + 1 + Math.floor(Math.random() * (b.w - 2)), b.y + 1, 1, 1);
+        }
     }
 
-    // Mortar lines (between bricks)
+    // Mortar
     ctx.fillStyle = '#1a252f';
-    ctx.fillRect(0, 4, TILE, 1);
-    ctx.fillRect(0, 8, TILE, 1);
-    ctx.fillRect(0, 12, TILE, 1);
-    ctx.fillRect(8, 4, 1, 4);
-    ctx.fillRect(4, 8, 1, 5);
-    ctx.fillRect(11, 8, 1, 5);
+    ctx.fillRect(0, 4, TILE, 1); ctx.fillRect(0, 8, TILE, 1); ctx.fillRect(0, 12, TILE, 1);
+    ctx.fillRect(8, 4, 1, 4); ctx.fillRect(4, 8, 1, 5); ctx.fillRect(11, 8, 1, 5);
 
     // Edge shadows
-    ctx.fillStyle = '#111820';
-    ctx.fillRect(0, 4, 1, 12);
-    ctx.fillRect(15, 4, 1, 12);
+    ctx.fillStyle = '#0d1620'; ctx.fillRect(0, 4, 1, 12); ctx.fillRect(15, 4, 1, 12);
 
-    // Cracks
-    if (Math.random() > 0.5) {
-        ctx.fillStyle = '#0d1520';
+    // Cracks with branches
+    if (Math.random() > 0.4) {
+        ctx.fillStyle = '#0a1018';
         const cx = 3 + Math.floor(Math.random() * 10);
-        ctx.fillRect(cx, 10, 1, 3);
-        ctx.fillRect(cx + 1, 12, 1, 2);
+        ctx.fillRect(cx, 10, 1, 3); ctx.fillRect(cx + 1, 12, 1, 2);
+        if (Math.random() > 0.5) ctx.fillRect(cx - 1, 11, 1, 1);
     }
 
-    // Subtle highlight top edge
-    ctx.fillStyle = 'rgba(255,255,255,0.06)';
-    ctx.fillRect(0, 4, TILE, 1);
+    // Damp patches
+    if (Math.random() > 0.65) {
+        ctx.fillStyle = 'rgba(100,140,180,0.07)';
+        ctx.fillRect(2 + Math.floor(Math.random() * 10), 6 + Math.floor(Math.random() * 6), 3, 2);
+    }
+
+    // Top edge glow
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(0, 4, TILE, 1);
+    // Bottom AO
+    ctx.fillStyle = 'rgba(0,0,0,0.1)'; ctx.fillRect(0, 14, TILE, 2);
 
     return c;
 }
@@ -147,27 +160,30 @@ function generateDoor(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE);
     const ctx = c.getContext('2d')!;
 
-    // Frame
-    ctx.fillStyle = '#34495e'; // Wall color
-    ctx.fillRect(0, 0, TILE, TILE);
+    // Stone frame with depth
+    ctx.fillStyle = '#2c3e50'; ctx.fillRect(0, 0, TILE, TILE);
+    ctx.fillStyle = '#243342'; ctx.fillRect(1, 0, 1, TILE); ctx.fillRect(14, 0, 1, TILE);
 
     // Wood door
-    ctx.fillStyle = '#5d4037';
-    ctx.fillRect(2, 2, 12, 14);
+    ctx.fillStyle = '#6d4c41'; ctx.fillRect(2, 1, 12, 15);
+    // Grain
+    ctx.fillStyle = '#5d4037'; ctx.fillRect(5, 1, 1, 15); ctx.fillRect(10, 1, 1, 15);
+    ctx.fillStyle = 'rgba(0,0,0,0.08)'; ctx.fillRect(3, 1, 1, 15); ctx.fillRect(7, 1, 1, 15); ctx.fillRect(12, 1, 1, 15);
 
-    // Planks
-    ctx.fillStyle = '#4e342e';
-    ctx.fillRect(5, 2, 1, 14);
-    ctx.fillRect(9, 2, 1, 14);
+    // Iron bands with rivets
+    ctx.fillStyle = '#78909c'; ctx.fillRect(2, 3, 12, 2); ctx.fillRect(2, 10, 12, 2);
+    ctx.fillStyle = '#b0bec5'; ctx.fillRect(3, 3, 1, 1); ctx.fillRect(12, 3, 1, 1);
+    ctx.fillRect(3, 10, 1, 1); ctx.fillRect(12, 10, 1, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(2, 5, 12, 1); ctx.fillRect(2, 12, 12, 1);
 
-    // Iron banding
-    ctx.fillStyle = '#8d6e63';
-    ctx.fillRect(2, 4, 12, 2);
-    ctx.fillRect(2, 10, 12, 2);
+    // Ornate handle
+    ctx.fillStyle = '#ffd54f'; ctx.fillRect(10, 7, 2, 3);
+    ctx.fillStyle = '#ffca28'; ctx.fillRect(10, 7, 1, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(11, 9, 1, 1);
 
-    // Handle
-    ctx.fillStyle = '#ffca28';
-    ctx.fillRect(10, 8, 2, 2);
+    // Arch highlight + bottom shadow
+    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(3, 1, 10, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(2, 14, 12, 2);
 
     return c;
 }
@@ -176,27 +192,36 @@ function generateStairs(down: boolean): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE);
     const ctx = c.getContext('2d')!;
 
-    ctx.fillStyle = '#4a3b2a'; // Floor bg
+    // Dark cavity
+    ctx.fillStyle = down ? '#1a1208' : '#4a3b2a';
     ctx.fillRect(0, 0, TILE, TILE);
 
-    const steps = 4;
-    const stepH = TILE / steps;
-
+    const steps = 5;
+    const stepH = Math.floor(TILE / steps);
     for (let i = 0; i < steps; i++) {
         const y = i * stepH;
-        // Step top
-        ctx.fillStyle = down ? '#7f8c8d' : '#95a5a6';
-        ctx.fillRect(2, y, 12, stepH - 1);
-
-        // Step front (shadow)
-        ctx.fillStyle = down ? '#2c3e50' : '#34495e';
-        ctx.fillRect(2, y + stepH - 1, 12, 1);
+        const shade = down ? (0.5 + i * 0.12) : (1.0 - i * 0.12);
+        const r = Math.floor(127 * shade), g = Math.floor(140 * shade), b = Math.floor(141 * shade);
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.fillRect(3, y, 10, stepH - 1);
+        ctx.fillStyle = `rgba(255,255,255,${0.06 + (down ? i * 0.02 : (4 - i) * 0.02)})`;
+        ctx.fillRect(3, y, 10, 1);
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(3, y + stepH - 1, 10, 1);
     }
 
-    // Rails
-    ctx.fillStyle = '#2c3e50';
-    ctx.fillRect(0, 0, 2, TILE);
-    ctx.fillRect(14, 0, 2, TILE);
+    // Side walls
+    ctx.fillStyle = '#2c3e50'; ctx.fillRect(0, 0, 3, TILE); ctx.fillRect(13, 0, 3, TILE);
+    ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(2, 0, 1, TILE); ctx.fillRect(13, 0, 1, TILE);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(0, 0, 1, TILE); ctx.fillRect(15, 0, 1, TILE);
+
+    // Direction arrow
+    ctx.fillStyle = down ? '#e74c3c' : '#2ecc71';
+    if (down) {
+        ctx.fillRect(7, 12, 2, 1); ctx.fillRect(6, 11, 1, 1); ctx.fillRect(9, 11, 1, 1);
+    } else {
+        ctx.fillRect(7, 2, 2, 1); ctx.fillRect(6, 3, 1, 1); ctx.fillRect(9, 3, 1, 1);
+    }
 
     return c;
 }
@@ -206,27 +231,31 @@ function generateChest(): HTMLCanvasElement {
     const ctx = c.getContext('2d')!;
 
     // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.beginPath();
-    ctx.ellipse(8, 13, 6, 3, 0, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.ellipse(8, 14, 6, 2.5, 0, 0, Math.PI * 2); ctx.fill();
 
-    // Chest Body
-    ctx.fillStyle = '#8d6e63';
-    ctx.fillRect(2, 5, 12, 9);
+    // Body with shading
+    ctx.fillStyle = '#7b5b3a'; ctx.fillRect(2, 6, 12, 8);
+    ctx.fillStyle = '#6d4c2e'; ctx.fillRect(2, 12, 12, 2);
+    ctx.fillStyle = '#8a6844'; ctx.fillRect(3, 7, 10, 2);
 
-    // Lid (Top)
-    ctx.fillStyle = '#a1887f';
-    ctx.fillRect(2, 3, 12, 3);
+    // Lid
+    ctx.fillStyle = '#9c7c5a'; ctx.fillRect(2, 3, 12, 4);
+    ctx.fillStyle = '#a88b66'; ctx.fillRect(3, 3, 10, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(2, 6, 12, 1);
 
-    // Bands
-    ctx.fillStyle = '#ffd54f';
-    ctx.fillRect(3, 3, 2, 11);
-    ctx.fillRect(11, 3, 2, 11);
+    // Metal bands
+    ctx.fillStyle = '#ffc107'; ctx.fillRect(3, 3, 2, 11); ctx.fillRect(11, 3, 2, 11);
+    ctx.fillStyle = '#ffe082'; ctx.fillRect(3, 3, 1, 11);
+    ctx.fillStyle = '#e6a800'; ctx.fillRect(4, 3, 1, 11); ctx.fillRect(12, 3, 1, 11);
 
     // Lock
-    ctx.fillStyle = '#ff6f00';
-    ctx.fillRect(7, 7, 2, 3);
+    ctx.fillStyle = '#ff8f00'; ctx.fillRect(7, 7, 2, 3);
+    ctx.fillStyle = '#ffd54f'; ctx.fillRect(7, 7, 1, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(8, 9, 1, 1);
+
+    // Shine
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(4, 3, 8, 1);
 
     return c;
 }
@@ -236,24 +265,26 @@ function generateChestOpen(): HTMLCanvasElement {
     const ctx = c.getContext('2d')!;
 
     // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.beginPath();
-    ctx.ellipse(8, 13, 6, 3, 0, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.ellipse(8, 14, 6, 2.5, 0, 0, Math.PI * 2); ctx.fill();
 
-    // Chest Body (Dark interior)
-    ctx.fillStyle = '#3e2723';
-    ctx.fillRect(2, 5, 12, 9);
+    // Dark interior
+    ctx.fillStyle = '#2a1a0e'; ctx.fillRect(2, 6, 12, 8);
+    ctx.fillStyle = '#3e2518'; ctx.fillRect(3, 7, 10, 2);
 
-    // Lid (Open / Back)
-    ctx.fillStyle = '#5d4037';
-    ctx.fillRect(2, 0, 12, 5);
+    // Open lid
+    ctx.fillStyle = '#6d4c2e'; ctx.fillRect(2, 0, 12, 6);
+    ctx.fillStyle = '#7b5b3a'; ctx.fillRect(3, 1, 10, 4);
+    ctx.fillStyle = '#5d3c22'; ctx.fillRect(3, 4, 10, 2);
 
-    // Gold glint inside
-    ctx.fillStyle = '#ffca28';
-    ctx.fillRect(4, 9, 2, 2);
-    ctx.fillRect(7, 10, 2, 2);
-    ctx.fillRect(10, 8, 2, 2);
+    // Gold + gems inside
+    ctx.fillStyle = '#ffd54f'; ctx.fillRect(4, 9, 2, 2); ctx.fillRect(7, 8, 3, 3); ctx.fillRect(11, 9, 2, 2);
+    ctx.fillStyle = '#e74c3c'; ctx.fillRect(5, 10, 1, 1);
+    ctx.fillStyle = '#3498db'; ctx.fillRect(9, 9, 1, 1);
+    ctx.fillStyle = 'rgba(255,255,200,0.5)'; ctx.fillRect(8, 8, 1, 1);
+
+    // Bands on lid
+    ctx.fillStyle = '#ffc107'; ctx.fillRect(3, 0, 2, 6); ctx.fillRect(11, 0, 2, 6);
 
     return c;
 }
@@ -261,10 +292,18 @@ function generateChestOpen(): HTMLCanvasElement {
 function generateTrap(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
     ctx.fillStyle = '#4a3b2a'; ctx.fillRect(0, 0, TILE, TILE);
-    ctx.fillStyle = '#5d4037';
-    ctx.beginPath(); ctx.arc(8, 8, 2, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(4, 4, 1, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(12, 12, 1, 0, Math.PI * 2); ctx.fill();
+    // Pressure plate
+    ctx.fillStyle = '#56473a'; ctx.fillRect(3, 3, 10, 10);
+    ctx.fillStyle = '#3e3024'; ctx.fillRect(3, 12, 10, 1); ctx.fillRect(12, 3, 1, 10);
+    // Pin holes
+    ctx.fillStyle = '#2a1e14';
+    ctx.beginPath(); ctx.arc(5, 5, 1.2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(11, 5, 1.2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(8, 8, 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(5, 11, 1.2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(11, 11, 1.2, 0, Math.PI * 2); ctx.fill();
+    // Danger tint
+    ctx.fillStyle = 'rgba(180, 50, 30, 0.08)'; ctx.fillRect(3, 3, 10, 10);
     return c;
 }
 
@@ -272,117 +311,173 @@ function generateTrap(): HTMLCanvasElement {
 function generateGrass(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
     ctx.fillStyle = '#3a7d44'; ctx.fillRect(0, 0, TILE, TILE);
-    // Layered grass blades
-    const bladeColors = ['#2d6b36', '#4a9e56', '#5cb85c', '#348a40', '#2a5e2e'];
-    for (let i = 0; i < 12; i++) {
+    // Earth showing through
+    ctx.fillStyle = 'rgba(90,70,40,0.08)';
+    for (let i = 0; i < 4; i++) ctx.fillRect(Math.floor(Math.random() * 14) + 1, Math.floor(Math.random() * 14) + 1, 1, 1);
+    // Blades with depth
+    const bladeColors = ['#255e2c', '#2d6b36', '#4a9e56', '#5cb85c', '#348a40', '#2a5e2e', '#66c76e'];
+    for (let i = 0; i < 16; i++) {
         const x = Math.floor(Math.random() * 14) + 1;
         const y = Math.floor(Math.random() * 12) + 2;
         ctx.fillStyle = bladeColors[Math.floor(Math.random() * bladeColors.length)];
-        ctx.fillRect(x, y, 1, 2 + Math.floor(Math.random() * 2));
+        ctx.fillRect(x, y, 1, 1 + Math.floor(Math.random() * 3));
+        if (Math.random() > 0.6) { ctx.fillStyle = 'rgba(255,255,200,0.12)'; ctx.fillRect(x, y, 1, 1); }
     }
-    // Light patches
-    ctx.fillStyle = 'rgba(255,255,200,0.06)';
-    ctx.fillRect(Math.floor(Math.random() * 10) + 2, Math.floor(Math.random() * 10) + 2, 4, 4);
-    // Subtle edge tinting
-    ctx.fillStyle = '#2d6b36'; ctx.globalAlpha = 0.2; ctx.fillRect(0, 0, TILE, 1); ctx.fillRect(0, 15, TILE, 1);
+    // Sunlight patch
+    if (Math.random() > 0.5) {
+        ctx.fillStyle = 'rgba(255,255,180,0.08)';
+        ctx.fillRect(Math.floor(Math.random() * 8) + 3, Math.floor(Math.random() * 8) + 3, 4, 3);
+    }
+    ctx.fillStyle = '#2d6b36'; ctx.globalAlpha = 0.15;
+    ctx.fillRect(0, 0, TILE, 1); ctx.fillRect(0, 15, TILE, 1);
     ctx.fillRect(0, 0, 1, TILE); ctx.fillRect(15, 0, 1, TILE); ctx.globalAlpha = 1;
     return c;
 }
+
 function generatePath(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
     ctx.fillStyle = '#c4a97d'; ctx.fillRect(0, 0, TILE, TILE);
-    // Stone pattern
-    for (let i = 0; i < 6; i++) {
-        const x = Math.floor(Math.random() * 12) + 1;
-        const y = Math.floor(Math.random() * 12) + 1;
-        ctx.fillStyle = Math.random() > 0.5 ? '#b89b6a' : '#d4b98e';
-        ctx.fillRect(x, y, 2 + Math.floor(Math.random() * 2), 1);
+    const stones = [
+        { x: 1, y: 1, w: 4, h: 3 }, { x: 6, y: 0, w: 5, h: 3 }, { x: 12, y: 1, w: 3, h: 2 },
+        { x: 0, y: 4, w: 3, h: 4 }, { x: 4, y: 4, w: 5, h: 3 }, { x: 10, y: 3, w: 5, h: 4 },
+        { x: 1, y: 8, w: 5, h: 3 }, { x: 7, y: 8, w: 4, h: 4 }, { x: 12, y: 8, w: 3, h: 3 },
+        { x: 0, y: 12, w: 4, h: 3 }, { x: 5, y: 13, w: 5, h: 2 }, { x: 11, y: 12, w: 4, h: 3 },
+    ];
+    for (const s of stones) {
+        const v = Math.random() * 0.12;
+        ctx.fillStyle = `rgb(${Math.floor(186 + v * 50)},${Math.floor(158 + v * 40)},${Math.floor(108 + v * 30)})`;
+        ctx.fillRect(s.x, s.y, s.w, s.h);
+        ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(s.x, s.y, s.w, 1);
+        ctx.fillStyle = 'rgba(0,0,0,0.06)'; ctx.fillRect(s.x, s.y + s.h - 1, s.w, 1);
     }
-    // Edges
-    ctx.fillStyle = '#a88f64'; ctx.globalAlpha = 0.3;
-    ctx.fillRect(0, 0, 16, 1); ctx.fillRect(0, 15, 16, 1);
+    ctx.fillStyle = '#8a7350'; ctx.globalAlpha = 0.4;
+    ctx.fillRect(0, 3, 16, 1); ctx.fillRect(0, 7, 16, 1); ctx.fillRect(0, 11, 16, 1);
     ctx.globalAlpha = 1;
     return c;
 }
 function generateWater(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
-    // Deep base
-    ctx.fillStyle = '#1a6fa0'; ctx.fillRect(0, 0, TILE, TILE);
-    // Mid layer
-    ctx.fillStyle = '#2980b9'; ctx.fillRect(0, 0, TILE, 12);
-    // Surface
+    ctx.fillStyle = '#155a86'; ctx.fillRect(0, 0, TILE, TILE);
+    ctx.fillStyle = '#1a6fa0'; ctx.fillRect(0, 0, TILE, 12);
+    ctx.fillStyle = '#2980b9'; ctx.fillRect(0, 0, TILE, 8);
     ctx.fillStyle = '#3498db';
-    ctx.fillRect(2, 3, 5, 1); ctx.fillRect(10, 7, 4, 1); ctx.fillRect(4, 11, 3, 1);
-    // Specular highlights
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
-    ctx.fillRect(3, 4, 3, 1); ctx.fillRect(11, 8, 3, 1);
-    // Subtle wave shadow
-    ctx.fillStyle = 'rgba(0,0,50,0.15)';
-    ctx.fillRect(1, 5, 4, 1); ctx.fillRect(8, 9, 5, 1);
+    ctx.fillRect(1, 3, 5, 1); ctx.fillRect(9, 5, 5, 1); ctx.fillRect(3, 9, 4, 1); ctx.fillRect(10, 11, 4, 1);
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.fillRect(2, 2, 3, 1); ctx.fillRect(10, 4, 4, 1);
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fillRect(4, 8, 2, 1); ctx.fillRect(11, 10, 3, 1);
+    ctx.fillStyle = 'rgba(0,0,30,0.2)'; ctx.fillRect(0, 12, 16, 4);
+    ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(5, 4, 1, 1); ctx.fillRect(12, 6, 1, 1);
     return c;
 }
 function generateBuilding(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
     ctx.fillStyle = '#8d6e63'; ctx.fillRect(0, 0, TILE, TILE);
-    ctx.fillStyle = '#6d4c41'; ctx.fillRect(0, 0, TILE, 3); // roof edge
-    ctx.fillStyle = '#795548'; ctx.fillRect(2, 3, 5, 4); ctx.fillRect(9, 3, 5, 4); // planks
-    ctx.fillStyle = '#5d4037'; ctx.fillRect(7, 3, 2, TILE - 3); // center beam
-    ctx.fillStyle = '#4e342e'; ctx.fillRect(0, 0, 1, TILE); ctx.fillRect(15, 0, 1, TILE);
-    // Highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.08)';
-    ctx.fillRect(2, 4, 5, 1); ctx.fillRect(9, 4, 5, 1);
+    ctx.fillStyle = '#5d4037'; ctx.fillRect(0, 0, TILE, 4);
+    ctx.fillStyle = '#4e342e'; ctx.fillRect(0, 0, TILE, 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(0, 0, TILE, 1);
+    ctx.fillStyle = '#795548'; ctx.fillRect(2, 4, 5, 5); ctx.fillRect(9, 4, 5, 5);
+    ctx.fillRect(2, 10, 5, 5); ctx.fillRect(9, 10, 5, 5);
+    ctx.fillStyle = '#6d4c41'; ctx.fillRect(4, 4, 1, 12); ctx.fillRect(11, 4, 1, 12);
+    ctx.fillStyle = '#5d4037'; ctx.fillRect(7, 4, 2, 12);
+    ctx.fillStyle = '#4e342e'; ctx.fillRect(7, 4, 1, 12); ctx.fillRect(0, 4, 1, 12); ctx.fillRect(15, 4, 1, 12);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fillRect(2, 4, 5, 1); ctx.fillRect(9, 4, 5, 1); ctx.fillRect(2, 10, 5, 1); ctx.fillRect(9, 10, 5, 1);
+    ctx.fillStyle = '#b0bec5';
+    ctx.fillRect(3, 6, 1, 1); ctx.fillRect(12, 6, 1, 1); ctx.fillRect(3, 12, 1, 1); ctx.fillRect(12, 12, 1, 1);
     return c;
 }
 function generateFence(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
     ctx.fillStyle = '#3a7d44'; ctx.fillRect(0, 0, TILE, TILE);
-    ctx.fillStyle = '#8d6e63'; ctx.fillRect(2, 4, 2, 10); ctx.fillRect(12, 4, 2, 10);
+    for (let i = 0; i < 6; i++) {
+        ctx.fillStyle = Math.random() > 0.5 ? '#4a9e56' : '#2d6b36';
+        ctx.fillRect(Math.floor(Math.random() * 14) + 1, Math.floor(Math.random() * 10) + 4, 1, 2);
+    }
+    ctx.fillStyle = '#795548'; ctx.fillRect(2, 3, 3, 11); ctx.fillRect(11, 3, 3, 11);
+    ctx.fillStyle = '#8d6e63'; ctx.fillRect(2, 3, 2, 10); ctx.fillRect(11, 3, 2, 10);
+    ctx.fillStyle = '#a1887f'; ctx.fillRect(2, 3, 3, 1); ctx.fillRect(11, 3, 3, 1);
     ctx.fillStyle = '#a1887f'; ctx.fillRect(1, 6, 14, 2); ctx.fillRect(1, 10, 14, 2);
-    // Highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.1)';
-    ctx.fillRect(1, 6, 14, 1); ctx.fillRect(1, 10, 14, 1);
+    ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(1, 6, 14, 1); ctx.fillRect(1, 10, 14, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.08)'; ctx.fillRect(1, 8, 14, 1); ctx.fillRect(1, 12, 14, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.1)'; ctx.fillRect(2, 13, 3, 1); ctx.fillRect(11, 13, 3, 1);
     return c;
 }
 function generateTree(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
     ctx.fillStyle = '#3a7d44'; ctx.fillRect(0, 0, TILE, TILE);
-    // Trunk with bark texture
-    ctx.fillStyle = '#5d4037'; ctx.fillRect(6, 9, 4, 7);
-    ctx.fillStyle = '#4e342e'; ctx.fillRect(7, 10, 1, 5);
-    // Shadow under tree
-    ctx.fillStyle = 'rgba(0,0,0,0.15)';
-    ctx.beginPath(); ctx.ellipse(8, 15, 5, 2, 0, 0, Math.PI * 2); ctx.fill();
-    // Multi-tone canopy
-    ctx.fillStyle = '#1e5631'; ctx.beginPath(); ctx.arc(8, 6, 7, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#2d6b36'; ctx.beginPath(); ctx.arc(6, 5, 4, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#4a9e56'; ctx.beginPath(); ctx.arc(10, 4, 3, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#5cb85c'; ctx.beginPath(); ctx.arc(7, 3, 2, 0, Math.PI * 2); ctx.fill();
-    // Highlight
-    ctx.fillStyle = 'rgba(255,255,200,0.12)';
-    ctx.beginPath(); ctx.arc(6, 3, 2, 0, Math.PI * 2); ctx.fill();
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.beginPath(); ctx.ellipse(8, 14, 5, 2, 0, 0, Math.PI * 2); ctx.fill();
+    // Trunk + bark
+    ctx.fillStyle = '#5d4037'; ctx.fillRect(6, 8, 4, 8);
+    ctx.fillStyle = '#4e342e'; ctx.fillRect(7, 9, 1, 6);
+    ctx.fillStyle = '#6d4c41'; ctx.fillRect(6, 8, 1, 7);
+    // Root flares
+    ctx.fillStyle = '#5d4037'; ctx.fillRect(5, 14, 1, 2); ctx.fillRect(10, 14, 1, 2);
+    // Canopy layers
+    ctx.fillStyle = '#1a4d2a'; ctx.beginPath(); ctx.arc(8, 5, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#1e5631'; ctx.beginPath(); ctx.arc(7, 5, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2d6b36'; ctx.beginPath(); ctx.arc(6, 4, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#3a8a4a'; ctx.beginPath(); ctx.arc(10, 4, 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#4a9e56'; ctx.beginPath(); ctx.arc(8, 3, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#5cb85c'; ctx.beginPath(); ctx.arc(7, 2, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#66c76e'; ctx.beginPath(); ctx.arc(9, 2, 1.5, 0, Math.PI * 2); ctx.fill();
+    // Sun highlight
+    ctx.fillStyle = 'rgba(255,255,180,0.18)';
+    ctx.beginPath(); ctx.arc(6, 2, 2.5, 0, Math.PI * 2); ctx.fill();
+    // Dark leaf details
+    ctx.fillStyle = '#255e2c';
+    ctx.fillRect(4, 6, 1, 1); ctx.fillRect(11, 4, 1, 1); ctx.fillRect(5, 3, 1, 1);
     return c;
 }
 function generateFlower(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
     ctx.fillStyle = '#3a7d44'; ctx.fillRect(0, 0, TILE, TILE);
-    const colors = ['#e74c3c', '#f1c40f', '#9b59b6', '#e67e22', '#3498db'];
-    for (let i = 0; i < 3; i++) { const x = 3 + i * 4; const y = 4 + Math.floor(Math.random() * 6); ctx.fillStyle = '#2d6b36'; ctx.fillRect(x + 1, y + 2, 1, 4); ctx.fillStyle = colors[Math.floor(Math.random() * colors.length)]; ctx.fillRect(x, y, 3, 2); ctx.fillStyle = '#f1c40f'; ctx.fillRect(x + 1, y, 1, 1); }
+    for (let i = 0; i < 5; i++) {
+        ctx.fillStyle = Math.random() > 0.5 ? '#4a9e56' : '#2d6b36';
+        ctx.fillRect(Math.floor(Math.random() * 14) + 1, Math.floor(Math.random() * 10) + 4, 1, 2);
+    }
+    const colors = ['#e74c3c', '#f1c40f', '#9b59b6', '#e67e22', '#3498db', '#e91e63'];
+    for (let i = 0; i < 3; i++) {
+        const x = 2 + i * 4 + Math.floor(Math.random() * 2);
+        const y = 3 + Math.floor(Math.random() * 5);
+        ctx.fillStyle = '#27ae60'; ctx.fillRect(x + 1, y + 2, 1, 4);
+        ctx.fillStyle = '#2ecc71'; ctx.fillRect(x + 2, y + 3, 1, 1);
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        ctx.fillStyle = color; ctx.fillRect(x, y, 3, 2);
+        ctx.fillStyle = '#f1c40f'; ctx.fillRect(x + 1, y, 1, 1);
+        ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(x, y, 1, 1);
+    }
     return c;
 }
 function generateCropTile(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
-    ctx.fillStyle = '#5c4a35'; ctx.fillRect(0, 0, TILE, TILE); // tilled soil
-    ctx.fillStyle = '#4a3b2a'; for (let i = 0; i < 4; i++) ctx.fillRect(0, i * 4, TILE, 1);
+    ctx.fillStyle = '#5c4a35'; ctx.fillRect(0, 0, TILE, TILE);
+    for (let i = 0; i < 4; i++) {
+        ctx.fillStyle = '#4a3b2a'; ctx.fillRect(0, i * 4, TILE, 1);
+        ctx.fillStyle = '#6b5a48'; ctx.fillRect(0, i * 4 + 2, TILE, 1);
+    }
+    for (let i = 0; i < 6; i++) {
+        ctx.fillStyle = Math.random() > 0.5 ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.03)';
+        ctx.fillRect(Math.floor(Math.random() * 14) + 1, Math.floor(Math.random() * 14) + 1, 1, 1);
+    }
     return c;
 }
 function generateFishSpot(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
     ctx.fillStyle = '#2980b9'; ctx.fillRect(0, 0, TILE, TILE);
-    ctx.fillStyle = '#3498db'; ctx.fillRect(2, 3, 4, 1); ctx.fillRect(9, 8, 5, 1);
-    // Bobber/ripple
-    ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(8, 8, 3, 0, Math.PI * 2); ctx.stroke();
-    ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(8, 8, 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2471a3'; ctx.fillRect(0, 8, TILE, 8);
+    ctx.fillStyle = '#3498db'; ctx.fillRect(1, 3, 5, 1); ctx.fillRect(9, 7, 4, 1);
+    ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(2, 2, 3, 1); ctx.fillRect(10, 6, 3, 1);
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.arc(8, 8, 4, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.beginPath(); ctx.arc(8, 8, 6, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(8, 8, 1.8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(8, 7, 0.8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.1)';
+    ctx.beginPath(); ctx.ellipse(6, 12, 3, 1.5, -0.3, 0, Math.PI * 2); ctx.fill();
     return c;
 }
 

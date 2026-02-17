@@ -1,6 +1,7 @@
 // ===== INVENTORY UI =====
+// Fullscreen inventory with context menu (use/equip/drop)
 
-import type { PlayerState, ItemDef, EquipSlot } from './types';
+import type { PlayerState, ItemDef, EquipSlot, DroppedItem } from './types';
 import { Assets } from './assets';
 
 import { recalcStats } from './combat';
@@ -14,18 +15,36 @@ const grid = document.getElementById('inventory-grid')!;
 const statsDisplay = document.getElementById('stats-display')!;
 const tooltip = document.getElementById('item-tooltip')!;
 const equipSlots = document.querySelectorAll('.equip-slot');
+const ctxMenu = document.getElementById('item-context-menu')!;
+const invCount = document.getElementById('inv-count');
 
 let isOpen = false;
 
+// For drop item — the floor items array
+let floorItems: DroppedItem[] | null = null;
+
+export function setFloorItems(items: DroppedItem[]): void {
+    floorItems = items;
+}
 
 export function initInventory(player: PlayerState): void {
-
-
     closeBtn.addEventListener('click', () => toggleInventory(player));
     document.getElementById('inventory-btn')!.addEventListener('click', () => toggleInventory(player));
 
     // Tooltip hide on click outside
     panel.addEventListener('mouseleave', () => hideTooltip());
+
+    // Close context menu on click outside
+    document.addEventListener('click', (e) => {
+        if (!ctxMenu.contains(e.target as Node)) {
+            hideContextMenu();
+        }
+    });
+
+    // Close context menu on Escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') hideContextMenu();
+    });
 }
 
 export function toggleInventory(player: PlayerState): void {
@@ -36,6 +55,7 @@ export function toggleInventory(player: PlayerState): void {
     } else {
         panel.classList.add('hidden');
         hideTooltip();
+        hideContextMenu();
     }
 }
 
@@ -45,20 +65,21 @@ export function closeInventory(): void {
     isOpen = false;
     panel.classList.add('hidden');
     hideTooltip();
+    hideContextMenu();
 }
 
 function renderInventory(player: PlayerState): void {
     // Stats
     statsDisplay.innerHTML = '';
     const stats = [
-        ['HP', `${Math.ceil(player.stats.hp)}/${player.stats.maxHp}`],
-        ['ATK', `${player.stats.atk}`],
-        ['DEF', `${player.stats.def}`],
-        ['SPD', `${player.stats.spd.toFixed(1)}`],
-        ['CRIT', `${Math.floor(player.stats.critChance * 100)}%`],
-        ['Gold', `${player.gold}`],
-        ['Keys', `${player.keys}`],
-        ['Level', `${player.level}`],
+        ['❤️ HP', `${Math.ceil(player.stats.hp)}/${player.stats.maxHp}`],
+        ['⚔️ ATK', `${player.stats.atk}`],
+        ['🛡️ DEF', `${player.stats.def}`],
+        ['💨 SPD', `${player.stats.spd.toFixed(1)}`],
+        ['🎯 CRIT', `${Math.floor(player.stats.critChance * 100)}%`],
+        ['💰 Gold', `${player.gold}`],
+        ['🗝️ Keys', `${player.keys}`],
+        ['⭐ Level', `${player.level}`],
     ];
     stats.forEach(([label, value]) => {
         const row = document.createElement('div');
@@ -99,6 +120,11 @@ function renderInventory(player: PlayerState): void {
         }
     });
 
+    // Inventory count
+    if (invCount) {
+        invCount.textContent = `(${player.inventory.length}/32)`;
+    }
+
     // Inventory grid
     grid.innerHTML = '';
     const maxSlots = 32;
@@ -115,8 +141,6 @@ function renderInventory(player: PlayerState): void {
                 clone.width = icon.width;
                 clone.height = icon.height;
                 clone.getContext('2d')!.drawImage(icon, 0, 0);
-                clone.style.width = '100%';
-                clone.style.height = '100%';
                 slotDiv.appendChild(clone);
             }
 
@@ -127,13 +151,134 @@ function renderInventory(player: PlayerState): void {
                 slotDiv.appendChild(count);
             }
 
+            // Left click: use/equip (quick action)
+            slotDiv.onclick = (e) => {
+                e.stopPropagation();
+                hideContextMenu();
+                useOrEquipItem(player, i);
+                renderInventory(player);
+            };
+
+            // Right click: context menu
+            slotDiv.oncontextmenu = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                showContextMenu(player, i, e.clientX, e.clientY);
+            };
+
             slotDiv.onmouseenter = (e) => showTooltip(item.def, e);
             slotDiv.onmouseleave = () => hideTooltip();
-            slotDiv.onclick = () => { useOrEquipItem(player, i); renderInventory(player); };
         }
 
         grid.appendChild(slotDiv);
     }
+}
+
+// ===== CONTEXT MENU =====
+function showContextMenu(player: PlayerState, itemIndex: number, x: number, y: number): void {
+    hideTooltip();
+    const item = player.inventory[itemIndex];
+    if (!item) return;
+
+    ctxMenu.innerHTML = '';
+    ctxMenu.classList.remove('hidden');
+
+    const def = item.def;
+
+    // Item title
+    const titleDiv = document.createElement('div');
+    titleDiv.style.cssText = 'padding: 6px 12px; font-size: 10px; color: #f1c40f; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 2px;';
+    titleDiv.textContent = def.name;
+    ctxMenu.appendChild(titleDiv);
+
+    // Use/Equip button
+    if (def.equipSlot) {
+        addCtxButton('⚔️ Equip', () => {
+            useOrEquipItem(player, itemIndex);
+            renderInventory(player);
+            hideContextMenu();
+        });
+    } else if (def.category === 'consumable' || def.category === 'food' || def.category === 'fish') {
+        addCtxButton('🍖 Use', () => {
+            useOrEquipItem(player, itemIndex);
+            renderInventory(player);
+            hideContextMenu();
+        });
+    } else if (def.category === 'scroll') {
+        addCtxButton('📜 Use', () => {
+            useOrEquipItem(player, itemIndex);
+            renderInventory(player);
+            hideContextMenu();
+        });
+    }
+
+    // Divider
+    const divider = document.createElement('div');
+    divider.className = 'ctx-divider';
+    ctxMenu.appendChild(divider);
+
+    // Drop button
+    addCtxButton('🗑️ Drop', () => {
+        dropItem(player, itemIndex);
+        renderInventory(player);
+        hideContextMenu();
+    }, true);
+
+    // Position menu
+    const menuW = 160;
+    const menuH = ctxMenu.offsetHeight || 120;
+    let left = x;
+    let top = y;
+    if (left + menuW > window.innerWidth) left = x - menuW;
+    if (top + menuH > window.innerHeight) top = y - menuH;
+    ctxMenu.style.left = `${left}px`;
+    ctxMenu.style.top = `${top}px`;
+}
+
+function addCtxButton(label: string, onClick: () => void, isDrop = false): void {
+    const btn = document.createElement('button');
+    btn.className = `ctx-item${isDrop ? ' ctx-drop' : ''}`;
+    btn.textContent = label;
+    btn.onclick = (e) => {
+        e.stopPropagation();
+        onClick();
+    };
+    ctxMenu.appendChild(btn);
+}
+
+function hideContextMenu(): void {
+    ctxMenu.classList.add('hidden');
+}
+
+// ===== DROP ITEM =====
+function dropItem(player: PlayerState, index: number): void {
+    const item = player.inventory[index];
+    if (!item) return;
+
+    // Drop at player's feet
+    if (floorItems) {
+        const drop: DroppedItem = {
+            x: player.x,
+            y: player.y,
+            def: item.def,
+            count: item.count,
+        };
+        floorItems.push(drop);
+    }
+
+    // Remove from hotbar if assigned
+    for (let h = 0; h < player.hotbar.length; h++) {
+        if (player.hotbar[h] === item) {
+            player.hotbar[h] = null;
+        }
+    }
+
+    // Remove from inventory
+    player.inventory.splice(index, 1);
+    addMessage(`Dropped ${item.def.name}${item.count > 1 ? ` x${item.count}` : ''}`, 'msg-common');
+    addFloatingText(player.px + 8, player.py, `Dropped!`, '#e74c3c');
+    GameAudio.pickup();
+    updateHotbar(player);
 }
 
 function showTooltip(item: ItemDef, e: MouseEvent, isEquipped = false): void {
@@ -156,14 +301,21 @@ function showTooltip(item: ItemDef, e: MouseEvent, isEquipped = false): void {
         html += `<div class="tt-stats">Heals: ${item.healAmount} HP</div>`;
     }
 
-    html += `<div class="tt-action">${isEquipped ? 'Click to unequip' : item.equipSlot ? 'Click to equip' : item.category === 'consumable' ? 'Click to use' : ''}</div>`;
+    const actionText = isEquipped
+        ? '🖱️ Click: Unequip'
+        : item.equipSlot
+            ? '🖱️ Click: Equip  |  Right-click: More'
+            : item.category === 'consumable'
+                ? '🖱️ Click: Use  |  Right-click: More'
+                : '🖱️ Right-click: Actions';
+    html += `<div class="tt-action">${actionText}</div>`;
     tooltip.innerHTML = html;
 
     // Position tooltip
     const rect = tooltip.getBoundingClientRect();
-    let left = e.clientX + 10;
+    let left = e.clientX + 12;
     let top = e.clientY - 10;
-    if (left + rect.width > window.innerWidth) left = e.clientX - rect.width - 10;
+    if (left + rect.width > window.innerWidth) left = e.clientX - rect.width - 12;
     if (top + rect.height > window.innerHeight) top = window.innerHeight - rect.height - 10;
     tooltip.style.left = `${left}px`;
     tooltip.style.top = `${top}px`;
