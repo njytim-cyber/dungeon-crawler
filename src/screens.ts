@@ -1,6 +1,7 @@
 // ===== SCREENS =====
 
 import type { ClassName, ClassDef, PlayerState } from './types';
+import { initMultiplayerUI, showCoopMenu } from './multiplayer-ui';
 
 const CLASS_DEFS: ClassDef[] = [
     { name: 'warrior', label: 'Warrior', icon: '⚔️', description: 'High HP and ATK. A front-line fighter.', baseStats: { hp: 120, maxHp: 120, atk: 12, def: 8, spd: 0.8, critChance: 0.05 } },
@@ -94,6 +95,22 @@ export function initTitleScreen(onStart: (className: ClassName, name?: string) =
             });
         }
     };
+
+    // Co-op button
+    const coopBtn = document.getElementById('coop-menu-btn');
+    if (coopBtn) {
+        initMultiplayerUI((_floor, _seed) => {
+            // When co-op game starts, trigger game start with the lobby's class
+            document.getElementById('title-screen')!.classList.add('hidden');
+            onStart('warrior' as ClassName, 'CoopPlayer');
+        });
+        coopBtn.onclick = () => showCoopMenu();
+    }
+
+    // Listen for back-to-menu from co-op overlay
+    window.addEventListener('coop-back-to-menu', () => {
+        mainMenu.classList.remove('hidden');
+    });
 
     // Back -> Show Main Menu
     backBtn.onclick = () => {
