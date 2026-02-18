@@ -1,5 +1,6 @@
 // ===== MULTIPLAYER CLIENT =====
-// WebSocket client for co-op game sync
+// Cloudflare Workers + Durable Objects client
+// REST API for auth/friends, WebSocket per lobby for game sync
 
 import type {
     UserProfile, FriendInfo, FriendRequest, LobbyInfo,
@@ -12,6 +13,11 @@ import { AVATARS } from './multiplayer-types';
 let ws: WebSocket | null = null;
 let connected = false;
 let reconnectTimer: number | null = null;
+let latencyMs = 0;
+
+// Emote bubbles: uid -> { emoteId, time }
+const emoteBubbles = new Map<string, { emoteId: number; time: number }>();
+export const EMOTES = ['❤️', '👋', '⚔️', '❓', '😂', '👍', '🎉', '💀'] as const;
 
 // User & social
 let localProfile: UserProfile | null = null;
@@ -20,6 +26,7 @@ let friendRequests: FriendRequest[] = [];
 
 // Lobby
 let currentLobby: LobbyInfo | null = null;
+let currentLobbyId: string | null = null;  // Durable Object name
 let publicLobbies: LobbyInfo[] = [];
 
 // In-game remote players
@@ -47,54 +54,115 @@ export function off(event: string, cb: EventCallback): void {
     }
 }
 
+// ===== SERVER URL =====
+// Cloudflare Worker URL (update after deploying with `npx wrangler deploy`)
+const WORKER_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ? 'http://127.0.0.1:8787'                                       // Local dev: Wrangler dev server
+    : 'https://dungeon-crawler-server.huiling-koh.workers.dev';      // Production: Cloudflare
+
+const WS_BASE = WORKER_URL.replace('http', 'ws');
+
 // ===== CONNECTION =====
-// Production WebSocket server URL (set this after deploying to Render)
-const RENDER_WS_URL = 'wss://dungeon-crawler-server.onrender.com';
-
-const SERVER_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
-    ? `ws://${location.host}/ws`       // Local dev: Vite proxy
-    : RENDER_WS_URL;                   // Production: Render
-
 let hasEverConnected = false;
 let connectionAttempts = 0;
 
+// "Connect" now just pings the health endpoint to verify the server is reachable
 export function connectToServer(): void {
-    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+    if (hasEverConnected) {
+        emit('connected');
+        return;
+    }
 
     connectionAttempts++;
-    console.log('[MP] Connecting to', SERVER_URL, `(attempt ${connectionAttempts})`);
-    ws = new WebSocket(SERVER_URL);
+    console.log('[MP] Verifying Cloudflare Worker at', WORKER_URL, `(attempt ${connectionAttempts})`);
+
+    fetch(`${WORKER_URL}/health`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                hasEverConnected = true;
+                connectionAttempts = 0;
+                console.log('[MP] Worker reachable!', data);
+                emit('connected');
+            }
+        })
+        .catch(err => {
+            console.error('[MP] Worker unreachable:', err);
+            emit('connection_error', 'Could not reach the co-op server. Is the worker running? (npm run worker:dev)');
+        });
+}
+
+export function disconnect(): void {
+    if (ws) ws.close();
+    ws = null;
+    connected = false;
+    currentLobbyId = null;
+    if (reconnectTimer) { clearInterval(reconnectTimer); reconnectTimer = null; }
+}
+
+// ===== REST API HELPERS =====
+async function apiPost<T = any>(path: string, body: any): Promise<T> {
+    const res = await fetch(`${WORKER_URL}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    return res.json();
+}
+
+async function apiGet<T = any>(path: string): Promise<T> {
+    const res = await fetch(`${WORKER_URL}${path}`);
+    return res.json();
+}
+
+// ===== WEBSOCKET (per-lobby) =====
+function connectLobbyWS(lobbyId: string): void {
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+        ws.close();
+    }
+
+    if (!localProfile) return;
+
+    const params = new URLSearchParams({
+        lobbyId,
+        uid: localProfile.uid,
+        username: localProfile.username,
+        avatar: String(localProfile.avatar),
+        nameColor: localProfile.nameColor || '',
+        isAdmin: String(localProfile.isAdmin),
+    });
+
+    const wsUrl = `${WS_BASE}/ws?${params.toString()}`;
+    console.log('[MP] Connecting WebSocket to lobby', lobbyId);
+    ws = new WebSocket(wsUrl);
+    currentLobbyId = lobbyId;
 
     ws.onopen = () => {
         connected = true;
-        hasEverConnected = true;
-        connectionAttempts = 0;
-        console.log('[MP] Connected!');
-        emit('connected');
-        if (reconnectTimer) { clearInterval(reconnectTimer); reconnectTimer = null; }
+        console.log('[MP] WebSocket connected to lobby', lobbyId);
     };
 
     ws.onclose = () => {
         const wasConnected = connected;
         connected = false;
-        console.log('[MP] Disconnected');
-        if (wasConnected) {
-            emit('disconnected');
-        } else if (!hasEverConnected) {
-            emit('connection_error', 'Could not connect to the co-op server. Make sure the server is running (npm run server:dev).');
-        }
-        // Auto-reconnect (but slower if never connected)
-        if (!reconnectTimer) {
-            const delay = hasEverConnected ? 3000 : 8000;
-            reconnectTimer = window.setInterval(() => {
-                if (!connected) connectToServer();
-            }, delay);
+        console.log('[MP] WebSocket disconnected from lobby');
+        if (wasConnected && currentLobbyId === lobbyId) {
+            // Auto-reconnect to the same lobby if we were in one
+            if (!reconnectTimer) {
+                reconnectTimer = window.setInterval(() => {
+                    if (!connected && currentLobbyId === lobbyId) {
+                        connectLobbyWS(lobbyId);
+                    } else if (reconnectTimer) {
+                        clearInterval(reconnectTimer);
+                        reconnectTimer = null;
+                    }
+                }, 3000);
+            }
         }
     };
 
     ws.onerror = (_e) => {
-        console.error('[MP] Connection error');
-        emit('connection_error', 'Server connection failed. Is the server running?');
+        console.error('[MP] WebSocket error');
     };
 
     ws.onmessage = (event) => {
@@ -104,58 +172,15 @@ export function connectToServer(): void {
     };
 }
 
-export function disconnect(): void {
-    if (ws) ws.close();
-    ws = null;
-    connected = false;
-    if (reconnectTimer) { clearInterval(reconnectTimer); reconnectTimer = null; }
-}
-
-function sendMsg(msg: ClientMessage): void {
+function sendWsMsg(msg: ClientMessage): void {
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(msg));
-    } else {
-        emit('connection_error', 'Not connected to server. Please wait...');
     }
 }
 
-// ===== MESSAGE HANDLER =====
+// ===== MESSAGE HANDLER (from lobby WebSocket) =====
 function handleServerMessage(msg: ServerMessage): void {
     switch (msg.type) {
-        case 'auth_ok':
-            localProfile = msg.profile;
-            friendRequests = msg.profile.friendRequests;
-            emit('auth_ok', msg.profile, msg.starterGear);
-            break;
-
-        case 'auth_error':
-            emit('auth_error', msg.message);
-            break;
-
-        case 'profile_updated':
-            if (localProfile) Object.assign(localProfile, msg.profile);
-            if (msg.profile.friendRequests) friendRequests = msg.profile.friendRequests;
-            emit('profile_updated', msg.profile);
-            break;
-
-        case 'friend_list':
-            friendsList = msg.friends;
-            emit('friends_updated', friendsList);
-            break;
-
-        case 'friend_request_received':
-            friendRequests.push(msg.request);
-            emit('friend_request', msg.request);
-            break;
-
-        case 'friend_request_sent':
-            emit('friend_request_sent', msg.targetUsername);
-            break;
-
-        case 'friend_request_error':
-            emit('friend_request_error', msg.message);
-            break;
-
         case 'lobby_created':
             currentLobby = msg.lobby;
             emit('lobby_created', msg.lobby);
@@ -173,6 +198,9 @@ function handleServerMessage(msg: ServerMessage): void {
 
         case 'lobby_left':
             currentLobby = null;
+            currentLobbyId = null;
+            if (ws) { ws.close(); ws = null; }
+            connected = false;
             emit('lobby_left');
             break;
 
@@ -182,11 +210,6 @@ function handleServerMessage(msg: ServerMessage): void {
 
         case 'lobby_full':
             emit('lobby_full', msg.code);
-            break;
-
-        case 'public_lobbies':
-            publicLobbies = msg.lobbies;
-            emit('public_lobbies', msg.lobbies);
             break;
 
         case 'game_start':
@@ -234,7 +257,31 @@ function handleServerMessage(msg: ServerMessage): void {
             emit('chat_msg', msg.fromUid, msg.fromUsername, msg.message, msg.nameColor);
             break;
 
+        case 'floor_change':
+            emit('floor_change', msg.floor, msg.seed, msg.fromUid);
+            break;
+
+        case 'shared_loot':
+            emit('shared_loot', msg.xp, msg.gold, msg.enemyType, msg.killerUsername);
+            break;
+
+        case 'revive_player':
+            emit('revive_player', msg.targetUid, msg.fromUid, msg.fromUsername);
+            break;
+
+        case 'emote':
+            emoteBubbles.set(msg.fromUid, { emoteId: msg.emoteId, time: Date.now() });
+            emit('emote', msg.fromUid, msg.fromUsername, msg.emoteId);
+            break;
+
+        case 'teleport_info':
+            emit('teleport_info', msg.hostX, msg.hostY);
+            break;
+
         case 'pong':
+            if (msg.timestamp) {
+                latencyMs = Date.now() - msg.timestamp;
+            }
             break;
 
         case 'admin_reward':
@@ -245,83 +292,273 @@ function handleServerMessage(msg: ServerMessage): void {
 
 // ===== API METHODS =====
 
-// Auth
-export function login(email: string, username: string): void {
-    sendMsg({ type: 'auth', email, username });
+// Auth — now uses REST endpoint to UserRegistry DO
+export async function login(email: string, username: string): Promise<void> {
+    try {
+        const result = await apiPost('/api/user/auth', { email, username });
+
+        if (result.type === 'auth_ok') {
+            localProfile = result.profile;
+            friendRequests = result.profile.friendRequests || [];
+
+            // Mark user as online
+            await apiPost('/api/user/set-online', { uid: localProfile!.uid, online: true });
+
+            // Fetch friend list
+            const friendsResult = await apiGet(`/api/user/friends?uid=${localProfile!.uid}`);
+            friendsList = friendsResult.friends || [];
+
+            emit('auth_ok', result.profile, result.starterGear);
+        } else if (result.type === 'auth_error') {
+            emit('auth_error', result.message);
+        }
+    } catch (err) {
+        console.error('[MP] Login failed:', err);
+        emit('connection_error', 'Failed to connect to co-op server.');
+    }
 }
 
-export function setUsername(username: string): void {
-    sendMsg({ type: 'set_username', username });
+export async function setUsername(username: string): Promise<void> {
+    if (!localProfile) return;
+    try {
+        const result = await apiPost('/api/user/set-username', { uid: localProfile.uid, username });
+        if (result.type === 'profile_updated') {
+            Object.assign(localProfile, result.profile);
+            emit('profile_updated', result.profile);
+        } else if (result.type === 'auth_error') {
+            emit('auth_error', result.message);
+        }
+    } catch (err) {
+        console.error('[MP] Set username failed:', err);
+    }
 }
 
-export function setAvatar(avatar: number): void {
-    sendMsg({ type: 'set_avatar', avatar });
+export async function setAvatar(avatar: number): Promise<void> {
+    if (!localProfile) return;
+    try {
+        const result = await apiPost('/api/user/set-avatar', { uid: localProfile.uid, avatar });
+        if (result.type === 'profile_updated') {
+            localProfile.avatar = avatar;
+            emit('profile_updated', result.profile);
+        }
+    } catch (err) {
+        console.error('[MP] Set avatar failed:', err);
+    }
 }
 
-// Friends
-export function sendFriendRequest(targetUsername: string): void {
-    sendMsg({ type: 'friend_request', targetUsername });
+// Friends — REST calls to UserRegistry DO
+export async function sendFriendRequest(targetUsername: string): Promise<void> {
+    if (!localProfile) return;
+    try {
+        const result = await apiPost('/api/user/friend-request', { uid: localProfile.uid, targetUsername });
+        if (result.type === 'friend_request_sent') {
+            emit('friend_request_sent', result.targetUsername);
+        } else if (result.type === 'friend_request_error') {
+            emit('friend_request_error', result.message);
+        }
+    } catch (err) {
+        console.error('[MP] Friend request failed:', err);
+    }
 }
 
-export function acceptFriendRequest(fromUid: string): void {
-    sendMsg({ type: 'friend_accept', fromUid });
+export async function acceptFriendRequest(fromUid: string): Promise<void> {
+    if (!localProfile) return;
+    try {
+        const result = await apiPost('/api/user/friend-accept', { uid: localProfile.uid, fromUid });
+        if (result.type === 'friend_accepted') {
+            friendsList = result.friends;
+            friendRequests = friendRequests.filter(r => r.fromUid !== fromUid);
+            emit('friends_updated', friendsList);
+        }
+    } catch (err) {
+        console.error('[MP] Accept friend failed:', err);
+    }
 }
 
-export function declineFriendRequest(fromUid: string): void {
-    sendMsg({ type: 'friend_decline', fromUid });
+export async function declineFriendRequest(fromUid: string): Promise<void> {
+    if (!localProfile) return;
+    try {
+        const result = await apiPost('/api/user/friend-decline', { uid: localProfile.uid, fromUid });
+        if (result.type === 'profile_updated') {
+            friendRequests = friendRequests.filter(r => r.fromUid !== fromUid);
+            if (localProfile) Object.assign(localProfile, result.profile);
+            emit('profile_updated', result.profile);
+        }
+    } catch (err) {
+        console.error('[MP] Decline friend failed:', err);
+    }
 }
 
-// Lobbies
-export function createLobby(name: string, visibility: LobbyVisibility): void {
-    sendMsg({ type: 'create_lobby', name, visibility });
+// Lobbies — REST to create/join, then WebSocket for real-time sync
+export async function createLobby(name: string, visibility: LobbyVisibility): Promise<void> {
+    if (!localProfile) return;
+    if (currentLobbyId) {
+        emit('lobby_error', 'Already in a lobby. Leave first.');
+        return;
+    }
+
+    try {
+        // Generate a unique lobby ID for the Durable Object
+        const lobbyId = `lobby_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+        const result = await apiPost(`/api/lobby/${lobbyId}/create`, {
+            name,
+            visibility,
+            hostUid: localProfile.uid,
+            hostUsername: localProfile.username,
+            hostAvatar: localProfile.avatar,
+            hostNameColor: localProfile.nameColor,
+        });
+
+        if (result.type === 'lobby_created') {
+            currentLobby = result.lobby;
+            currentLobbyId = lobbyId;
+            // Connect WebSocket to this lobby for real-time sync
+            connectLobbyWS(lobbyId);
+            emit('lobby_created', result.lobby);
+        } else if (result.type === 'lobby_error') {
+            emit('lobby_error', result.message);
+        }
+    } catch (err) {
+        console.error('[MP] Create lobby failed:', err);
+        emit('lobby_error', 'Failed to create lobby.');
+    }
 }
 
-export function joinLobby(code: string): void {
-    sendMsg({ type: 'join_lobby', code });
+export async function joinLobby(code: string): Promise<void> {
+    if (!localProfile) return;
+    if (currentLobbyId) {
+        emit('lobby_error', 'Already in a lobby. Leave first.');
+        return;
+    }
+
+    try {
+        // The lobby code is used as the Durable Object name
+        // First try joining via REST
+        const result = await apiPost(`/api/lobby/${code}/join`, {
+            uid: localProfile.uid,
+            username: localProfile.username,
+            avatar: localProfile.avatar,
+            nameColor: localProfile.nameColor,
+        });
+
+        if (result.type === 'lobby_joined') {
+            currentLobby = result.lobby;
+            currentLobbyId = code;
+            // Connect WebSocket for real-time sync
+            connectLobbyWS(code);
+            emit('lobby_joined', result.lobby);
+        } else if (result.type === 'lobby_error') {
+            emit('lobby_error', result.message);
+        } else if (result.type === 'lobby_full') {
+            emit('lobby_full', code);
+        }
+    } catch (err) {
+        console.error('[MP] Join lobby failed:', err);
+        emit('lobby_error', 'Failed to join lobby.');
+    }
 }
 
 export function leaveLobby(): void {
-    sendMsg({ type: 'leave_lobby' });
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        sendWsMsg({ type: 'leave_lobby' } as any);
+    }
+    if (ws) { ws.close(); ws = null; }
+    connected = false;
     currentLobby = null;
+    currentLobbyId = null;
     remotePlayers.clear();
+    if (reconnectTimer) { clearInterval(reconnectTimer); reconnectTimer = null; }
+    emit('lobby_left');
 }
 
 export function setClass(className: ClassName): void {
-    sendMsg({ type: 'set_class', className });
+    sendWsMsg({ type: 'set_class', className });
 }
 
 export function toggleReady(): void {
-    sendMsg({ type: 'toggle_ready' });
+    sendWsMsg({ type: 'toggle_ready' });
 }
 
 export function startGame(): void {
-    sendMsg({ type: 'start_game' });
+    sendWsMsg({ type: 'start_game' });
 }
 
-export function listPublicLobbies(): void {
-    sendMsg({ type: 'list_public_lobbies' });
+export async function listPublicLobbies(): Promise<void> {
+    try {
+        const result = await apiGet('/api/user/public-lobbies');
+        publicLobbies = result.lobbies || [];
+        emit('public_lobbies', publicLobbies);
+    } catch (err) {
+        console.error('[MP] List public lobbies failed:', err);
+        publicLobbies = [];
+        emit('public_lobbies', publicLobbies);
+    }
 }
 
-// In-game sync
+// In-game sync — all via WebSocket
 export function sendPlayerMove(x: number, y: number, dir: number, px: number, py: number, animFrame: number): void {
-    sendMsg({ type: 'player_move', x, y, dir: dir as 0 | 1 | 2 | 3, px, py, animFrame });
+    sendWsMsg({ type: 'player_move', x, y, dir: dir as 0 | 1 | 2 | 3, px, py, animFrame });
+}
+
+export function sendPlayerAttack(enemyIndex: number, damage: number, killed: boolean): void {
+    sendWsMsg({ type: 'player_attack', enemyIndex, damage, killed });
 }
 
 export function sendPlayerStats(stats: Stats, level: number, equipment: Equipment, alive: boolean): void {
-    sendMsg({ type: 'player_stats', stats, level, equipment, alive });
+    sendWsMsg({ type: 'player_stats', stats, level, equipment, alive });
+}
+
+export function sendFloorChange(floor: number, seed: number): void {
+    sendWsMsg({ type: 'floor_change', floor, seed });
+}
+
+export function sendShareLoot(xp: number, gold: number, enemyType: string): void {
+    sendWsMsg({ type: 'share_loot', xp, gold, enemyType });
+}
+
+export function sendReviveRequest(targetUid: string): void {
+    sendWsMsg({ type: 'revive_request', targetUid });
+}
+
+export function sendEmote(emoteId: number): void {
+    sendWsMsg({ type: 'emote', emoteId });
+    // Also show locally
+    if (localProfile) {
+        emoteBubbles.set(localProfile.uid, { emoteId, time: Date.now() });
+    }
+}
+
+export function teleportToParty(): void {
+    sendWsMsg({ type: 'teleport_request' });
 }
 
 export function sendChat(message: string): void {
-    sendMsg({ type: 'chat', message });
+    sendWsMsg({ type: 'chat', message });
 }
 
-// Ping keepalive
+// Ping with latency measurement (every 10s)
 setInterval(() => {
-    if (connected) sendMsg({ type: 'ping' });
-}, 25_000);
+    if (connected && ws && ws.readyState === WebSocket.OPEN) {
+        sendWsMsg({ type: 'ping', timestamp: Date.now() });
+    }
+}, 10_000);
+
+// Periodic friend list refresh (since we can't push from REST)
+setInterval(async () => {
+    if (localProfile) {
+        try {
+            const result = await apiGet(`/api/user/friends?uid=${localProfile.uid}`);
+            if (result.friends) {
+                friendsList = result.friends;
+                emit('friends_updated', friendsList);
+            }
+        } catch { /* silent */ }
+    }
+}, 30_000);
 
 // ===== GETTERS =====
-export function isConnected(): boolean { return connected; }
+export function isConnected(): boolean { return connected || hasEverConnected; }
 export function getProfile(): UserProfile | null { return localProfile; }
 export function getFriends(): FriendInfo[] { return friendsList; }
 export function getFriendRequests(): FriendRequest[] { return friendRequests; }
@@ -331,3 +568,5 @@ export function getRemotePlayers(): Map<string, RemotePlayerState> { return remo
 export function isInLobby(): boolean { return currentLobby !== null; }
 export function isLoggedIn(): boolean { return localProfile !== null && localProfile.isLoggedIn; }
 export function getAvatars() { return AVATARS; }
+export function getLatency(): number { return latencyMs; }
+export function getEmoteBubbles(): Map<string, { emoteId: number; time: number }> { return emoteBubbles; }

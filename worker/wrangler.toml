@@ -1,0 +1,18 @@
+name = "dungeon-crawler-server"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# Durable Objects for game lobbies — each lobby is its own DO instance
+[[durable_objects.bindings]]
+name = "GAME_LOBBY"
+class_name = "GameLobby"
+
+# Durable Object for user management (single global instance)
+[[durable_objects.bindings]]
+name = "USER_REGISTRY"
+class_name = "UserRegistry"
+
+# Durable Object migrations
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["GameLobby", "UserRegistry"]

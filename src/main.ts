@@ -8,7 +8,7 @@ import { initInput, Input } from './input';
 import { generateFloor, isWalkable, generateTown } from './dungeon';
 import { getItemsByFloor, rollLoot } from './items';
 import { playerAttack, enemyAttack, checkLevelUp, recalcStats, updateScreenShake, getScreenShake } from './combat';
-import { updateParticles, renderParticles, renderFloatingTexts, clearParticles, spawnTorchEmbers, spawnLevelUpParticles, addFloatingText, spawnHitParticles } from './particles';
+import { updateParticles, renderParticles, renderFloatingTexts, clearParticles, spawnTorchEmbers, spawnLevelUpParticles, addFloatingText, spawnHitParticles, spawnDeathParticles } from './particles';
 import { updateVisibility, renderLighting, renderDayNightOverlay } from './lighting';
 import { renderMinimap } from './minimap';
 import { updateHUD, updateHotbar, addMessage, showHUD, hideHUD } from './hud';
@@ -324,6 +324,11 @@ function enterFloor(floor: number): void {
   }
 
   showFloorTransition(floor);
+
+  // Notify co-op teammates of floor change
+  if (isMultiplayerActive()) {
+    MP.sendFloorChange(floor, floor);
+  }
 }
 
 // ===== SAVE / LOAD =====
@@ -713,7 +718,13 @@ function update(dt: number): void {
         addFloatingText(atkX * tileSize, atkY * tileSize, '💫 SECRET!', '#f1c40f');
         GameAudio.chestOpen();
       }
-      playerAttack(player, currentFloor, addMessage);
+      playerAttack(player, currentFloor, addMessage, isMultiplayerActive() ? (enemyIndex, damage, killed, xpGain, goldGain, enemyType) => {
+        MP.sendPlayerAttack(enemyIndex, damage, killed);
+        // Share loot with teammates when enemy dies
+        if (killed && (xpGain > 0 || goldGain > 0)) {
+          MP.sendShareLoot(xpGain, goldGain, enemyType);
+        }
+      } : undefined);
     }
     attackHeld = true;
   }
@@ -726,19 +737,36 @@ function update(dt: number): void {
     if (isFishingActive()) {
       fishingCatch();
     } else {
-      const npc = checkNPCInteraction(player, currentFloor);
-      if (npc) {
-        openDialog(npc, player);
-      } else if (currentFloor.isTown) {
-        // Check for fishing spot adjacency
-        const fishSpot = getAdjacentFishSpot(player, currentFloor);
-        if (fishSpot) {
-          startFishing(player);
-        } else {
-          // Check for crop tile (standing on or adjacent)
-          const cropTile = getAdjacentCropTile(player, currentFloor);
-          if (cropTile) {
-            interactWithCrop(player, currentFloor, cropTile.x, cropTile.y);
+      // Check for dead teammate revive (co-op walk-to-revive)
+      let revived = false;
+      if (isMultiplayerActive()) {
+        const remotePlayers = MP.getRemotePlayers();
+        const { dx, dy } = { dx: player.dir === 3 ? 1 : player.dir === 2 ? -1 : 0, dy: player.dir === 0 ? 1 : player.dir === 1 ? -1 : 0 };
+        const checkX = player.x + dx;
+        const checkY = player.y + dy;
+        remotePlayers.forEach((rp: RemotePlayerState) => {
+          if (!rp.alive && Math.abs(rp.x - checkX) <= 1 && Math.abs(rp.y - checkY) <= 1 && !revived) {
+            MP.sendReviveRequest(rp.uid);
+            addMessage(`💚 Reviving ${rp.username}...`, 'msg-legendary');
+            spawnLevelUpParticles(rp.px + 8, rp.py + 8);
+            revived = true;
+          }
+        });
+      }
+
+      if (!revived) {
+        const npc = checkNPCInteraction(player, currentFloor);
+        if (npc) {
+          openDialog(npc, player);
+        } else if (currentFloor.isTown) {
+          const fishSpot = getAdjacentFishSpot(player, currentFloor);
+          if (fishSpot) {
+            startFishing(player);
+          } else {
+            const cropTile = getAdjacentCropTile(player, currentFloor);
+            if (cropTile) {
+              interactWithCrop(player, currentFloor, cropTile.x, cropTile.y);
+            }
           }
         }
       }
@@ -1242,49 +1270,232 @@ function render(): void {
   // ===== RENDER REMOTE PLAYERS (CO-OP) =====
   if (isMultiplayerActive()) {
     const remotePlayers = MP.getRemotePlayers();
+    const emoteBubbles = MP.getEmoteBubbles();
+    const now = Date.now();
     ctx.font = '6px "Press Start 2P"';
+
     remotePlayers.forEach((rp: RemotePlayerState) => {
-      if (!rp.alive) return;
-      // Lerp remote player pixel positions smoothly
       const rpx = rp.px - camX;
       const rpy = rp.py - camY;
 
-      // Skip if off-screen
-      if (rpx < -tileSize * 2 || rpx > canvas.width + tileSize || rpy < -tileSize * 2 || rpy > canvas.height + tileSize) return;
+      // Check if on-screen
+      const onScreen = rpx >= -tileSize * 2 && rpx <= canvas.width + tileSize &&
+        rpy >= -tileSize * 2 && rpy <= canvas.height + tileSize;
 
-      // Draw remote player sprite (use same sprite system)
-      ctx.globalAlpha = 0.85;
-      const rpSprite = Assets.getPlayer(rp.className, rp.dir, rp.animFrame);
-      if (rpSprite) {
-        ctx.drawImage(rpSprite, rpx, rpy - tileSize, tileSize, tileSize * 2);
+      if (onScreen) {
+        if (rp.alive) {
+          // Draw remote player sprite
+          ctx.globalAlpha = 0.85;
+          const rpSprite = Assets.getPlayer(rp.className, rp.dir, rp.animFrame);
+          if (rpSprite) {
+            ctx.drawImage(rpSprite, rpx, rpy - tileSize, tileSize, tileSize * 2);
+          } else {
+            const avDef = AVATARS[rp.avatar] || AVATARS[0];
+            ctx.fillStyle = avDef.colors.body;
+            ctx.beginPath();
+            ctx.arc(rpx + tileSize / 2, rpy + tileSize / 2, tileSize / 2.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+        } else {
+          // Dead player: ghost effect with skull
+          ctx.globalAlpha = 0.35;
+          const rpSprite = Assets.getPlayer(rp.className, rp.dir, 0);
+          if (rpSprite) {
+            ctx.drawImage(rpSprite, rpx, rpy - tileSize, tileSize, tileSize * 2);
+          }
+          ctx.globalAlpha = 1;
+          ctx.font = '12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('\u2620\ufe0f', rpx + tileSize / 2, rpy + tileSize / 2 + 4);
+          ctx.font = '6px "Press Start 2P"';
+        }
+
+        // Username tag above head
+        ctx.textAlign = 'center';
+        ctx.fillStyle = rp.nameColor || '#a29bfe';
+        ctx.fillText(rp.username, rpx + tileSize / 2, rpy - tileSize - 6);
+
+        // Health bar (for alive players)
+        if (rp.stats && rp.alive) {
+          const hpPct = rp.stats.hp / rp.stats.maxHp;
+          const barW = tileSize - 4;
+          const barX = rpx + 2;
+          const barY = rpy - tileSize - 2;
+          ctx.fillStyle = '#333';
+          ctx.fillRect(barX, barY, barW, 3);
+          ctx.fillStyle = hpPct > 0.5 ? '#2ecc71' : hpPct > 0.25 ? '#f39c12' : '#e74c3c';
+          ctx.fillRect(barX, barY, barW * hpPct, 3);
+        }
+
+        // Emote bubble
+        const emote = emoteBubbles.get(rp.uid);
+        if (emote) {
+          const age = (now - emote.time) / 1000;
+          if (age < 3) {
+            const fadeAlpha = age > 2 ? Math.max(0, 1 - (age - 2)) : 1;
+            const floatY = Math.sin(age * 2) * 2;
+            ctx.globalAlpha = fadeAlpha;
+            // Bubble background
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            const bubX = rpx + tileSize / 2;
+            const bubY = rpy - tileSize - 20 + floatY;
+            ctx.beginPath();
+            ctx.arc(bubX, bubY, 10, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            // Emote icon
+            ctx.font = '12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#fff';
+            ctx.fillText(MP.EMOTES[emote.emoteId] || '\u2764\ufe0f', bubX, bubY + 5);
+            ctx.font = '6px "Press Start 2P"';
+            ctx.globalAlpha = 1;
+          } else {
+            emoteBubbles.delete(rp.uid);
+          }
+        }
       } else {
-        // Fallback: colored circle with avatar emoji
-        const avDef = AVATARS[rp.avatar] || AVATARS[0];
-        ctx.fillStyle = avDef.colors.body;
+        // ===== OFF-SCREEN TEAMMATE ARROW =====
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const angle = Math.atan2(rpy - centerY, rpx - centerX);
+        const padding = 20;
+
+        // Clamp position to canvas edge
+        let arrowX = centerX + Math.cos(angle) * (canvas.width / 2 - padding);
+        let arrowY = centerY + Math.sin(angle) * (canvas.height / 2 - padding);
+        arrowX = Math.max(padding, Math.min(canvas.width - padding, arrowX));
+        arrowY = Math.max(padding, Math.min(canvas.height - padding, arrowY));
+
+        ctx.save();
+        ctx.translate(arrowX, arrowY);
+        ctx.rotate(angle);
+
+        // Arrow shape
+        const color = rp.nameColor || '#a29bfe';
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.8;
         ctx.beginPath();
-        ctx.arc(rpx + tileSize / 2, rpy + tileSize / 2, tileSize / 2.5, 0, Math.PI * 2);
+        ctx.moveTo(10, 0);
+        ctx.lineTo(-5, -6);
+        ctx.lineTo(-2, 0);
+        ctx.lineTo(-5, 6);
+        ctx.closePath();
         ctx.fill();
-      }
-      ctx.globalAlpha = 1;
 
-      // Username tag above head
-      ctx.textAlign = 'center';
-      ctx.fillStyle = rp.nameColor || '#a29bfe';
-      ctx.fillText(rp.username, rpx + tileSize / 2, rpy - tileSize - 6);
+        // Pulse glow
+        const pulse = 0.5 + Math.sin(frameTime * 0.005) * 0.3;
+        ctx.globalAlpha = pulse;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.restore();
 
-      // Health bar
-      if (rp.stats) {
-        const hpPct = rp.stats.hp / rp.stats.maxHp;
-        const barW = tileSize - 4;
-        const barX = rpx + 2;
-        const barY = rpy - tileSize - 2;
-        ctx.fillStyle = '#333';
-        ctx.fillRect(barX, barY, barW, 3);
-        ctx.fillStyle = hpPct > 0.5 ? '#2ecc71' : hpPct > 0.25 ? '#f39c12' : '#e74c3c';
-        ctx.fillRect(barX, barY, barW * hpPct, 3);
+        // Name label near arrow
+        ctx.save();
+        ctx.font = '5px "Press Start 2P"';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.7;
+        const name = rp.username.length > 8 ? rp.username.slice(0, 8) + '..' : rp.username;
+        ctx.fillText(name, arrowX, arrowY + 14);
+        // Distance indicator
+        const dist = Math.floor(Math.sqrt((rp.x - player.x) ** 2 + (rp.y - player.y) ** 2));
+        ctx.fillStyle = '#888';
+        ctx.fillText(`${dist}`, arrowX, arrowY + 22);
+        ctx.restore();
       }
     });
+
+    // Show local player emote too
+    const localProfile = MP.getProfile();
+    if (localProfile) {
+      const emote = emoteBubbles.get(localProfile.uid);
+      if (emote) {
+        const age = (now - emote.time) / 1000;
+        if (age < 3) {
+          const fadeAlpha = age > 2 ? Math.max(0, 1 - (age - 2)) : 1;
+          const floatY = Math.sin(age * 2) * 2;
+          const psx = player.px - camX;
+          const psy = player.py - camY;
+          ctx.globalAlpha = fadeAlpha;
+          ctx.fillStyle = 'rgba(0,0,0,0.6)';
+          const bubX = psx + tileSize / 2;
+          const bubY = psy - tileSize - 20 + floatY;
+          ctx.beginPath();
+          ctx.arc(bubX, bubY, 10, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.font = '12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(MP.EMOTES[emote.emoteId] || '\u2764\ufe0f', bubX, bubY + 5);
+          ctx.font = '6px "Press Start 2P"';
+          ctx.globalAlpha = 1;
+        }
+      }
+    }
+
     ctx.textAlign = 'left';
+
+    // ===== BOSS HP BAR (shared, at top of screen) =====
+    if (currentFloor && !currentFloor.isTown) {
+      const boss = currentFloor.enemies.find(e => e.isBoss && e.alive);
+      if (boss) {
+        ctx.save();
+        const barWidth = Math.min(canvas.width - 80, 320);
+        const barX = (canvas.width - barWidth) / 2;
+        const barY = 28;
+        const barH = 12;
+        const hpPct = Math.max(0, boss.hp / boss.maxHp);
+
+        // Background
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(barX - 4, barY - 14, barWidth + 8, barH + 22);
+        ctx.strokeStyle = '#c0392b';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(barX - 4, barY - 14, barWidth + 8, barH + 22);
+
+        // Boss name
+        ctx.font = '7px "Press Start 2P"';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#e74c3c';
+        ctx.fillText(`\u2620 ${boss.type} \u2620`, canvas.width / 2, barY - 2);
+
+        // HP bar background
+        ctx.fillStyle = '#1a1a2e';
+        ctx.fillRect(barX, barY, barWidth, barH);
+
+        // HP bar fill with gradient
+        const grad = ctx.createLinearGradient(barX, barY, barX + barWidth * hpPct, barY);
+        grad.addColorStop(0, '#c0392b');
+        grad.addColorStop(1, '#e74c3c');
+        ctx.fillStyle = grad;
+        ctx.fillRect(barX, barY, barWidth * hpPct, barH);
+
+        // HP text
+        ctx.font = '5px "Press Start 2P"';
+        ctx.fillStyle = '#fff';
+        ctx.fillText(`${Math.ceil(boss.hp)} / ${boss.maxHp}`, canvas.width / 2, barY + barH - 2);
+
+        // Decorative corners
+        ctx.strokeStyle = '#f39c12';
+        ctx.lineWidth = 1;
+        const cLen = 6;
+        // Top-left
+        ctx.beginPath(); ctx.moveTo(barX - 4, barY - 14 + cLen); ctx.lineTo(barX - 4, barY - 14); ctx.lineTo(barX - 4 + cLen, barY - 14); ctx.stroke();
+        // Top-right
+        ctx.beginPath(); ctx.moveTo(barX + barWidth + 4 - cLen, barY - 14); ctx.lineTo(barX + barWidth + 4, barY - 14); ctx.lineTo(barX + barWidth + 4, barY - 14 + cLen); ctx.stroke();
+        // Bottom-left
+        ctx.beginPath(); ctx.moveTo(barX - 4, barY + barH + 8 - cLen); ctx.lineTo(barX - 4, barY + barH + 8); ctx.lineTo(barX - 4 + cLen, barY + barH + 8); ctx.stroke();
+        // Bottom-right
+        ctx.beginPath(); ctx.moveTo(barX + barWidth + 4 - cLen, barY + barH + 8); ctx.lineTo(barX + barWidth + 4, barY + barH + 8); ctx.lineTo(barX + barWidth + 4, barY + barH + 8 - cLen); ctx.stroke();
+
+        ctx.restore();
+      }
+    }
   }
 
   // Render player
@@ -1388,7 +1599,7 @@ function render(): void {
 
   // Minimap
   if (Input.isMinimapVisible()) {
-    renderMinimap(currentFloor, player);
+    renderMinimap(currentFloor, player, isMultiplayerActive() ? MP.getRemotePlayers() : undefined);
   }
 
   // ===== RENDER CHAT MESSAGES (CO-OP) =====
@@ -1427,8 +1638,93 @@ function render(): void {
     ctx.strokeStyle = '#ffd54f';
     ctx.strokeRect(8, canvas.height - 130, 300, 18);
     ctx.fillStyle = '#ffd54f';
-    ctx.fillText('💬 ' + chatInput + '▏', 12, canvas.height - 116);
+    ctx.fillText('💬 ' + chatInput + '●', 12, canvas.height - 116);
     ctx.restore();
+  }
+
+  // ===== PARTY HUD (CO-OP) =====
+  if (isMultiplayerActive()) {
+    const remotePlayers = MP.getRemotePlayers();
+    if (remotePlayers.size > 0) {
+      ctx.save();
+      const partyX = canvas.width - 170;
+      let partyY = 80;
+
+      // Panel background
+      const panelH = 12 + remotePlayers.size * 36;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      ctx.beginPath();
+      const r = 6;
+      ctx.moveTo(partyX - 8 + r, partyY - 8);
+      ctx.lineTo(partyX + 162 - r, partyY - 8);
+      ctx.quadraticCurveTo(partyX + 162, partyY - 8, partyX + 162, partyY - 8 + r);
+      ctx.lineTo(partyX + 162, partyY - 8 + panelH - r);
+      ctx.quadraticCurveTo(partyX + 162, partyY - 8 + panelH, partyX + 162 - r, partyY - 8 + panelH);
+      ctx.lineTo(partyX - 8 + r, partyY - 8 + panelH);
+      ctx.quadraticCurveTo(partyX - 8, partyY - 8 + panelH, partyX - 8, partyY - 8 + panelH - r);
+      ctx.lineTo(partyX - 8, partyY - 8 + r);
+      ctx.quadraticCurveTo(partyX - 8, partyY - 8, partyX - 8 + r, partyY - 8);
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(162, 155, 254, 0.3)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      remotePlayers.forEach((rp: RemotePlayerState) => {
+        // Name + level
+        ctx.font = '7px "Press Start 2P"';
+        ctx.fillStyle = rp.nameColor || '#a29bfe';
+        ctx.textAlign = 'left';
+        const name = rp.username.length > 10 ? rp.username.slice(0, 10) + '..' : rp.username;
+        ctx.fillText(name, partyX, partyY);
+        ctx.fillStyle = '#888';
+        ctx.textAlign = 'right';
+        ctx.fillText(`Lv${rp.level || 1}`, partyX + 154, partyY);
+
+        // HP bar
+        if (rp.stats) {
+          const hpPct = Math.max(0, rp.stats.hp / rp.stats.maxHp);
+          const barW = 154;
+          ctx.fillStyle = '#1a1a2e';
+          ctx.fillRect(partyX, partyY + 4, barW, 8);
+          const hpColor = hpPct > 0.5 ? '#2ecc71' : hpPct > 0.25 ? '#f39c12' : '#e74c3c';
+          ctx.fillStyle = hpColor;
+          ctx.fillRect(partyX, partyY + 4, barW * hpPct, 8);
+          ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+          ctx.strokeRect(partyX, partyY + 4, barW, 8);
+
+          // HP text
+          ctx.font = '5px "Press Start 2P"';
+          ctx.textAlign = 'center';
+          ctx.fillStyle = '#fff';
+          ctx.fillText(`${Math.ceil(rp.stats.hp)}/${rp.stats.maxHp}`, partyX + barW / 2, partyY + 11);
+        }
+
+        // Dead indicator
+        if (!rp.alive) {
+          ctx.font = '6px "Press Start 2P"';
+          ctx.textAlign = 'center';
+          ctx.fillStyle = '#e74c3c';
+          ctx.fillText('☠️ DEAD', partyX + 77, partyY + 24);
+        }
+
+        partyY += 36;
+      });
+
+      ctx.textAlign = 'left';
+      ctx.restore();
+    }
+
+    // Ping display (top-right corner)
+    const ping = MP.getLatency();
+    if (ping > 0) {
+      ctx.save();
+      ctx.font = '6px "Press Start 2P"';
+      ctx.textAlign = 'right';
+      ctx.fillStyle = ping < 100 ? '#2ecc71' : ping < 250 ? '#f39c12' : '#e74c3c';
+      ctx.fillText(`${ping}ms`, canvas.width - 10, 16);
+      ctx.restore();
+    }
   }
 }
 
@@ -1552,11 +1848,25 @@ function init(): void {
     }
   });
 
-  MP.on('enemy_killed', (enemyIndex: number, _killerUid: string) => {
+  MP.on('enemy_killed', (enemyIndex: number, killerUid: string) => {
     if (!currentFloor || !currentFloor.enemies[enemyIndex]) return;
     const enemy = currentFloor.enemies[enemyIndex];
     enemy.hp = 0;
     enemy.alive = false;
+
+    // Victory celebration for boss kills in co-op!
+    if (enemy.isBoss && isMultiplayerActive()) {
+      const remotePlayers = MP.getRemotePlayers();
+      let killerName = 'the party';
+      remotePlayers.forEach(rp => { if (rp.uid === killerUid) killerName = rp.username; });
+      addMessage(`🎉🎉🎉 BOSS DEFEATED! ${killerName} dealt the final blow! 🎉🎉🎉`, 'msg-legendary');
+      addFloatingText(enemy.px, enemy.py - 16, '🎉 VICTORY!', '#f1c40f');
+      // Firework particles
+      for (let i = 0; i < 30; i++) {
+        const colors = ['#e74c3c', '#f39c12', '#2ecc71', '#3498db', '#9b59b6', '#f1c40f'];
+        spawnDeathParticles(enemy.px + Math.random() * 32, enemy.py + Math.random() * 32, colors[Math.floor(Math.random() * colors.length)]);
+      }
+    }
   });
 
   // Handle chat messages from other players
@@ -1596,16 +1906,94 @@ function init(): void {
     addMessage(`👑 ${reward.message}`, 'msg-legendary');
   });
 
+  // Handle floor change from teammates
+  MP.on('floor_change', (floor: number, _seed: number, _fromUid: string) => {
+    if (!player || gameState !== 'PLAYING') return;
+    // Follow the party to the new floor
+    addMessage(`🚪 Party is moving to Floor ${floor}!`, 'msg-rare');
+    setTimeout(() => {
+      if (player && gameState === 'PLAYING') {
+        enterFloor(floor);
+      }
+    }, 1500);
+  });
+
+  // Handle shared loot from teammates killing enemies
+  MP.on('shared_loot', (xp: number, gold: number, enemyType: string, killerUsername: string) => {
+    if (!player || gameState !== 'PLAYING') return;
+    // Co-op bonus: teammates get 50% of XP and gold
+    const sharedXP = Math.floor(xp * 0.5);
+    const sharedGold = Math.floor(gold * 0.5);
+    if (sharedXP > 0) {
+      player.xp += sharedXP;
+      addFloatingText(player.px + 8, player.py - 8, `+${sharedXP} XP`, '#a29bfe');
+    }
+    if (sharedGold > 0) {
+      player.gold += sharedGold;
+      addFloatingText(player.px + 8, player.py + 8, `+${sharedGold}g`, '#ffd54f');
+    }
+    addMessage(`⚔️ ${killerUsername} defeated ${enemyType}! +${sharedXP} XP, +${sharedGold}g`, 'msg-xp');
+    checkLevelUp(player, addMessage);
+  });
+
+  // Handle revive from teammate
+  MP.on('revive_player', (targetUid: string, _fromUid: string, fromUsername: string) => {
+    if (!player) return;
+    const profile = MP.getProfile();
+    if (profile && targetUid === profile.uid && !player.alive) {
+      player.alive = true;
+      player.stats.hp = Math.floor(player.stats.maxHp * 0.3);
+      addMessage(`💚 ${fromUsername} revived you!`, 'msg-legendary');
+      spawnLevelUpParticles(player.px + 8, player.py + 8);
+    }
+  });
+
+  // Teleport to party host position
+  MP.on('teleport_info', (hostX: number, hostY: number) => {
+    if (!player || gameState !== 'PLAYING') return;
+    player.x = hostX;
+    player.y = hostY;
+    player.px = hostX * tileSize;
+    player.py = hostY * tileSize;
+    addMessage(`✨ Teleported to the party leader!`, 'msg-rare');
+    spawnLevelUpParticles(player.px + 8, player.py + 8);
+  });
+
+  // Emote notification
+  MP.on('emote', (_fromUid: string, fromUsername: string, emoteId: number) => {
+    const emoteText = MP.EMOTES[emoteId] || '❤️';
+    addMessage(`${emoteText} ${fromUsername}`, 'msg-uncommon');
+  });
+
   // Chat key binding (T key to open chat in co-op)
+  // Emote keybinds (1-8 in co-op when chat is closed, Shift held)
   window.addEventListener('keydown', (e) => {
     if (gameState !== 'PLAYING') return;
     if (!isMultiplayerActive()) return;
-    if (chatOpen) return;
     if (isInventoryOpen() || isDialogOpen() || isSettingsOpen() || isCoopOpen()) return;
 
+    // Emote keys: Shift+1 through Shift+8
+    if (e.shiftKey && !chatOpen) {
+      const emoteKeys = ['1', '2', '3', '4', '5', '6', '7', '8'];
+      const idx = emoteKeys.indexOf(e.key);
+      if (idx !== -1) {
+        e.preventDefault();
+        MP.sendEmote(idx);
+        return;
+      }
+    }
+
+    // Chat: T key
+    if (chatOpen) return;
     if (e.key === 't' || e.key === 'T') {
       e.preventDefault();
       openChatInput();
+    }
+
+    // Teleport: P key
+    if (e.key === 'p' || e.key === 'P') {
+      e.preventDefault();
+      MP.teleportToParty();
     }
   });
 
