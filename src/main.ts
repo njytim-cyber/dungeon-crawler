@@ -2026,3 +2026,46 @@ function init(): void {
 }
 
 init();
+
+// ===== VERSION CHECK =====
+// Periodically check if a newer version is available
+function compareVersions(a: string, b: string): number {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const na = pa[i] || 0;
+    const nb = pb[i] || 0;
+    if (na > nb) return 1;
+    if (na < nb) return -1;
+  }
+  return 0;
+}
+
+function checkVersion(): void {
+  const WORKER_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ? 'http://127.0.0.1:8787'
+    : 'https://dungeon-crawler-server.huiling-koh.workers.dev';
+
+  fetch(`${WORKER_URL}/health`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.minClientVersion && compareVersions(APP_VERSION, data.minClientVersion) < 0) {
+        showUpdateBanner(data.minClientVersion);
+      }
+    })
+    .catch(() => { /* offline or unreachable, skip */ });
+}
+
+function showUpdateBanner(newVersion: string): void {
+  if (document.getElementById('update-banner')) return; // already showing
+  const banner = document.createElement('div');
+  banner.id = 'update-banner';
+  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:linear-gradient(90deg,#e74c3c,#c0392b);color:#fff;padding:10px 20px;text-align:center;font-family:\"Press Start 2P\",monospace;font-size:11px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.4);';
+  banner.innerHTML = `⚠️ New version v${newVersion} available! Click here or refresh to update. (You have v${APP_VERSION})`;
+  banner.onclick = () => location.reload();
+  document.body.prepend(banner);
+}
+
+// Check immediately and every 5 minutes
+checkVersion();
+setInterval(checkVersion, 5 * 60 * 1000);

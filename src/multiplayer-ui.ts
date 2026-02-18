@@ -381,6 +381,7 @@ function renderLobbyView(lobby: LobbyInfo): void {
                 <h2>${escapeHtml(lobby.name)}</h2>
                 <div class="coop-lobby-info-bar">
                     <span class="coop-lobby-code-display">Code: <strong>${escapeHtml(lobby.code)}</strong></span>
+                    <button class="coop-btn coop-btn-sm" id="coop-copy-code" title="Copy lobby code">📋</button>
                     <span class="coop-lobby-vis">${lobby.visibility === 'public' ? '🌍 Public' : '🔒 Private'}</span>
                     <span>👤 ${lobby.players.length}/7</span>
                 </div>
@@ -402,6 +403,28 @@ function renderLobbyView(lobby: LobbyInfo): void {
     if (readyBtn) readyBtn.onclick = () => MP.toggleReady();
     const startBtn = document.getElementById('coop-start-game');
     if (startBtn) startBtn.onclick = () => MP.startGame();
+
+    const copyBtn = document.getElementById('coop-copy-code');
+    if (copyBtn) {
+        copyBtn.onclick = () => {
+            navigator.clipboard.writeText(lobby.code).then(() => {
+                copyBtn.textContent = '✅';
+                setTimeout(() => { copyBtn.textContent = '📋'; }, 1500);
+                showNotification(`📋 Lobby code "${lobby.code}" copied! Share it with friends.`);
+            }).catch(() => {
+                // Fallback: select text
+                const el = document.createElement('textarea');
+                el.value = lobby.code;
+                document.body.appendChild(el);
+                el.select();
+                document.execCommand('copy');
+                document.body.removeChild(el);
+                copyBtn.textContent = '✅';
+                setTimeout(() => { copyBtn.textContent = '📋'; }, 1500);
+                showNotification(`📋 Lobby code "${lobby.code}" copied!`);
+            });
+        };
+    }
 
     coopOverlay.querySelectorAll('[data-class]').forEach(btn => {
         (btn as HTMLElement).onclick = () => MP.setClass((btn as HTMLElement).dataset.class as ClassName);

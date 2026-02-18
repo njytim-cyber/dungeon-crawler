@@ -50,6 +50,21 @@ export class UserRegistry implements DurableObject {
                 this.usernameToUid.set(username, uid);
             }
         }
+
+        // Restore lobby data from storage
+        const storedLobbies = await this.state.storage.get<Record<string, any>>('activeLobbies');
+        if (storedLobbies) {
+            for (const [id, lobby] of Object.entries(storedLobbies)) {
+                this.activeLobbies.set(id, lobby);
+            }
+        }
+        const storedCodes = await this.state.storage.get<Record<string, string>>('lobbyCodeToId');
+        if (storedCodes) {
+            for (const [code, id] of Object.entries(storedCodes)) {
+                this.lobbyCodeToId.set(code, id);
+            }
+        }
+
         this.initialized = true;
     }
 
@@ -60,6 +75,11 @@ export class UserRegistry implements DurableObject {
             usernameToUid: Object.fromEntries(this.usernameToUid),
         };
         await this.state.storage.put('data', data);
+    }
+
+    private async persistLobbies(): Promise<void> {
+        await this.state.storage.put('activeLobbies', Object.fromEntries(this.activeLobbies));
+        await this.state.storage.put('lobbyCodeToId', Object.fromEntries(this.lobbyCodeToId));
     }
 
     async fetch(request: Request): Promise<Response> {
@@ -74,12 +94,15 @@ export class UserRegistry implements DurableObject {
         // Stale lobby cleanup (remove lobbies older than 15 minutes)
         const LOBBY_TTL = 15 * 60 * 1000;
         const now = Date.now();
+        let lobbiesChanged = false;
         for (const [id, lobby] of this.activeLobbies) {
             if (now - lobby.createdAt > LOBBY_TTL) {
                 this.activeLobbies.delete(id);
                 this.lobbyCodeToId.delete(lobby.code?.toUpperCase());
+                lobbiesChanged = true;
             }
         }
+        if (lobbiesChanged) await this.persistLobbies();
 
         // POST /auth — authenticate or register user
         if (path === '/auth' && request.method === 'POST') {
@@ -172,6 +195,7 @@ export class UserRegistry implements DurableObject {
                     lobbyId: body.lobbyId,
                     createdAt: Date.now(),
                 });
+                await this.persistLobbies();
             }
             return json({ ok: true });
         }
@@ -181,6 +205,7 @@ export class UserRegistry implements DurableObject {
             if (!isInternal) return json({ error: 'Forbidden' }, 403);
             const body = await request.json<{ lobbyId: string }>();
             this.activeLobbies.delete(body.lobbyId);
+            await this.persistLobbies();
             return json({ ok: true });
         }
 
@@ -199,6 +224,7 @@ export class UserRegistry implements DurableObject {
             const body = await request.json<{ code: string; lobbyId: string }>();
             if (body.code && body.lobbyId) {
                 this.lobbyCodeToId.set(body.code.toUpperCase(), body.lobbyId);
+                await this.persistLobbies();
             }
             return json({ ok: true });
         }
