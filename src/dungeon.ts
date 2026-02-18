@@ -6,6 +6,35 @@ import { getItemsByFloor } from './items';
 import { getBiome } from './biomes';
 import { rollEliteModifier } from './systems';
 
+// ===== SEEDED PRNG =====
+// Mulberry32: fast, deterministic PRNG from a 32-bit seed
+// Used in multiplayer so all players generate the same dungeon layout
+let _seededRng: (() => number) | null = null;
+
+function mulberry32(seed: number): () => number {
+    return () => {
+        seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+        let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+}
+
+/** Set a global seed for dungeon generation (call before generateFloor) */
+export function setSeed(seed: number): void {
+    _seededRng = mulberry32(seed);
+}
+
+/** Clear the seed (revert to Math.random for solo play) */
+export function clearSeed(): void {
+    _seededRng = null;
+}
+
+/** Get a random number — uses seeded PRNG if set, otherwise Math.random */
+function rng(): number {
+    return _seededRng ? _seededRng() : Math.random();
+}
+
 const MIN_ROOM_SIZE = 4;
 const MAX_ROOM_SIZE = 10;
 
@@ -26,15 +55,15 @@ interface BSPNode {
 function splitBSP(node: BSPNode, depth: number): void {
     if (depth <= 0 || node.w < MIN_ROOM_SIZE * 2 + 2 || node.h < MIN_ROOM_SIZE * 2 + 2) return;
 
-    const splitH = node.w > node.h ? false : node.h > node.w ? true : Math.random() > 0.5;
+    const splitH = node.w > node.h ? false : node.h > node.w ? true : rng() > 0.5;
 
     if (splitH) {
-        const split = Math.floor(node.y + node.h * (0.3 + Math.random() * 0.4));
+        const split = Math.floor(node.y + node.h * (0.3 + rng() * 0.4));
         if (split - node.y < MIN_ROOM_SIZE + 1 || node.y + node.h - split < MIN_ROOM_SIZE + 1) return;
         node.left = { x: node.x, y: node.y, w: node.w, h: split - node.y };
         node.right = { x: node.x, y: split, w: node.w, h: node.y + node.h - split };
     } else {
-        const split = Math.floor(node.x + node.w * (0.3 + Math.random() * 0.4));
+        const split = Math.floor(node.x + node.w * (0.3 + rng() * 0.4));
         if (split - node.x < MIN_ROOM_SIZE + 1 || node.x + node.w - split < MIN_ROOM_SIZE + 1) return;
         node.left = { x: node.x, y: node.y, w: split - node.x, h: node.h };
         node.right = { x: split, y: node.y, w: node.x + node.w - split, h: node.h };
@@ -51,10 +80,10 @@ function createRoomInNode(node: BSPNode): void {
         return;
     }
 
-    const rw = Math.min(MAX_ROOM_SIZE, Math.floor(MIN_ROOM_SIZE + Math.random() * (node.w - MIN_ROOM_SIZE - 1)));
-    const rh = Math.min(MAX_ROOM_SIZE, Math.floor(MIN_ROOM_SIZE + Math.random() * (node.h - MIN_ROOM_SIZE - 1)));
-    const rx = node.x + 1 + Math.floor(Math.random() * (node.w - rw - 1));
-    const ry = node.y + 1 + Math.floor(Math.random() * (node.h - rh - 1));
+    const rw = Math.min(MAX_ROOM_SIZE, Math.floor(MIN_ROOM_SIZE + rng() * (node.w - MIN_ROOM_SIZE - 1)));
+    const rh = Math.min(MAX_ROOM_SIZE, Math.floor(MIN_ROOM_SIZE + rng() * (node.h - MIN_ROOM_SIZE - 1)));
+    const rx = node.x + 1 + Math.floor(rng() * (node.w - rw - 1));
+    const ry = node.y + 1 + Math.floor(rng() * (node.h - rh - 1));
 
     node.room = { x: rx, y: ry, w: rw, h: rh };
 }
@@ -273,7 +302,7 @@ export function generateFloor(floor: number): DungeonFloor {
     const tiles = createGrid(w, h, 'WALL');
 
     const root: BSPNode = { x: 0, y: 0, w, h };
-    const depth = 4 + Math.floor(Math.random() * 2);
+    const depth = 4 + Math.floor(rng() * 2);
     splitBSP(root, depth);
     createRoomInNode(root);
     const rooms: Room[] = [];
@@ -303,11 +332,11 @@ export function generateFloor(floor: number): DungeonFloor {
 
     // Place chests
     const chests: ChestState[] = [];
-    const chestCount = 1 + Math.floor(Math.random() * 3);
+    const chestCount = 1 + Math.floor(rng() * 3);
     for (let i = 0; i < chestCount && rooms.length > 2; i++) {
-        const room = rooms[1 + Math.floor(Math.random() * (rooms.length - 2))];
-        const cx = room.x + 1 + Math.floor(Math.random() * (room.w - 2));
-        const cy = room.y + 1 + Math.floor(Math.random() * (room.h - 2));
+        const room = rooms[1 + Math.floor(rng() * (rooms.length - 2))];
+        const cx = room.x + 1 + Math.floor(rng() * (room.w - 2));
+        const cy = room.y + 1 + Math.floor(rng() * (room.h - 2));
         if (tiles[cy][cx] === 'FLOOR') {
             tiles[cy][cx] = 'CHEST';
             chests.push({ x: cx, y: cy, opened: false });
@@ -315,11 +344,11 @@ export function generateFloor(floor: number): DungeonFloor {
     }
 
     // Place traps
-    const trapCount = Math.floor(floor * 0.3 + Math.random() * 3);
+    const trapCount = Math.floor(floor * 0.3 + rng() * 3);
     for (let i = 0; i < trapCount; i++) {
-        const room = rooms[Math.floor(Math.random() * rooms.length)];
-        const tx = room.x + 1 + Math.floor(Math.random() * (room.w - 2));
-        const ty = room.y + 1 + Math.floor(Math.random() * (room.h - 2));
+        const room = rooms[Math.floor(rng() * rooms.length)];
+        const tx = room.x + 1 + Math.floor(rng() * (room.w - 2));
+        const ty = room.y + 1 + Math.floor(rng() * (room.h - 2));
         if (tiles[ty][tx] === 'FLOOR') {
             tiles[ty][tx] = 'TRAP';
         }
@@ -331,7 +360,7 @@ export function generateFloor(floor: number): DungeonFloor {
             if (tiles[y][x] === 'FLOOR') {
                 const horizDoor = tiles[y][x - 1] === 'WALL' && tiles[y][x + 1] === 'WALL' && tiles[y - 1][x] === 'FLOOR' && tiles[y + 1][x] === 'FLOOR';
                 const vertDoor = tiles[y - 1][x] === 'WALL' && tiles[y + 1][x] === 'WALL' && tiles[y][x - 1] === 'FLOOR' && tiles[y][x + 1] === 'FLOOR';
-                if ((horizDoor || vertDoor) && Math.random() < 0.25) {
+                if ((horizDoor || vertDoor) && rng() < 0.25) {
                     tiles[y][x] = 'DOOR';
                 }
             }
@@ -340,15 +369,15 @@ export function generateFloor(floor: number): DungeonFloor {
 
     // Spawn enemies
     const enemies: EnemyState[] = [];
-    const enemyCount = 3 + Math.floor(floor * 0.5 + Math.random() * 5);
+    const enemyCount = 3 + Math.floor(floor * 0.5 + rng() * 5);
     const pool = getEnemyPool(floor);
 
     for (let i = 0; i < enemyCount; i++) {
-        const room = rooms[1 + Math.floor(Math.random() * (rooms.length - 1))];
-        const ex = room.x + 1 + Math.floor(Math.random() * (room.w - 2));
-        const ey = room.y + 1 + Math.floor(Math.random() * (room.h - 2));
+        const room = rooms[1 + Math.floor(rng() * (rooms.length - 1))];
+        const ex = room.x + 1 + Math.floor(rng() * (room.w - 2));
+        const ey = room.y + 1 + Math.floor(rng() * (room.h - 2));
         if (tiles[ey][ex] === 'FLOOR') {
-            const type = pool[Math.floor(Math.random() * pool.length)];
+            const type = pool[Math.floor(rng() * pool.length)];
             const enemy = createEnemy(type, ex, ey, floor, false);
 
             // Roll for elite modifier
@@ -390,11 +419,11 @@ export function generateFloor(floor: number): DungeonFloor {
 
     // Spawn NPCs (one per floor, random type)
     const npcs: NPCState[] = [];
-    if (rooms.length > 2 && Math.random() < 0.4) {
-        const npcRoom = rooms[1 + Math.floor(Math.random() * (rooms.length - 2))];
+    if (rooms.length > 2 && rng() < 0.4) {
+        const npcRoom = rooms[1 + Math.floor(rng() * (rooms.length - 2))];
         const nc = getRoomCenter(npcRoom);
         const npcTypes: NPCType[] = ['merchant', 'healer', 'sage'];
-        const npcType = npcTypes[Math.floor(Math.random() * npcTypes.length)];
+        const npcType = npcTypes[Math.floor(rng() * npcTypes.length)];
         npcs.push(createNPC(npcType, nc.x, nc.y, floor));
     }
 
@@ -403,10 +432,10 @@ export function generateFloor(floor: number): DungeonFloor {
 
     // ===== SECRET ROOMS =====
     let hasSecretRoom = false;
-    if (rooms.length > 3 && Math.random() < 0.3 + floor * 0.005) {
+    if (rooms.length > 3 && rng() < 0.3 + floor * 0.005) {
         // Create a small secret room off the side of an existing room
-        const sourceRoom = rooms[1 + Math.floor(Math.random() * (rooms.length - 2))];
-        const side = Math.floor(Math.random() * 4); // 0=top, 1=bottom, 2=left, 3=right
+        const sourceRoom = rooms[1 + Math.floor(rng() * (rooms.length - 2))];
+        const side = Math.floor(rng() * 4); // 0=top, 1=bottom, 2=left, 3=right
         let sx: number, sy: number, sw = 3, sh = 3;
 
         switch (side) {
@@ -446,12 +475,12 @@ export function generateFloor(floor: number): DungeonFloor {
 
     // ===== TRAP ROOM (occasional special floor) =====
     let isTrapRoom = false;
-    if (floor > 5 && floor % 10 !== 0 && Math.random() < 0.15) {
+    if (floor > 5 && floor % 10 !== 0 && rng() < 0.15) {
         // Add spike traps to a random room
-        const trapRoom = rooms[1 + Math.floor(Math.random() * Math.max(1, rooms.length - 2))];
+        const trapRoom = rooms[1 + Math.floor(rng() * Math.max(1, rooms.length - 2))];
         for (let ry = trapRoom.y + 1; ry < trapRoom.y + trapRoom.h - 1; ry++) {
             for (let rx = trapRoom.x + 1; rx < trapRoom.x + trapRoom.w - 1; rx++) {
-                if (tiles[ry][rx] === 'FLOOR' && Math.random() < 0.4) {
+                if (tiles[ry][rx] === 'FLOOR' && rng() < 0.4) {
                     tiles[ry][rx] = 'SPIKES';
                 }
             }

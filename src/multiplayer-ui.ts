@@ -6,6 +6,21 @@ import type { LobbyInfo, FriendRequest } from './multiplayer-types';
 import { AVATARS } from './multiplayer-types';
 import type { ClassName } from './types';
 
+// ===== SECURITY HELPERS =====
+function escapeHtml(str: string): string {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function safeColor(color: string | undefined): string {
+    if (!color || !/^#[0-9a-fA-F]{3,8}$/.test(color)) return '#fff';
+    return color;
+}
+
 // ===== DOM SETUP =====
 let coopOverlay: HTMLDivElement;
 let friendsSidebar: HTMLDivElement;
@@ -51,14 +66,19 @@ export function initMultiplayerUI(onGameStart: (floor: number, seed: number) => 
             window.dispatchEvent(new CustomEvent('mp-starter-gear', { detail: starterGear }));
         }
         showCoopMain();
+        // Auto-join if opened via direct link (?join=CODE)
+        const pendingCode = (window as any).__pendingJoinCode;
+        if (pendingCode) {
+            delete (window as any).__pendingJoinCode;
+            setTimeout(() => MP.joinLobby(pendingCode), 300);
+        }
     });
 
     MP.on('auth_error', (message: string) => {
-        showLoginError(message);
+        showNotification(`⚠️ ${message}`);
     });
 
     MP.on('connection_error', (message: string) => {
-        showLoginError(message);
         showNotification(`⚠️ ${message}`);
     });
 
@@ -121,9 +141,34 @@ export function initMultiplayerUI(onGameStart: (floor: number, seed: number) => 
         hideCoopOverlay();
         if (onStartCallback) onStartCallback(floor, seed);
     });
+
+    // Check for ?join=CODE in URL — auto-open co-op and join
+    const urlParams = new URLSearchParams(window.location.search);
+    const joinCode = urlParams.get('join');
+    if (joinCode) {
+        // Clean the URL so the join code isn't stuck
+        window.history.replaceState({}, '', window.location.pathname);
+        // Store for after login
+        (window as any).__pendingJoinCode = joinCode;
+        // Auto-open co-op overlay
+        setTimeout(() => {
+            showCoopMenu();
+        }, 500);
+    }
 }
 
 // ===== OVERLAY CONTROL =====
+// Fun auto-generated names
+const NAME_ADJECTIVES = ['Brave', 'Swift', 'Shadow', 'Iron', 'Storm', 'Frost', 'Fire', 'Dark', 'Star', 'Noble', 'Wild', 'Silent', 'Golden', 'Crimson', 'Mystic'];
+const NAME_NOUNS = ['Knight', 'Mage', 'Rogue', 'Hunter', 'Wolf', 'Dragon', 'Phoenix', 'Blade', 'Arrow', 'Shield', 'Sage', 'Hawk', 'Bear', 'Fox', 'Viper'];
+
+function generateRandomName(): string {
+    const adj = NAME_ADJECTIVES[Math.floor(Math.random() * NAME_ADJECTIVES.length)];
+    const noun = NAME_NOUNS[Math.floor(Math.random() * NAME_NOUNS.length)];
+    const num = Math.floor(Math.random() * 99) + 1;
+    return `${adj}${noun}${num}`;
+}
+
 export function showCoopMenu(): void {
     MP.connectToServer();
     coopOverlay.classList.remove('hidden');
@@ -133,7 +178,21 @@ export function showCoopMenu(): void {
         friendsSidebar.classList.remove('hidden');
         renderFriendsSidebar();
     } else {
-        showLoginScreen();
+        // Auto-login: generate name if first time, otherwise use saved name
+        let username = localStorage.getItem('coop-username');
+        if (!username) {
+            username = generateRandomName();
+            localStorage.setItem('coop-username', username);
+        }
+        // Show brief connecting splash
+        coopOverlay.innerHTML = `
+            <div class="coop-panel coop-login">
+                <h2>⚔️ Entering Co-op...</h2>
+                <p class="coop-subtitle">Playing as <strong style="color:#f1c40f">${username}</strong></p>
+                <p class="coop-note">You can change your name in the co-op menu.</p>
+            </div>
+        `;
+        MP.login(username);
     }
 }
 
@@ -148,66 +207,7 @@ export function isCoopOpen(): boolean {
 
 // ===== VIEWS =====
 
-// --- LOGIN ---
-function showLoginScreen(): void {
-    currentView = 'login';
-    coopOverlay.innerHTML = `
-        <div class="coop-panel coop-login">
-            <button class="coop-back-btn" id="coop-back">← Back</button>
-            <h2>🎮 Co-op Login</h2>
-            <p class="coop-subtitle">Login to play with friends! Get a colorful nametag + starter gear.</p>
-            <div class="coop-form">
-                <label>Email</label>
-                <input type="email" id="coop-email" placeholder="your@email.com" autocomplete="email" />
-                <label>Username</label>
-                <input type="text" id="coop-username" placeholder="CoolPlayer123" maxlength="20" autocomplete="username" />
-                <div id="coop-login-error" class="coop-error hidden"></div>
-                <button class="coop-btn coop-btn-primary" id="coop-login-btn">🚀 Login & Play</button>
-            </div>
-            <p class="coop-note">Username is permanent but can be changed later.</p>
-        </div>
-    `;
 
-    document.getElementById('coop-back')!.onclick = () => {
-        hideCoopOverlay();
-        window.dispatchEvent(new Event('coop-back-to-menu'));
-    };
-
-    document.getElementById('coop-login-btn')!.onclick = () => {
-        const email = (document.getElementById('coop-email') as HTMLInputElement).value.trim();
-        const username = (document.getElementById('coop-username') as HTMLInputElement).value.trim();
-        if (!email || !username) {
-            showLoginError('Please enter both email and username.');
-            return;
-        }
-        // Show connecting state
-        const btn = document.getElementById('coop-login-btn')!;
-        btn.textContent = '⏳ Connecting...';
-        (btn as HTMLButtonElement).disabled = true;
-        MP.login(email, username);
-        // Re-enable after 3s if no response
-        setTimeout(() => {
-            btn.textContent = '🚀 Login & Play';
-            (btn as HTMLButtonElement).disabled = false;
-        }, 3000);
-    };
-
-    // Clear error when user types
-    coopOverlay.querySelectorAll('input').forEach(input => {
-        input.addEventListener('input', () => {
-            const el = document.getElementById('coop-login-error');
-            if (el) el.classList.add('hidden');
-        });
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') document.getElementById('coop-login-btn')!.click();
-        });
-    });
-}
-
-function showLoginError(msg: string): void {
-    const el = document.getElementById('coop-login-error');
-    if (el) { el.textContent = msg; el.classList.remove('hidden'); }
-}
 
 // --- MAIN CO-OP MENU ---
 function showCoopMain(): void {
@@ -221,8 +221,7 @@ function showCoopMain(): void {
             <div class="coop-profile-bar">
                 <div class="coop-avatar" style="background:${avatarDef.colors.body}">${avatarDef.emoji}</div>
                 <div class="coop-profile-info">
-                    <span class="coop-username" style="color:${profile.nameColor || '#fff'}">${profile.username}</span>
-                    <span class="coop-email">${profile.email}</span>
+                    <span class="coop-username" style="color:${safeColor(profile.nameColor)}">${escapeHtml(profile.username)}</span>
                 </div>
                 <button class="coop-btn coop-btn-sm" id="coop-change-avatar">🎭 Avatar</button>
                 <button class="coop-btn coop-btn-sm" id="coop-change-name">✏️ Name</button>
@@ -232,6 +231,7 @@ function showCoopMain(): void {
             <div class="coop-menu-btns">
                 <button class="coop-btn coop-btn-primary coop-btn-lg" id="coop-create">🏰 Create Lobby</button>
                 <button class="coop-btn coop-btn-secondary coop-btn-lg" id="coop-join">🔗 Join Lobby</button>
+                <button class="coop-btn coop-btn-secondary coop-btn-lg" id="coop-friends">👥 Friends</button>
             </div>
         </div>
     `;
@@ -243,12 +243,13 @@ function showCoopMain(): void {
 
     document.getElementById('coop-create')!.onclick = () => showCreateLobby();
     document.getElementById('coop-join')!.onclick = () => showJoinLobby();
+    document.getElementById('coop-friends')!.onclick = () => {
+        friendsSidebar.classList.toggle('hidden');
+        renderFriendsSidebar();
+    };
 
     document.getElementById('coop-change-avatar')!.onclick = () => showAvatarPicker();
     document.getElementById('coop-change-name')!.onclick = () => showNameChanger();
-
-    friendsSidebar.classList.remove('hidden');
-    renderFriendsSidebar();
 }
 
 // --- CREATE LOBBY ---
@@ -337,15 +338,16 @@ function renderPublicLobbiesList(lobbies: LobbyInfo[]): void {
     } else {
         html += `<div class="coop-lobby-grid">`;
         for (const lobby of lobbies) {
+            const pCount = lobby.playerCount || (lobby.players ? lobby.players.length : 0);
             html += `
                 <div class="coop-lobby-card">
-                    <div class="coop-lobby-name">${lobby.name}</div>
+                    <div class="coop-lobby-name">${escapeHtml(lobby.name)}</div>
                     <div class="coop-lobby-meta">
-                        <span>👤 ${lobby.players.length}/7</span>
-                        <span>Host: ${lobby.hostUsername}</span>
+                        <span>👤 ${pCount}/${lobby.maxPlayers || 7}</span>
+                        <span>Host: ${escapeHtml(lobby.hostUsername)}</span>
                     </div>
-                    <div class="coop-lobby-code">${lobby.code}</div>
-                    <button class="coop-btn coop-btn-primary coop-btn-sm" data-join="${lobby.code}">Join</button>
+                    <div class="coop-lobby-code">${escapeHtml(lobby.code)}</div>
+                    <button class="coop-btn coop-btn-primary coop-btn-sm" data-join="${escapeHtml(lobby.code)}">Join</button>
                 </div>
             `;
         }
@@ -370,13 +372,13 @@ function renderLobbyView(lobby: LobbyInfo): void {
     let playersHtml = '';
     for (const p of lobby.players) {
         const av = AVATARS[p.avatar] || AVATARS[0];
-        const nameStyle = p.nameColor ? `color:${p.nameColor}` : '';
+        const nameStyle = p.nameColor ? `color:${safeColor(p.nameColor)}` : '';
         playersHtml += `
             <div class="coop-lobby-player ${p.ready ? 'ready' : ''} ${p.isHost ? 'host' : ''}">
                 <div class="coop-avatar coop-avatar-sm" style="background:${av.colors.body}">${av.emoji}</div>
                 <div class="coop-player-info">
-                    <span class="coop-player-name" style="${nameStyle}">${p.username}</span>
-                    <span class="coop-player-class">${CLASS_OPTIONS.find(c => c.name === p.className)?.icon || '⚔️'} ${p.className}</span>
+                    <span class="coop-player-name" style="${nameStyle}">${escapeHtml(p.username)}</span>
+                    <span class="coop-player-class">${CLASS_OPTIONS.find(c => c.name === p.className)?.icon || '⚔️'} ${escapeHtml(p.className)}</span>
                 </div>
                 <div class="coop-player-status">
                     ${p.isHost ? '👑' : p.ready ? '✅' : '⏳'}
@@ -396,9 +398,10 @@ function renderLobbyView(lobby: LobbyInfo): void {
         <div class="coop-panel coop-lobby-view">
             <button class="coop-back-btn" id="coop-leave">← Leave Lobby</button>
             <div class="coop-lobby-header">
-                <h2>${lobby.name}</h2>
+                <h2>${escapeHtml(lobby.name)}</h2>
                 <div class="coop-lobby-info-bar">
-                    <span class="coop-lobby-code-display">Code: <strong>${lobby.code}</strong></span>
+                    <span class="coop-lobby-code-display">Code: <strong>${escapeHtml(lobby.code)}</strong></span>
+                    <button class="coop-btn coop-btn-sm" id="coop-copy-code" title="Copy join link">🔗</button>
                     <span class="coop-lobby-vis">${lobby.visibility === 'public' ? '🌍 Public' : '🔒 Private'}</span>
                     <span>👤 ${lobby.players.length}/7</span>
                 </div>
@@ -420,6 +423,28 @@ function renderLobbyView(lobby: LobbyInfo): void {
     if (readyBtn) readyBtn.onclick = () => MP.toggleReady();
     const startBtn = document.getElementById('coop-start-game');
     if (startBtn) startBtn.onclick = () => MP.startGame();
+
+    const copyBtn = document.getElementById('coop-copy-code');
+    if (copyBtn) {
+        copyBtn.onclick = () => {
+            const joinUrl = `${window.location.origin}?join=${lobby.code}`;
+            navigator.clipboard.writeText(joinUrl).then(() => {
+                copyBtn.textContent = '✅';
+                setTimeout(() => { copyBtn.textContent = '🔗'; }, 1500);
+                showNotification(`🔗 Join link copied! Share it with friends.`);
+            }).catch(() => {
+                const el = document.createElement('textarea');
+                el.value = joinUrl;
+                document.body.appendChild(el);
+                el.select();
+                document.execCommand('copy');
+                document.body.removeChild(el);
+                copyBtn.textContent = '✅';
+                setTimeout(() => { copyBtn.textContent = '🔗'; }, 1500);
+                showNotification(`🔗 Join link copied!`);
+            });
+        };
+    }
 
     coopOverlay.querySelectorAll('[data-class]').forEach(btn => {
         (btn as HTMLElement).onclick = () => MP.setClass((btn as HTMLElement).dataset.class as ClassName);
@@ -459,8 +484,8 @@ function showNameChanger(): void {
             <button class="coop-back-btn" id="coop-back">← Back</button>
             <h2>✏️ Change Username</h2>
             <div class="coop-form">
-                <label>Current: <strong style="color:${profile.nameColor || '#fff'}">${profile.username}</strong></label>
-                <input type="text" id="new-username" placeholder="New username" maxlength="20" value="${profile.username}" />
+                <label>Current: <strong style="color:${safeColor(profile.nameColor)}">${escapeHtml(profile.username)}</strong></label>
+                <input type="text" id="new-username" placeholder="New username" maxlength="20" value="${escapeHtml(profile.username)}" />
                 <button class="coop-btn coop-btn-primary" id="coop-save-name">💾 Save</button>
             </div>
         </div>
@@ -481,7 +506,10 @@ function renderFriendsSidebar(): void {
     let html = `
         <div class="friends-header">
             <h3>👥 Friends</h3>
-            <button class="friends-add-btn" id="friends-add-btn" title="Add friend">+</button>
+            <div style="display:flex;gap:6px;align-items:center">
+                <button class="friends-add-btn" id="friends-add-btn" title="Add friend">+</button>
+                <button class="friends-add-btn" id="friends-close-btn" title="Close">✕</button>
+            </div>
         </div>
     `;
 
@@ -493,7 +521,7 @@ function renderFriendsSidebar(): void {
             html += `
                 <div class="friend-request-item">
                     <div class="friend-avatar" style="background:${av.colors.body}">${av.emoji}</div>
-                    <span class="friend-name">${req.fromUsername}</span>
+                    <span class="friend-name">${escapeHtml(req.fromUsername)}</span>
                     <button class="friend-accept-btn" data-accept="${req.fromUid}">✓</button>
                     <button class="friend-decline-btn" data-decline="${req.fromUid}">✕</button>
                 </div>
@@ -521,7 +549,7 @@ function renderFriendsSidebar(): void {
                         <div class="friend-online-dot"></div>
                     </div>
                     <div class="friend-info">
-                        <span class="friend-name">${f.username}</span>
+                        <span class="friend-name">${escapeHtml(f.username)}</span>
                         ${f.currentLobby ? `<span class="friend-lobby">🎮 ${f.currentLobby}</span>` : '<span class="friend-status">Online</span>'}
                     </div>
                     ${f.currentLobby && !f.lobbyFull ? `<button class="friend-join-btn" data-join-lobby="${f.currentLobby}">Join</button>` : ''}
@@ -542,7 +570,7 @@ function renderFriendsSidebar(): void {
                         <div class="friend-avatar" style="background:${av.colors.body};opacity:0.5">${av.emoji}</div>
                     </div>
                     <div class="friend-info">
-                        <span class="friend-name" style="opacity:0.5">${f.username}</span>
+                        <span class="friend-name" style="opacity:0.5">${escapeHtml(f.username)}</span>
                         <span class="friend-status">Offline</span>
                     </div>
                 </div>
@@ -555,6 +583,9 @@ function renderFriendsSidebar(): void {
 
     // Event listeners
     document.getElementById('friends-add-btn')?.addEventListener('click', showAddFriendDialog);
+    document.getElementById('friends-close-btn')?.addEventListener('click', () => {
+        friendsSidebar.classList.add('hidden');
+    });
     friendsSidebar.querySelectorAll('[data-accept]').forEach(btn => {
         (btn as HTMLElement).onclick = () => MP.acceptFriendRequest((btn as HTMLElement).dataset.accept!);
     });

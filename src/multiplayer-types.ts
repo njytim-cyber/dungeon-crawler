@@ -42,11 +42,13 @@ export interface LobbyInfo {
     hostUsername: string;
     visibility: LobbyVisibility;
     players: LobbyPlayer[];
-    maxPlayers: 7;
-    minPlayers: 2;
+    maxPlayers: number;
+    minPlayers: number;
     gameStarted: boolean;
     floor: number;
     createdAt: number;
+    playerCount?: number;  // from registry listing
+    lobbyId?: string;      // DO name for joining
 }
 
 export interface LobbyPlayer {
@@ -76,6 +78,7 @@ export interface RemotePlayerState {
     alive: boolean;
     level: number;
     nameColor?: string;
+    floor?: number;
 }
 
 // ===== NETWORK MESSAGES =====
@@ -93,12 +96,17 @@ export type ClientMessage =
     | { type: 'set_class'; className: ClassName }
     | { type: 'toggle_ready' }
     | { type: 'start_game' }
-    | { type: 'player_move'; x: number; y: number; dir: Direction; px: number; py: number; animFrame: number }
-    | { type: 'player_attack'; targetX: number; targetY: number }
+    | { type: 'player_move'; x: number; y: number; dir: Direction; px: number; py: number; animFrame: number; floor: number }
+    | { type: 'player_attack'; enemyIndex: number; damage: number; killed: boolean }
     | { type: 'player_stats'; stats: Stats; level: number; equipment: Equipment; alive: boolean }
+    | { type: 'floor_change'; floor: number; seed: number }
+    | { type: 'share_loot'; xp: number; gold: number; enemyType: string }
+    | { type: 'revive_request'; targetUid: string }
+    | { type: 'emote'; emoteId: number }
+    | { type: 'teleport_request' }
     | { type: 'chat'; message: string }
     | { type: 'list_public_lobbies' }
-    | { type: 'ping' };
+    | { type: 'ping'; timestamp: number };
 
 // Server -> Client
 export type ServerMessage =
@@ -119,13 +127,18 @@ export type ServerMessage =
     | { type: 'game_start'; floor: number; seed: number }
     | { type: 'player_joined'; player: RemotePlayerState }
     | { type: 'player_left'; uid: string }
-    | { type: 'player_update'; uid: string; x: number; y: number; dir: Direction; px: number; py: number; animFrame: number }
+    | { type: 'player_update'; uid: string; x: number; y: number; dir: Direction; px: number; py: number; animFrame: number; username?: string; className?: string; avatar?: number; nameColor?: string; floor?: number }
     | { type: 'player_stats_update'; uid: string; stats: Stats; level: number; equipment: Equipment; alive: boolean }
     | { type: 'enemy_damage'; enemyIndex: number; damage: number; fromUid: string }
     | { type: 'enemy_killed'; enemyIndex: number; killerUid: string }
+    | { type: 'floor_change'; floor: number; seed: number; fromUid: string; fromUsername?: string }
+    | { type: 'shared_loot'; xp: number; gold: number; enemyType: string; killerUsername: string }
+    | { type: 'revive_player'; targetUid: string; fromUid: string; fromUsername: string }
+    | { type: 'emote'; fromUid: string; fromUsername: string; emoteId: number }
+    | { type: 'teleport_info'; hostUid: string; hostX: number; hostY: number }
     | { type: 'chat_msg'; fromUid: string; fromUsername: string; message: string; nameColor?: string }
     | { type: 'admin_reward'; reason: string; levelUp: number; skillPoints: number; message: string }
-    | { type: 'pong' };
+    | { type: 'pong'; timestamp: number };
 
 // ===== AVATAR DEFINITIONS =====
 export const AVATARS = [

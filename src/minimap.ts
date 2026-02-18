@@ -1,11 +1,12 @@
 // ===== MINIMAP =====
 
 import type { DungeonFloor, PlayerState, EnemyState } from './types';
+import type { RemotePlayerState } from './multiplayer-types';
 
 const minimapCanvas = document.getElementById('minimapCanvas') as HTMLCanvasElement | null;
 const MINIMAP_SCALE = 2;
 
-export function renderMinimap(floor: DungeonFloor, player: PlayerState): void {
+export function renderMinimap(floor: DungeonFloor, player: PlayerState, remotePlayers?: Map<string, RemotePlayerState>): void {
     if (!minimapCanvas) return;
     const ctx = minimapCanvas.getContext('2d');
     if (!ctx) return;
@@ -88,6 +89,20 @@ export function renderMinimap(floor: DungeonFloor, player: PlayerState): void {
         ctx.fillStyle = '#2ecc71';
         ctx.fillRect(mx, my, MINIMAP_SCALE, MINIMAP_SCALE);
     });
+
+    // Draw remote players (co-op teammates)
+    if (remotePlayers) {
+        remotePlayers.forEach(rp => {
+            const mx = rp.x * MINIMAP_SCALE + offsetX;
+            const my = rp.y * MINIMAP_SCALE + offsetY;
+            if (mx < -MINIMAP_SCALE || mx > mw || my < -MINIMAP_SCALE || my > mh) return;
+            // Pulsing dot for teammates
+            ctx.fillStyle = rp.nameColor || '#a29bfe';
+            ctx.globalAlpha = rp.alive ? 1 : 0.4;
+            ctx.fillRect(mx - 1, my - 1, MINIMAP_SCALE + 2, MINIMAP_SCALE + 2);
+            ctx.globalAlpha = 1;
+        });
+    }
 
     // Draw player
     const pmx = player.x * MINIMAP_SCALE + offsetX;

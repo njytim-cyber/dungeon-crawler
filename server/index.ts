@@ -471,9 +471,9 @@ function handleMessage(client: ConnectedClient, data: string): void {
             }
             lobby.gameStarted = true;
             const seed = Math.floor(Math.random() * 999999);
+            // broadcastToLobby sends to ALL players including host — no extra send() needed
             broadcastToLobby(client.lobbyCode, { type: 'game_start', floor: lobby.floor, seed });
-            send(client.ws, { type: 'game_start', floor: lobby.floor, seed });
-            console.log(`  Game started in lobby ${client.lobbyCode} with ${lobby.players.length} players`);
+            console.log(`  Game started in lobby ${client.lobbyCode} with ${lobby.players.length} players (seed=${seed})`);
             break;
         }
 
@@ -486,14 +486,36 @@ function handleMessage(client: ConnectedClient, data: string): void {
             client.py = msg.py;
             client.dir = msg.dir;
             client.animFrame = msg.animFrame;
+            const lobby = lobbies.get(client.lobbyCode);
+            const lobbyPlayer = lobby?.players.find(p => p.uid === client.uid);
             broadcastToLobby(client.lobbyCode, {
                 type: 'player_update',
                 uid: client.uid,
+                username: client.profile?.username || 'Player',
+                className: lobbyPlayer?.className || 'warrior',
+                avatar: client.profile?.avatar ?? 0,
+                nameColor: client.profile?.nameColor || '',
                 x: msg.x, y: msg.y,
                 dir: msg.dir,
                 px: msg.px, py: msg.py,
                 animFrame: msg.animFrame,
+                floor: msg.floor,
             }, client.uid);
+            break;
+        }
+
+        case 'floor_change': {
+            if (!client.lobbyCode || !client.profile) return;
+            broadcastToLobby(client.lobbyCode, {
+                type: 'floor_change',
+                floor: msg.floor,
+                seed: msg.seed,
+                fromUid: client.uid,
+                fromUsername: client.profile.username || 'Player',
+            }, client.uid);
+            const lobby = lobbies.get(client.lobbyCode);
+            if (lobby) lobby.floor = msg.floor;
+            console.log(`  ${client.profile.username || client.uid} moved party to floor ${msg.floor}`);
             break;
         }
 

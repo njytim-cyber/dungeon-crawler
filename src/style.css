@@ -302,7 +302,8 @@ canvas#gameCanvas {
 /* HUD Buttons */
 #inventory-btn,
 #save-btn,
-#settings-ingame-btn {
+#settings-ingame-btn,
+#leave-coop-btn {
   position: fixed;
   right: 10px;
   width: 44px;
@@ -327,9 +328,15 @@ canvas#gameCanvas {
   bottom: 220px;
 }
 
+#leave-coop-btn {
+  bottom: 270px;
+  border-color: #c0392b;
+}
+
 #inventory-btn:hover,
 #save-btn:hover,
-#settings-ingame-btn:hover {
+#settings-ingame-btn:hover,
+#leave-coop-btn:hover {
   border-color: #f1c40f;
   transform: scale(1.1);
 }
@@ -3070,5 +3077,130 @@ white-space: nowrap;
 
   .coop-avatar-grid {
     grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ===== EMOTE PICKER ===== */
+#emote-picker {
+  position: fixed;
+  bottom: 80px;
+  right: 16px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+#emote-toggle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.7);
+  font-size: 22px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+#emote-toggle:hover {
+  background: rgba(50, 50, 80, 0.9);
+  transform: scale(1.1);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+#emote-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  animation: emoteSlideUp 0.15s ease-out;
+}
+
+@keyframes emoteSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.emote-btn {
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 20px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.emote-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: scale(1.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* ===== LANDSCAPE MOBILE: Move small HUD buttons to the left ===== */
+@media (orientation: landscape) and (max-height: 500px) {
+
+  /* Move HUD buttons from right side to left side, above joystick */
+  #inventory-btn,
+  #save-btn,
+  #settings-ingame-btn,
+  #leave-coop-btn {
+    right: auto;
+    left: 170px;
+    /* Clear of the joystick (150px area + 20px gap) */
+    width: 38px;
+    height: 38px;
+    font-size: 17px;
+  }
+
+  #inventory-btn {
+    bottom: 130px;
+  }
+
+  #save-btn {
+    bottom: 130px;
+    left: 214px;
+  }
+
+  #settings-ingame-btn {
+    bottom: 130px;
+    left: 258px;
+  }
+
+  #leave-coop-btn {
+    bottom: 130px;
+    left: 302px;
+  }
+
+  /* Move system buttons from right side to left-center area */
+  #systems-buttons {
+    right: auto;
+    left: 170px;
+    top: auto;
+    bottom: 175px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 3px;
+    max-width: 180px;
+  }
+
+  .sys-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
   }
 }

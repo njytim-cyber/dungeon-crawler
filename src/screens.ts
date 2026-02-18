@@ -2,6 +2,7 @@
 
 import type { ClassName, ClassDef, PlayerState } from './types';
 import { initMultiplayerUI, showCoopMenu } from './multiplayer-ui';
+import * as MP from './multiplayer';
 
 const CLASS_DEFS: ClassDef[] = [
     { name: 'warrior', label: 'Warrior', icon: '⚔️', description: 'High HP and ATK. A front-line fighter.', baseStats: { hp: 120, maxHp: 120, atk: 12, def: 8, spd: 0.8, critChance: 0.05 } },
@@ -99,10 +100,23 @@ export function initTitleScreen(onStart: (className: ClassName, name?: string) =
     // Co-op button
     const coopBtn = document.getElementById('coop-menu-btn');
     if (coopBtn) {
-        initMultiplayerUI((_floor, _seed) => {
-            // When co-op game starts, trigger game start with the lobby's class
+        initMultiplayerUI((floor, seed) => {
+            // When co-op game starts, use the lobby's class and seed
             document.getElementById('title-screen')!.classList.add('hidden');
-            onStart('warrior' as ClassName, 'CoopPlayer');
+            // Get the player's chosen class from the lobby
+            const lobby = MP.getLobby();
+            const profile = MP.getProfile();
+            let myClass: ClassName = 'warrior';
+            let myName = 'CoopPlayer';
+            if (lobby && profile) {
+                const me = lobby.players.find(p => p.uid === profile.uid);
+                if (me?.className) myClass = me.className as ClassName;
+                myName = profile.username || myName;
+            }
+            // Store seed for startGame to use
+            (window as any).__coopSeed = seed;
+            (window as any).__coopFloor = floor;
+            onStart(myClass, myName);
         });
         coopBtn.onclick = () => showCoopMenu();
     }

@@ -34,7 +34,7 @@ function getDirOffset(dir: Direction): { dx: number; dy: number } {
     }
 }
 
-export function playerAttack(player: PlayerState, floor: DungeonFloor, addMsg: (msg: string, cls?: string) => void): void {
+export function playerAttack(player: PlayerState, floor: DungeonFloor, addMsg: (msg: string, cls?: string) => void, onEnemyHit?: (enemyIndex: number, damage: number, killed: boolean, xpGain: number, goldGain: number, enemyType: string) => void): void {
     if (player.attackCooldown > 0 || !player.alive) return;
 
     player.attackCooldown = 0.35;
@@ -44,7 +44,7 @@ export function playerAttack(player: PlayerState, floor: DungeonFloor, addMsg: (
     const attackX = player.x + dx;
     const attackY = player.y + dy;
 
-    floor.enemies.forEach(enemy => {
+    floor.enemies.forEach((enemy, enemyIndex) => {
         if (!enemy.alive) return;
 
         const hitRange = enemy.isBoss ? 2 : 1;
@@ -61,12 +61,15 @@ export function playerAttack(player: PlayerState, floor: DungeonFloor, addMsg: (
             addFloatingText(enemy.px + 8, enemy.py, crit ? `CRIT ${damage}` : `${damage}`, crit ? '#f1c40f' : '#fff');
             screenShake = crit ? 0.3 : 0.15;
 
+            let xpGain = 0;
+            let goldGain = 0;
+
             if (enemy.hp <= 0) {
                 enemy.alive = false;
                 GameAudio.enemyDeath();
                 spawnDeathParticles(enemy.px + 8, enemy.py + 8, '#e74c3c');
                 // Apply XP boost from buffs
-                let xpGain = enemy.xpReward;
+                xpGain = enemy.xpReward;
                 if (player.buffs) {
                     for (const buff of player.buffs) {
                         if (buff.effect.type === 'xp_boost') xpGain = Math.floor(xpGain * (1 + buff.effect.value));
@@ -102,9 +105,14 @@ export function playerAttack(player: PlayerState, floor: DungeonFloor, addMsg: (
 
                 // Gold drop (with elite multiplier)
                 const eliteGoldMult = enemy.eliteGoldMult || 1;
-                const gold = Math.floor((5 + Math.random() * 10 * (1 + player.floor * 0.1)) * eliteGoldMult);
-                player.gold += gold;
-                addFloatingText(enemy.px + 8, enemy.py + 16, `+${gold}g`, '#f1c40f');
+                goldGain = Math.floor((5 + Math.random() * 10 * (1 + player.floor * 0.1)) * eliteGoldMult);
+                player.gold += goldGain;
+                addFloatingText(enemy.px + 8, enemy.py + 16, `+${goldGain}g`, '#f1c40f');
+            }
+
+            // Notify multiplayer sync
+            if (onEnemyHit) {
+                onEnemyHit(enemyIndex, damage, enemy.hp <= 0, xpGain, goldGain, enemy.type);
             }
         }
     });
