@@ -306,8 +306,10 @@ function enterFloor(floor: number, seed?: number): void {
   } else {
     // If a seed is provided (co-op), use it for deterministic generation
     if (floorSeed !== undefined) {
+      console.log(`[SYNC] setSeed(${floorSeed} + ${floor} = ${floorSeed + floor})`);
       setSeed(floorSeed + floor); // combine seed + floor for unique per-floor
     } else {
+      console.log(`[SYNC] clearSeed — no seed for floor ${floor} (solo mode)`);
       clearSeed(); // solo play uses Math.random
     }
     currentFloor = generateFloor(floor);
@@ -469,6 +471,7 @@ function startGame(className: ClassName, name?: string): void {
   delete (window as any).__coopSeed;
   delete (window as any).__coopFloor;
 
+  console.log(`[SYNC] startGame: coopSeed=${coopSeed}, coopFloor=${coopFloor}, isMultiplayerActive=${isMultiplayerActive()}`);
   enterFloor(coopFloor, coopSeed);
   updateHUD(player);
   updateHotbar(player);

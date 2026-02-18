@@ -228,6 +228,7 @@ function handleServerMessage(msg: ServerMessage): void {
 
         case 'game_start':
             if (currentLobby) currentLobby.gameStarted = true;
+            console.log(`[SYNC] game_start received: floor=${msg.floor}, seed=${msg.seed}`);
             emit('game_start', msg.floor, msg.seed);
             break;
 
