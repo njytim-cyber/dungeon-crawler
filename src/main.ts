@@ -5,7 +5,7 @@ import type { PlayerState, DungeonFloor, GameState, ClassName, Direction, SaveDa
 import { initAssets, Assets } from './assets';
 import { GameAudio } from './audio';
 import { initInput, Input } from './input';
-import { generateFloor, isWalkable, generateTown } from './dungeon';
+import { generateFloor, isWalkable, generateTown, setSeed, clearSeed } from './dungeon';
 import { getItemsByFloor, rollLoot } from './items';
 import { playerAttack, enemyAttack, checkLevelUp, recalcStats, updateScreenShake, getScreenShake } from './combat';
 import { updateParticles, renderParticles, renderFloatingTexts, clearParticles, spawnTorchEmbers, spawnLevelUpParticles, addFloatingText, spawnHitParticles, spawnDeathParticles } from './particles';
@@ -273,15 +273,23 @@ function generateHubFloor(): DungeonFloor {
 }
 
 // ===== FLOOR TRANSITION =====
-function enterFloor(floor: number): void {
+function enterFloor(floor: number, seed?: number): void {
   if (floor > 0 && floor > player.maxReachedFloor) {
     player.maxReachedFloor = floor;
   }
 
   if (floor === 0) {
+    clearSeed(); // no seed for hub
     currentFloor = generateHubFloor();
   } else {
+    // If a seed is provided (co-op), use it for deterministic generation
+    if (seed !== undefined) {
+      setSeed(seed + floor); // combine seed + floor for unique per-floor
+    } else {
+      clearSeed(); // solo play uses Math.random
+    }
     currentFloor = generateFloor(floor);
+    clearSeed(); // reset after generation so gameplay randomness is normal
   }
   player.floor = floor;
 
@@ -325,9 +333,9 @@ function enterFloor(floor: number): void {
 
   showFloorTransition(floor);
 
-  // Notify co-op teammates of floor change
   if (isMultiplayerActive()) {
-    MP.sendFloorChange(floor, floor);
+    const floorSeed = Math.floor(Math.random() * 999999);
+    MP.sendFloorChange(floor, floorSeed);
   }
 }
 
@@ -433,7 +441,14 @@ function startGame(className: ClassName, name?: string): void {
   }
 
   initInventory(player);
-  enterFloor(1);
+
+  // Check for co-op seed (set by multiplayer game start callback)
+  const coopSeed = (window as any).__coopSeed;
+  const coopFloor = (window as any).__coopFloor || 1;
+  delete (window as any).__coopSeed;
+  delete (window as any).__coopFloor;
+
+  enterFloor(coopFloor, coopSeed);
   updateHUD(player);
   updateHotbar(player);
 
@@ -1907,13 +1922,13 @@ function init(): void {
   });
 
   // Handle floor change from teammates
-  MP.on('floor_change', (floor: number, _seed: number, _fromUid: string) => {
+  MP.on('floor_change', (floor: number, seed: number, _fromUid: string) => {
     if (!player || gameState !== 'PLAYING') return;
-    // Follow the party to the new floor
+    // Follow the party to the new floor with the same seed for identical map
     addMessage(`🚪 Party is moving to Floor ${floor}!`, 'msg-rare');
     setTimeout(() => {
       if (player && gameState === 'PLAYING') {
-        enterFloor(floor);
+        enterFloor(floor, seed);
       }
     }, 1500);
   });
