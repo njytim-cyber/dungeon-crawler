@@ -42,11 +42,13 @@ export interface LobbyInfo {
     hostUsername: string;
     visibility: LobbyVisibility;
     players: LobbyPlayer[];
-    maxPlayers: 7;
-    minPlayers: 2;
+    maxPlayers: number;
+    minPlayers: number;
     gameStarted: boolean;
     floor: number;
     createdAt: number;
+    playerCount?: number;  // from registry listing
+    lobbyId?: string;      // DO name for joining
 }
 
 export interface LobbyPlayer {

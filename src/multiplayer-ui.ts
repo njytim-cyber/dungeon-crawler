@@ -303,11 +303,12 @@ function renderPublicLobbiesList(lobbies: LobbyInfo[]): void {
     } else {
         html += `<div class="coop-lobby-grid">`;
         for (const lobby of lobbies) {
+            const pCount = lobby.playerCount || (lobby.players ? lobby.players.length : 0);
             html += `
                 <div class="coop-lobby-card">
                     <div class="coop-lobby-name">${lobby.name}</div>
                     <div class="coop-lobby-meta">
-                        <span>👤 ${lobby.players.length}/7</span>
+                        <span>👤 ${pCount}/${lobby.maxPlayers || 7}</span>
                         <span>Host: ${lobby.hostUsername}</span>
                     </div>
                     <div class="coop-lobby-code">${lobby.code}</div>

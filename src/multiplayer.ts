@@ -405,10 +405,10 @@ export async function createLobby(name: string, visibility: LobbyVisibility): Pr
     }
 
     try {
-        // Generate a unique lobby ID for the Durable Object
-        const lobbyId = `lobby_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        // Use a temp ID for creation request — the server returns the actual code
+        const tempLobbyId = `lobby_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-        const result = await apiPost(`/api/lobby/${lobbyId}/create`, {
+        const result = await apiPost(`/api/lobby/${tempLobbyId}/create`, {
             name,
             visibility,
             hostUid: localProfile.uid,
@@ -419,10 +419,20 @@ export async function createLobby(name: string, visibility: LobbyVisibility): Pr
 
         if (result.type === 'lobby_created') {
             currentLobby = result.lobby;
-            currentLobbyId = lobbyId;
-            // Connect WebSocket to this lobby for real-time sync
-            connectLobbyWS(lobbyId);
+            // Use the lobby code as the canonical ID for joining
+            const lobbyCode = result.lobby.code;
+            currentLobbyId = tempLobbyId;
+            // Connect WebSocket using same tempLobbyId (same DO instance)
+            connectLobbyWS(tempLobbyId);
             emit('lobby_created', result.lobby);
+
+            // Also register a code→lobbyId mapping so others can join by code
+            try {
+                await apiPost('/api/user/map-lobby-code', {
+                    code: lobbyCode,
+                    lobbyId: tempLobbyId,
+                });
+            } catch { /* non-critical */ }
         } else if (result.type === 'lobby_error') {
             emit('lobby_error', result.message);
         }
@@ -440,9 +450,14 @@ export async function joinLobby(code: string): Promise<void> {
     }
 
     try {
-        // The lobby code is used as the Durable Object name
-        // First try joining via REST
-        const result = await apiPost(`/api/lobby/${code}/join`, {
+        // First, resolve lobby code to actual lobbyId via the registry
+        let lobbyId = code; // fallback: use code directly
+        try {
+            const mapping = await apiGet(`/api/user/resolve-lobby?code=${encodeURIComponent(code)}`);
+            if (mapping.lobbyId) lobbyId = mapping.lobbyId;
+        } catch { /* use code as fallback */ }
+
+        const result = await apiPost(`/api/lobby/${lobbyId}/join`, {
             uid: localProfile.uid,
             username: localProfile.username,
             avatar: localProfile.avatar,
@@ -451,9 +466,8 @@ export async function joinLobby(code: string): Promise<void> {
 
         if (result.type === 'lobby_joined') {
             currentLobby = result.lobby;
-            currentLobbyId = code;
-            // Connect WebSocket for real-time sync
-            connectLobbyWS(code);
+            currentLobbyId = lobbyId;
+            connectLobbyWS(lobbyId);
             emit('lobby_joined', result.lobby);
         } else if (result.type === 'lobby_error') {
             emit('lobby_error', result.message);

@@ -27,6 +27,9 @@ export class UserRegistry implements DurableObject {
     // Track active public lobbies for listing
     private activeLobbies = new Map<string, { name: string; code: string; hostUsername: string; playerCount: number; maxPlayers: number; floor: number; gameStarted: boolean; lobbyId: string; createdAt: number }>();
 
+    // Map lobby codes to Durable Object lobby IDs so users can join by code
+    private lobbyCodeToId = new Map<string, string>();
+
     constructor(state: DurableObjectState, env: Env) {
         this.state = state;
     }
@@ -170,6 +173,22 @@ export class UserRegistry implements DurableObject {
                 .sort((a, b) => b.createdAt - a.createdAt)
                 .slice(0, 20);
             return json({ lobbies });
+        }
+
+        // POST /map-lobby-code — map a lobby code to its Durable Object ID
+        if (path === '/map-lobby-code' && request.method === 'POST') {
+            const body = await request.json<{ code: string; lobbyId: string }>();
+            if (body.code && body.lobbyId) {
+                this.lobbyCodeToId.set(body.code.toUpperCase(), body.lobbyId);
+            }
+            return json({ ok: true });
+        }
+
+        // GET /resolve-lobby?code=XYZ — resolve a lobby code to its Durable Object ID
+        if (path === '/resolve-lobby' && request.method === 'GET') {
+            const code = url.searchParams.get('code')?.toUpperCase() || '';
+            const lobbyId = this.lobbyCodeToId.get(code);
+            return json({ lobbyId: lobbyId || null });
         }
 
         return json({ error: 'Not found' }, 404);
