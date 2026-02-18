@@ -170,7 +170,76 @@ export class GameLobby implements DurableObject {
         return json({ error: 'Not found' }, 404);
     }
 
+    // Valid class names for set_class validation
+    private static readonly VALID_CLASSES = new Set([
+        'warrior', 'mage', 'rogue', 'paladin', 'ranger',
+        'necromancer', 'berserker', 'cleric', 'assassin',
+    ]);
+
     // ===== WEBSOCKET HANDLERS (Hibernation API) =====
+    async webSocketOpen(ws: WebSocket): Promise<void> {
+        const uid = this.sessions.get(ws);
+        if (!uid) return;
+
+        const meta = this.getWebSocketMeta(ws);
+        if (!meta || !this.lobby) return;
+
+        // Find this player in the lobby
+        const lobbyPlayer = this.lobby.players.find(p => p.uid === uid);
+        const className = lobbyPlayer?.className || 'warrior';
+
+        // Build RemotePlayerState for the new player
+        const newRemote = {
+            uid,
+            username: meta.username,
+            avatar: meta.avatar,
+            className,
+            x: 0, y: 0, px: 0, py: 0,
+            dir: 0 as 0 | 1 | 2 | 3,
+            animFrame: 0,
+            stats: { hp: 100, maxHp: 100, atk: 10, def: 5, spd: 1, critChance: 0.05 },
+            equipment: {},
+            alive: true,
+            level: 1,
+            nameColor: meta.nameColor,
+        };
+
+        // Tell existing players about the new player
+        this.broadcastExcept(uid, { type: 'player_joined', player: newRemote });
+
+        // Send existing players to the new player
+        for (const existingWs of this.state.getWebSockets()) {
+            const existingUid = this.sessions.get(existingWs);
+            if (!existingUid || existingUid === uid) continue;
+            const existingMeta = this.getWebSocketMeta(existingWs);
+            if (!existingMeta) continue;
+            const existingLobbyPlayer = this.lobby.players.find(p => p.uid === existingUid);
+            const existingPlayer = this.players.get(existingUid);
+            this.sendTo(ws, {
+                type: 'player_joined',
+                player: {
+                    uid: existingUid,
+                    username: existingMeta.username,
+                    avatar: existingMeta.avatar,
+                    className: existingLobbyPlayer?.className || 'warrior',
+                    x: existingPlayer?.x || 0,
+                    y: existingPlayer?.y || 0,
+                    px: existingPlayer?.px || 0,
+                    py: existingPlayer?.py || 0,
+                    dir: existingPlayer?.dir || 0,
+                    animFrame: existingPlayer?.animFrame || 0,
+                    stats: { hp: 100, maxHp: 100, atk: 10, def: 5, spd: 1, critChance: 0.05 },
+                    equipment: {},
+                    alive: true,
+                    level: 1,
+                    nameColor: existingMeta.nameColor,
+                },
+            });
+        }
+
+        console.log(`  WebSocket open for ${meta.username} (${uid})`);
+    }
+
     async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
         const data = typeof message === 'string' ? message : new TextDecoder().decode(message);
 
@@ -299,6 +368,8 @@ export class GameLobby implements DurableObject {
 
             case 'set_class': {
                 if (!this.lobby) break;
+                // Validate class name
+                if (!GameLobby.VALID_CLASSES.has(msg.className)) break;
                 const p = this.lobby.players.find(p => p.uid === uid);
                 if (p) p.className = msg.className;
                 await this.state.storage.put('lobby', this.lobby);
@@ -323,6 +394,7 @@ export class GameLobby implements DurableObject {
                 }
                 this.lobby.gameStarted = true;
                 const seed = Math.floor(Math.random() * 999999);
+                (this.lobby as any).currentSeed = seed; // persist so late joiners get same seed
                 await this.state.storage.put('lobby', this.lobby);
                 this.broadcastAll({ type: 'game_start', floor: this.lobby.floor, seed });
                 console.log(`  Game started in lobby ${this.lobby.code} with ${this.lobby.players.length} players`);

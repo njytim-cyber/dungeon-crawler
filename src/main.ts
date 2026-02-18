@@ -278,13 +278,20 @@ function enterFloor(floor: number, seed?: number): void {
     player.maxReachedFloor = floor;
   }
 
+  // In multiplayer, generate a seed if we don't have one (host scenario)
+  // so we can both use it locally AND broadcast it
+  let floorSeed = seed;
+  if (isMultiplayerActive() && floorSeed === undefined && floor > 0) {
+    floorSeed = Math.floor(Math.random() * 999999);
+  }
+
   if (floor === 0) {
     clearSeed(); // no seed for hub
     currentFloor = generateHubFloor();
   } else {
     // If a seed is provided (co-op), use it for deterministic generation
-    if (seed !== undefined) {
-      setSeed(seed + floor); // combine seed + floor for unique per-floor
+    if (floorSeed !== undefined) {
+      setSeed(floorSeed + floor); // combine seed + floor for unique per-floor
     } else {
       clearSeed(); // solo play uses Math.random
     }
@@ -333,8 +340,7 @@ function enterFloor(floor: number, seed?: number): void {
 
   showFloorTransition(floor);
 
-  if (isMultiplayerActive()) {
-    const floorSeed = Math.floor(Math.random() * 999999);
+  if (isMultiplayerActive() && floorSeed !== undefined) {
     MP.sendFloorChange(floor, floorSeed);
   }
 }
