@@ -397,8 +397,8 @@ export class GameLobby implements DurableObject {
 
             case 'start_game': {
                 if (!this.lobby || this.lobby.hostUid !== uid) break;
-                if (this.lobby.players.length < 2) {
-                    this.sendTo(ws, { type: 'lobby_error', message: 'Need at least 2 players to start.' });
+                if (this.lobby.players.length < 1) {
+                    this.sendTo(ws, { type: 'lobby_error', message: 'Need at least 1 player to start.' });
                     break;
                 }
                 this.lobby.gameStarted = true;
