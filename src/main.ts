@@ -65,7 +65,22 @@ let chatMessages: { uid: string; username: string; message: string; nameColor?: 
 let chatInput = '';
 let chatOpen = false;
 
-const SAVE_KEY = 'dungeon-crawler-save';
+const SAVE_KEY_SOLO = 'dungeon-crawler-save-solo';
+const SAVE_KEY_COOP = 'dungeon-crawler-save-coop';
+
+// Returns the appropriate save key based on current game mode
+function getSaveKey(): string {
+  return isMultiplayerActive() ? SAVE_KEY_COOP : SAVE_KEY_SOLO;
+}
+
+// Migrate old save slot to new solo key (one-time)
+(function migrateLegacySave() {
+  const old = localStorage.getItem('dungeon-crawler-save');
+  if (old && !localStorage.getItem(SAVE_KEY_SOLO)) {
+    localStorage.setItem(SAVE_KEY_SOLO, old);
+    localStorage.removeItem('dungeon-crawler-save');
+  }
+})();
 
 // Track floors for return from town
 let savedDungeonFloor: DungeonFloor | null = null;
@@ -374,13 +389,13 @@ function saveGame(): void {
     floor: player.floor,
     timestamp: Date.now(),
   };
-  localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+  localStorage.setItem(getSaveKey(), JSON.stringify(data));
   GameAudio.saveGame();
   addMessage(t('game_saved'), 'msg-uncommon');
 }
 
-function loadSave(): SaveData | null {
-  const raw = localStorage.getItem(SAVE_KEY);
+function loadSave(key?: string): SaveData | null {
+  const raw = localStorage.getItem(key || getSaveKey());
   if (!raw) return null;
   try { return JSON.parse(raw); } catch { return null; }
 }
@@ -474,14 +489,14 @@ function returnToHub(): void {
 function resetGame(): void {
   gameState = 'TITLE';
   hideHUD();
-  localStorage.removeItem(SAVE_KEY);
+  localStorage.removeItem(SAVE_KEY_SOLO);
   document.getElementById('mobile-controls')!.classList.add('hidden');
   closeInventory();
   closeDialog();
   clearParticles();
   GameAudio.stopAmbient();
 
-  const save = loadSave();
+  const save = loadSave(SAVE_KEY_SOLO);
   initTitleScreen(startGame, !!save, save);
 }
 
@@ -903,7 +918,7 @@ function update(dt: number): void {
     GameAudio.stopAmbient();
     // Hardcore: delete save permanently
     if (player.systems?.hardcore) {
-      localStorage.removeItem(SAVE_KEY);
+      localStorage.removeItem(getSaveKey());
     }
     setTimeout(() => showGameOver(player, resetGame), 1000);
   }
@@ -2081,7 +2096,7 @@ function init(): void {
   });
 
   // Check for save
-  const save = loadSave();
+  const save = loadSave(SAVE_KEY_SOLO);
   initTitleScreen(startGame, !!save, save);
 
   requestAnimationFrame(gameLoop);
