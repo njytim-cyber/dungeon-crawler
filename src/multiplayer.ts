@@ -97,6 +97,8 @@ export function disconnect(): void {
     ws = null;
     connected = false;
     currentLobbyId = null;
+    remotePlayers.clear();
+    emoteBubbles.clear();
     if (reconnectTimer) { clearInterval(reconnectTimer); reconnectTimer = null; }
 }
 
@@ -129,7 +131,6 @@ function connectLobbyWS(lobbyId: string): void {
         username: localProfile.username,
         avatar: String(localProfile.avatar),
         nameColor: localProfile.nameColor || '',
-        isAdmin: String(localProfile.isAdmin),
     });
 
     const wsUrl = `${WS_BASE}/ws?${params.toString()}`;
@@ -139,6 +140,9 @@ function connectLobbyWS(lobbyId: string): void {
 
     ws.onopen = () => {
         connected = true;
+        // Clear stale remote players on reconnect — server will send fresh player_joined messages
+        remotePlayers.clear();
+        emoteBubbles.clear();
         console.log('[MP] WebSocket connected to lobby', lobbyId);
     };
 
@@ -147,10 +151,20 @@ function connectLobbyWS(lobbyId: string): void {
         connected = false;
         console.log('[MP] WebSocket disconnected from lobby');
         if (wasConnected && currentLobbyId === lobbyId) {
-            // Auto-reconnect to the same lobby if we were in one
+            // Auto-reconnect to the same lobby if we were in one (max 10 attempts)
+            let reconnectAttempts = 0;
             if (!reconnectTimer) {
                 reconnectTimer = window.setInterval(() => {
                     if (!connected && currentLobbyId === lobbyId) {
+                        reconnectAttempts++;
+                        if (reconnectAttempts > 10) {
+                            console.warn('[MP] Max reconnect attempts reached, giving up');
+                            clearInterval(reconnectTimer!);
+                            reconnectTimer = null;
+                            emit('connection_error', 'Lost connection to co-op server.');
+                            return;
+                        }
+                        console.log(`[MP] Reconnect attempt ${reconnectAttempts}/10...`);
                         connectLobbyWS(lobbyId);
                     } else if (reconnectTimer) {
                         clearInterval(reconnectTimer);
@@ -226,14 +240,30 @@ function handleServerMessage(msg: ServerMessage): void {
             emit('player_left', msg.uid);
             break;
 
-        case 'player_update':
+        case 'player_update': {
             const rp = remotePlayers.get(msg.uid);
             if (rp) {
                 rp.x = msg.x; rp.y = msg.y;
                 rp.px = msg.px; rp.py = msg.py;
                 rp.dir = msg.dir; rp.animFrame = msg.animFrame;
+            } else {
+                // Auto-create entry if player_joined hasn't arrived yet (race condition)
+                remotePlayers.set(msg.uid, {
+                    uid: msg.uid,
+                    username: 'Player',
+                    avatar: 0,
+                    className: 'warrior' as any,
+                    x: msg.x, y: msg.y,
+                    px: msg.px, py: msg.py,
+                    dir: msg.dir, animFrame: msg.animFrame,
+                    stats: { hp: 100, maxHp: 100, atk: 10, def: 5, spd: 1, critChance: 0.05 },
+                    equipment: {} as any,
+                    alive: true,
+                    level: 1,
+                });
             }
             break;
+        }
 
         case 'player_stats_update':
             const rps = remotePlayers.get(msg.uid);

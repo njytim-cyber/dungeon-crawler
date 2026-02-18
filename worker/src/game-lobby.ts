@@ -479,10 +479,9 @@ export class GameLobby implements DurableObject {
                     this.lobby.players[0].isHost = true;
                 }
                 this.state.storage.put('lobby', this.lobby);
+                this.broadcastAll({ type: 'player_left', uid });
                 this.broadcastAll({ type: 'lobby_updated', lobby: this.lobby });
             }
-
-            this.broadcastAll({ type: 'player_left', uid });
         }
 
         this.sendTo(ws, { type: 'lobby_left' });
