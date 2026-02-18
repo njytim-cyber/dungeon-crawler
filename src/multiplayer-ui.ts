@@ -196,6 +196,7 @@ function showCoopMain(): void {
             <div class="coop-menu-btns">
                 <button class="coop-btn coop-btn-primary coop-btn-lg" id="coop-create">🏰 Create Lobby</button>
                 <button class="coop-btn coop-btn-secondary coop-btn-lg" id="coop-join">🔗 Join Lobby</button>
+                <button class="coop-btn coop-btn-secondary coop-btn-lg" id="coop-friends">👥 Friends</button>
             </div>
         </div>
     `;
@@ -207,12 +208,13 @@ function showCoopMain(): void {
 
     document.getElementById('coop-create')!.onclick = () => showCreateLobby();
     document.getElementById('coop-join')!.onclick = () => showJoinLobby();
+    document.getElementById('coop-friends')!.onclick = () => {
+        friendsSidebar.classList.toggle('hidden');
+        renderFriendsSidebar();
+    };
 
     document.getElementById('coop-change-avatar')!.onclick = () => showAvatarPicker();
     document.getElementById('coop-change-name')!.onclick = () => showNameChanger();
-
-    friendsSidebar.classList.remove('hidden');
-    renderFriendsSidebar();
 }
 
 // --- CREATE LOBBY ---
@@ -445,7 +447,10 @@ function renderFriendsSidebar(): void {
     let html = `
         <div class="friends-header">
             <h3>👥 Friends</h3>
-            <button class="friends-add-btn" id="friends-add-btn" title="Add friend">+</button>
+            <div style="display:flex;gap:6px;align-items:center">
+                <button class="friends-add-btn" id="friends-add-btn" title="Add friend">+</button>
+                <button class="friends-add-btn" id="friends-close-btn" title="Close">✕</button>
+            </div>
         </div>
     `;
 
@@ -519,6 +524,9 @@ function renderFriendsSidebar(): void {
 
     // Event listeners
     document.getElementById('friends-add-btn')?.addEventListener('click', showAddFriendDialog);
+    document.getElementById('friends-close-btn')?.addEventListener('click', () => {
+        friendsSidebar.classList.add('hidden');
+    });
     friendsSidebar.querySelectorAll('[data-accept]').forEach(btn => {
         (btn as HTMLElement).onclick = () => MP.acceptFriendRequest((btn as HTMLElement).dataset.accept!);
     });
