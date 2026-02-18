@@ -5,6 +5,7 @@
 import {
     UserProfile, FriendRequest, FriendInfo,
     ADMIN_EMAILS, LOGIN_STARTER_GEAR, generateNameColor, generateUid,
+    sanitizeUsername, isValidHexColor, INTERNAL_SECRET,
     type Env,
 } from './types';
 
@@ -67,6 +68,19 @@ export class UserRegistry implements DurableObject {
         const url = new URL(request.url);
         const path = url.pathname;
 
+        // Helper to check internal-only endpoints
+        const isInternal = request.headers.get('X-Internal-Secret') === INTERNAL_SECRET;
+
+        // Stale lobby cleanup (remove lobbies older than 15 minutes)
+        const LOBBY_TTL = 15 * 60 * 1000;
+        const now = Date.now();
+        for (const [id, lobby] of this.activeLobbies) {
+            if (now - lobby.createdAt > LOBBY_TTL) {
+                this.activeLobbies.delete(id);
+                this.lobbyCodeToId.delete(lobby.code?.toUpperCase());
+            }
+        }
+
         // POST /auth — authenticate or register user
         if (path === '/auth' && request.method === 'POST') {
             const body = await request.json<{ email: string; username: string }>();
@@ -119,9 +133,11 @@ export class UserRegistry implements DurableObject {
             return json({ profile });
         }
 
-        // POST /set-online
+        // POST /set-online — requires valid uid
         if (path === '/set-online' && request.method === 'POST') {
             const body = await request.json<{ uid: string; online: boolean }>();
+            // Only allow if the uid actually exists
+            if (!this.users.has(body.uid)) return json({ error: 'Invalid uid' }, 403);
             if (body.online) {
                 this.onlineUsers.add(body.uid);
             } else {
@@ -140,8 +156,9 @@ export class UserRegistry implements DurableObject {
             return json({ admins });
         }
 
-        // POST /register-lobby — track public lobbies
+        // POST /register-lobby — INTERNAL ONLY (from GameLobby DO)
         if (path === '/register-lobby' && request.method === 'POST') {
+            if (!isInternal) return json({ error: 'Forbidden' }, 403);
             const body = await request.json<{ lobbyId: string; name: string; code: string; hostUsername: string; playerCount: number; maxPlayers: number; floor: number; gameStarted: boolean; visibility: string }>();
             if (body.visibility === 'public' && !body.gameStarted) {
                 this.activeLobbies.set(body.lobbyId, {
@@ -159,8 +176,9 @@ export class UserRegistry implements DurableObject {
             return json({ ok: true });
         }
 
-        // POST /unregister-lobby — remove lobby from listing
+        // POST /unregister-lobby — INTERNAL ONLY
         if (path === '/unregister-lobby' && request.method === 'POST') {
+            if (!isInternal) return json({ error: 'Forbidden' }, 403);
             const body = await request.json<{ lobbyId: string }>();
             this.activeLobbies.delete(body.lobbyId);
             return json({ ok: true });
@@ -175,8 +193,9 @@ export class UserRegistry implements DurableObject {
             return json({ lobbies });
         }
 
-        // POST /map-lobby-code — map a lobby code to its Durable Object ID
+        // POST /map-lobby-code — INTERNAL ONLY
         if (path === '/map-lobby-code' && request.method === 'POST') {
+            if (!isInternal) return json({ error: 'Forbidden' }, 403);
             const body = await request.json<{ code: string; lobbyId: string }>();
             if (body.code && body.lobbyId) {
                 this.lobbyCodeToId.set(body.code.toUpperCase(), body.lobbyId);
@@ -197,7 +216,7 @@ export class UserRegistry implements DurableObject {
     // ===== AUTH =====
     private async handleAuth(email: string, requestedUsername: string): Promise<Response> {
         email = email.trim().toLowerCase();
-        requestedUsername = requestedUsername.trim();
+        requestedUsername = sanitizeUsername(requestedUsername);
         if (!email || !requestedUsername) {
             return json({ type: 'auth_error', message: 'Email and username required.' });
         }
@@ -249,7 +268,7 @@ export class UserRegistry implements DurableObject {
         const profile = this.users.get(uid);
         if (!profile) return json({ type: 'auth_error', message: 'Not logged in.' });
 
-        newName = newName.trim();
+        newName = sanitizeUsername(newName);
         if (!newName || newName.length > 20) {
             return json({ type: 'auth_error', message: 'Username must be 1-20 characters.' });
         }
@@ -270,7 +289,9 @@ export class UserRegistry implements DurableObject {
         const profile = this.users.get(uid);
         if (!profile) return json({ type: 'auth_error', message: 'Not logged in.' });
 
-        profile.avatar = avatar;
+        // Bounds-check avatar (0-11)
+        const safeAvatar = Math.max(0, Math.min(11, Math.floor(avatar)));
+        profile.avatar = safeAvatar;
         await this.persist();
 
         return json({ type: 'profile_updated', profile: { avatar } });

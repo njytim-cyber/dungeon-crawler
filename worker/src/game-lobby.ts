@@ -4,7 +4,9 @@
 
 import {
     LobbyInfo, LobbyPlayer, ConnectedPlayer, UserProfile,
-    generateLobbyCode, type Env,
+    generateLobbyCode, sanitizeUsername, sanitizeLobbyName,
+    sanitizeChatMessage, isValidHexColor, INTERNAL_SECRET,
+    type Env,
 } from './types';
 
 interface WebSocketMeta {
@@ -31,6 +33,11 @@ export class GameLobby implements DurableObject {
     // Track our lobby ID for registry
     private lobbyId: string | null = null;
 
+    // Rate limiting: uid -> { count, resetTime }
+    private rateLimits = new Map<string, { count: number; resetTime: number }>();
+    private static readonly MAX_MESSAGES_PER_SECOND = 10;
+    private static readonly MAX_WS_MESSAGE_SIZE = 4096; // 4KB
+
     constructor(state: DurableObjectState, env: Env) {
         this.state = state;
         this.env = env;
@@ -53,10 +60,12 @@ export class GameLobby implements DurableObject {
             }
 
             const uid = url.searchParams.get('uid') || '';
-            const username = url.searchParams.get('username') || '';
-            const avatar = parseInt(url.searchParams.get('avatar') || '0');
-            const nameColor = url.searchParams.get('nameColor') || undefined;
-            const isAdmin = url.searchParams.get('isAdmin') === 'true';
+            const username = sanitizeUsername(url.searchParams.get('username') || '');
+            const avatar = Math.max(0, Math.min(11, parseInt(url.searchParams.get('avatar') || '0')));
+            const rawColor = url.searchParams.get('nameColor') || '';
+            const nameColor = isValidHexColor(rawColor) ? rawColor : undefined;
+            // isAdmin is NOT trusted from the client — always false from WS params
+            const isAdmin = false;
 
             const pair = new WebSocketPair();
             const [client, server] = Object.values(pair);
@@ -90,18 +99,18 @@ export class GameLobby implements DurableObject {
             const code = generateLobbyCode();
             this.lobby = {
                 code,
-                name: body.name || `${body.hostUsername}'s Lobby`,
+                name: sanitizeLobbyName(body.name || `${sanitizeUsername(body.hostUsername)}'s Lobby`),
                 hostUid: body.hostUid,
-                hostUsername: body.hostUsername,
-                visibility: body.visibility || 'public',
+                hostUsername: sanitizeUsername(body.hostUsername),
+                visibility: body.visibility === 'private' ? 'private' : 'public',
                 players: [{
                     uid: body.hostUid,
-                    username: body.hostUsername,
-                    avatar: body.hostAvatar,
+                    username: sanitizeUsername(body.hostUsername),
+                    avatar: Math.max(0, Math.min(11, body.hostAvatar || 0)),
                     className: 'warrior',
                     ready: false,
                     isHost: true,
-                    nameColor: body.hostNameColor,
+                    nameColor: isValidHexColor(body.hostNameColor || '') ? body.hostNameColor : undefined,
                 }],
                 maxPlayers: 7,
                 minPlayers: 2,
@@ -137,12 +146,12 @@ export class GameLobby implements DurableObject {
 
             this.lobby.players.push({
                 uid: body.uid,
-                username: body.username,
-                avatar: body.avatar,
+                username: sanitizeUsername(body.username),
+                avatar: Math.max(0, Math.min(11, body.avatar)),
                 className: 'warrior',
                 ready: false,
                 isHost: false,
-                nameColor: body.nameColor,
+                nameColor: isValidHexColor(body.nameColor || '') ? body.nameColor : undefined,
             });
 
             await this.state.storage.put('lobby', this.lobby);
@@ -164,11 +173,25 @@ export class GameLobby implements DurableObject {
     // ===== WEBSOCKET HANDLERS (Hibernation API) =====
     async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
         const data = typeof message === 'string' ? message : new TextDecoder().decode(message);
+
+        // Message size check
+        if (data.length > GameLobby.MAX_WS_MESSAGE_SIZE) return;
+
         let msg: any;
         try { msg = JSON.parse(data); } catch { return; }
 
         const uid = this.sessions.get(ws);
         if (!uid) return;
+
+        // Rate limiting
+        const now = Date.now();
+        let rl = this.rateLimits.get(uid);
+        if (!rl || now > rl.resetTime) {
+            rl = { count: 0, resetTime: now + 1000 };
+            this.rateLimits.set(uid, rl);
+        }
+        rl.count++;
+        if (rl.count > GameLobby.MAX_MESSAGES_PER_SECOND) return; // silently drop
 
         switch (msg.type) {
             case 'player_move': {
@@ -261,12 +284,14 @@ export class GameLobby implements DurableObject {
             }
 
             case 'chat': {
+                const chatMsg = sanitizeChatMessage(String(msg.message || ''));
+                if (!chatMsg) break; // empty after sanitization
                 const meta = this.getWebSocketMeta(ws);
                 this.broadcastAll({
                     type: 'chat_msg',
                     fromUid: uid,
                     fromUsername: meta?.username || 'Unknown',
-                    message: msg.message,
+                    message: chatMsg,
                     nameColor: meta?.nameColor,
                 });
                 break;
@@ -435,7 +460,10 @@ export class GameLobby implements DurableObject {
             const registry = this.env.USER_REGISTRY.get(registryId);
             await registry.fetch(new Request('http://internal/register-lobby', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Internal-Secret': INTERNAL_SECRET,
+                },
                 body: JSON.stringify({
                     lobbyId: this.lobbyId,
                     name: this.lobby.name,
@@ -446,6 +474,19 @@ export class GameLobby implements DurableObject {
                     floor: this.lobby.floor,
                     gameStarted: this.lobby.gameStarted,
                     visibility: this.lobby.visibility,
+                }),
+            }));
+
+            // Also register the code→lobbyId mapping so players can join by code
+            await registry.fetch(new Request('http://internal/map-lobby-code', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Internal-Secret': INTERNAL_SECRET,
+                },
+                body: JSON.stringify({
+                    code: this.lobby.code,
+                    lobbyId: this.lobbyId,
                 }),
             }));
         } catch (e) {
@@ -460,7 +501,10 @@ export class GameLobby implements DurableObject {
             const registry = this.env.USER_REGISTRY.get(registryId);
             await registry.fetch(new Request('http://internal/unregister-lobby', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Internal-Secret': INTERNAL_SECRET,
+                },
                 body: JSON.stringify({ lobbyId: this.lobbyId }),
             }));
         } catch (e) {

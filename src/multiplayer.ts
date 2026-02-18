@@ -419,20 +419,11 @@ export async function createLobby(name: string, visibility: LobbyVisibility): Pr
 
         if (result.type === 'lobby_created') {
             currentLobby = result.lobby;
-            // Use the lobby code as the canonical ID for joining
-            const lobbyCode = result.lobby.code;
             currentLobbyId = tempLobbyId;
             // Connect WebSocket using same tempLobbyId (same DO instance)
             connectLobbyWS(tempLobbyId);
             emit('lobby_created', result.lobby);
-
-            // Also register a code→lobbyId mapping so others can join by code
-            try {
-                await apiPost('/api/user/map-lobby-code', {
-                    code: lobbyCode,
-                    lobbyId: tempLobbyId,
-                });
-            } catch { /* non-critical */ }
+            // Code→lobbyId mapping is now handled server-side by the GameLobby DO
         } else if (result.type === 'lobby_error') {
             emit('lobby_error', result.message);
         }

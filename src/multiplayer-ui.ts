@@ -6,6 +6,21 @@ import type { LobbyInfo, FriendRequest } from './multiplayer-types';
 import { AVATARS } from './multiplayer-types';
 import type { ClassName } from './types';
 
+// ===== SECURITY HELPERS =====
+function escapeHtml(str: string): string {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function safeColor(color: string | undefined): string {
+    if (!color || !/^#[0-9a-fA-F]{3,8}$/.test(color)) return '#fff';
+    return color;
+}
+
 // ===== DOM SETUP =====
 let coopOverlay: HTMLDivElement;
 let friendsSidebar: HTMLDivElement;
@@ -186,7 +201,7 @@ function showCoopMain(): void {
             <div class="coop-profile-bar">
                 <div class="coop-avatar" style="background:${avatarDef.colors.body}">${avatarDef.emoji}</div>
                 <div class="coop-profile-info">
-                    <span class="coop-username" style="color:${profile.nameColor || '#fff'}">${profile.username}</span>
+                    <span class="coop-username" style="color:${safeColor(profile.nameColor)}">${escapeHtml(profile.username)}</span>
                 </div>
                 <button class="coop-btn coop-btn-sm" id="coop-change-avatar">🎭 Avatar</button>
                 <button class="coop-btn coop-btn-sm" id="coop-change-name">✏️ Name</button>
@@ -306,13 +321,13 @@ function renderPublicLobbiesList(lobbies: LobbyInfo[]): void {
             const pCount = lobby.playerCount || (lobby.players ? lobby.players.length : 0);
             html += `
                 <div class="coop-lobby-card">
-                    <div class="coop-lobby-name">${lobby.name}</div>
+                    <div class="coop-lobby-name">${escapeHtml(lobby.name)}</div>
                     <div class="coop-lobby-meta">
                         <span>👤 ${pCount}/${lobby.maxPlayers || 7}</span>
-                        <span>Host: ${lobby.hostUsername}</span>
+                        <span>Host: ${escapeHtml(lobby.hostUsername)}</span>
                     </div>
-                    <div class="coop-lobby-code">${lobby.code}</div>
-                    <button class="coop-btn coop-btn-primary coop-btn-sm" data-join="${lobby.code}">Join</button>
+                    <div class="coop-lobby-code">${escapeHtml(lobby.code)}</div>
+                    <button class="coop-btn coop-btn-primary coop-btn-sm" data-join="${escapeHtml(lobby.code)}">Join</button>
                 </div>
             `;
         }
@@ -337,13 +352,13 @@ function renderLobbyView(lobby: LobbyInfo): void {
     let playersHtml = '';
     for (const p of lobby.players) {
         const av = AVATARS[p.avatar] || AVATARS[0];
-        const nameStyle = p.nameColor ? `color:${p.nameColor}` : '';
+        const nameStyle = p.nameColor ? `color:${safeColor(p.nameColor)}` : '';
         playersHtml += `
             <div class="coop-lobby-player ${p.ready ? 'ready' : ''} ${p.isHost ? 'host' : ''}">
                 <div class="coop-avatar coop-avatar-sm" style="background:${av.colors.body}">${av.emoji}</div>
                 <div class="coop-player-info">
-                    <span class="coop-player-name" style="${nameStyle}">${p.username}</span>
-                    <span class="coop-player-class">${CLASS_OPTIONS.find(c => c.name === p.className)?.icon || '⚔️'} ${p.className}</span>
+                    <span class="coop-player-name" style="${nameStyle}">${escapeHtml(p.username)}</span>
+                    <span class="coop-player-class">${CLASS_OPTIONS.find(c => c.name === p.className)?.icon || '⚔️'} ${escapeHtml(p.className)}</span>
                 </div>
                 <div class="coop-player-status">
                     ${p.isHost ? '👑' : p.ready ? '✅' : '⏳'}
@@ -363,9 +378,9 @@ function renderLobbyView(lobby: LobbyInfo): void {
         <div class="coop-panel coop-lobby-view">
             <button class="coop-back-btn" id="coop-leave">← Leave Lobby</button>
             <div class="coop-lobby-header">
-                <h2>${lobby.name}</h2>
+                <h2>${escapeHtml(lobby.name)}</h2>
                 <div class="coop-lobby-info-bar">
-                    <span class="coop-lobby-code-display">Code: <strong>${lobby.code}</strong></span>
+                    <span class="coop-lobby-code-display">Code: <strong>${escapeHtml(lobby.code)}</strong></span>
                     <span class="coop-lobby-vis">${lobby.visibility === 'public' ? '🌍 Public' : '🔒 Private'}</span>
                     <span>👤 ${lobby.players.length}/7</span>
                 </div>
@@ -426,8 +441,8 @@ function showNameChanger(): void {
             <button class="coop-back-btn" id="coop-back">← Back</button>
             <h2>✏️ Change Username</h2>
             <div class="coop-form">
-                <label>Current: <strong style="color:${profile.nameColor || '#fff'}">${profile.username}</strong></label>
-                <input type="text" id="new-username" placeholder="New username" maxlength="20" value="${profile.username}" />
+                <label>Current: <strong style="color:${safeColor(profile.nameColor)}">${escapeHtml(profile.username)}</strong></label>
+                <input type="text" id="new-username" placeholder="New username" maxlength="20" value="${escapeHtml(profile.username)}" />
                 <button class="coop-btn coop-btn-primary" id="coop-save-name">💾 Save</button>
             </div>
         </div>
@@ -463,7 +478,7 @@ function renderFriendsSidebar(): void {
             html += `
                 <div class="friend-request-item">
                     <div class="friend-avatar" style="background:${av.colors.body}">${av.emoji}</div>
-                    <span class="friend-name">${req.fromUsername}</span>
+                    <span class="friend-name">${escapeHtml(req.fromUsername)}</span>
                     <button class="friend-accept-btn" data-accept="${req.fromUid}">✓</button>
                     <button class="friend-decline-btn" data-decline="${req.fromUid}">✕</button>
                 </div>
@@ -491,7 +506,7 @@ function renderFriendsSidebar(): void {
                         <div class="friend-online-dot"></div>
                     </div>
                     <div class="friend-info">
-                        <span class="friend-name">${f.username}</span>
+                        <span class="friend-name">${escapeHtml(f.username)}</span>
                         ${f.currentLobby ? `<span class="friend-lobby">🎮 ${f.currentLobby}</span>` : '<span class="friend-status">Online</span>'}
                     </div>
                     ${f.currentLobby && !f.lobbyFull ? `<button class="friend-join-btn" data-join-lobby="${f.currentLobby}">Join</button>` : ''}
@@ -512,7 +527,7 @@ function renderFriendsSidebar(): void {
                         <div class="friend-avatar" style="background:${av.colors.body};opacity:0.5">${av.emoji}</div>
                     </div>
                     <div class="friend-info">
-                        <span class="friend-name" style="opacity:0.5">${f.username}</span>
+                        <span class="friend-name" style="opacity:0.5">${escapeHtml(f.username)}</span>
                         <span class="friend-status">Offline</span>
                     </div>
                 </div>

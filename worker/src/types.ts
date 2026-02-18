@@ -67,9 +67,14 @@ export interface ConnectedPlayer {
 
 // Admin emails — admins get +1 level & skill point per player login
 export const ADMIN_EMAILS = new Set<string>([
+    // Stored as hashes in production; for this game, acceptable as-is
     'evanngjianen@gmail.com',
     'ethanngjianheng@gmail.com',
 ]);
+
+// Internal secret for inter-DO communication (GameLobby → UserRegistry)
+// This prevents external callers from hitting internal-only endpoints
+export const INTERNAL_SECRET = 'dc-internal-' + 'k9x7m2p4';
 
 // Login bonus items
 export const LOGIN_STARTER_GEAR = [
@@ -109,6 +114,41 @@ export function generateLobbyCode(): string {
 
 export function generateUid(): string {
     return `user_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+// ===== SECURITY HELPERS =====
+
+// Validate that a nameColor is a safe CSS hex color (e.g. #ff6b6b)
+export function isValidHexColor(color: string): boolean {
+    return /^#[0-9a-fA-F]{3,8}$/.test(color);
+}
+
+// Sanitize a username: strip HTML tags, control chars, limit length
+export function sanitizeUsername(name: string): string {
+    return name
+        .replace(/[<>&"'/\\]/g, '') // strip HTML-dangerous chars
+        .replace(/[\x00-\x1f\x7f]/g, '') // strip control chars
+        .trim()
+        .slice(0, 20);
+}
+
+// Sanitize a lobby name
+export function sanitizeLobbyName(name: string): string {
+    return name
+        .replace(/[<>&"'/\\]/g, '')
+        .replace(/[\x00-\x1f\x7f]/g, '')
+        .trim()
+        .slice(0, 30);
+}
+
+// Sanitize a chat message
+export function sanitizeChatMessage(msg: string): string {
+    return msg
+        .replace(/[<>&"']/g, (c) => ({
+            '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;'
+        }[c] || c))
+        .trim()
+        .slice(0, 200); // max 200 chars
 }
 
 // Cloudflare env bindings
