@@ -273,17 +273,16 @@ export class GameLobby implements DurableObject {
                     player.dir = msg.dir;
                     player.animFrame = msg.animFrame;
                 }
-                // Look up metadata for username/class so clients always have it
-                const ws = this.state.getWebSockets().find(w => this.sessions.get(w) === uid);
-                const meta = ws ? this.getWebSocketMeta(ws) : null;
+                // Use the ws parameter directly (don't shadow it!)
+                const moveMeta = this.getWebSocketMeta(ws);
                 const lobbyPlayer = this.lobby?.players.find(p => p.uid === uid);
                 this.broadcastExcept(uid, {
                     type: 'player_update',
                     uid,
-                    username: meta?.username || 'Player',
+                    username: moveMeta?.username || 'Player',
                     className: lobbyPlayer?.className || 'warrior',
-                    avatar: meta?.avatar ?? 0,
-                    nameColor: meta?.nameColor || '',
+                    avatar: moveMeta?.avatar ?? 0,
+                    nameColor: moveMeta?.nameColor || '',
                     x: msg.x, y: msg.y,
                     dir: msg.dir,
                     px: msg.px, py: msg.py,
