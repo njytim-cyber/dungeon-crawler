@@ -227,6 +227,7 @@ function handleServerMessage(msg: ServerMessage): void {
             break;
 
         case 'game_start':
+            if (currentLobby) currentLobby.gameStarted = true;
             emit('game_start', msg.floor, msg.seed);
             break;
 

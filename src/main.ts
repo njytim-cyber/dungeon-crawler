@@ -1536,6 +1536,25 @@ function render(): void {
 
     ctx.globalAlpha = 1;
 
+    // Show local player name tag in co-op
+    if (isMultiplayerActive()) {
+      const localProfile = MP.getProfile();
+      if (localProfile) {
+        ctx.save();
+        ctx.font = '6px "Press Start 2P"';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = localProfile.nameColor || '#a29bfe';
+        ctx.fillText(localProfile.username, psx + tileSize / 2, psy - tileSize - 6);
+        ctx.restore();
+      }
+      // Show/hide emote picker
+      const emotePicker = document.getElementById('emote-picker');
+      if (emotePicker) emotePicker.classList.remove('hidden');
+    } else {
+      const emotePicker = document.getElementById('emote-picker');
+      if (emotePicker) emotePicker.classList.add('hidden');
+    }
+
     // Attack visual
     if (player.attackCooldown > 0.2) {
       ctx.fillStyle = 'rgba(255,255,255,0.3)';
@@ -1851,6 +1870,28 @@ function init(): void {
       const opener = panelOpeners[panel];
       if (opener) opener(player);
     });
+  });
+  // ===== EMOTE PICKER (Co-op) =====
+  const emoteToggle = document.getElementById('emote-toggle')!;
+  const emoteGrid = document.getElementById('emote-grid')!;
+
+  emoteToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    emoteGrid.classList.toggle('hidden');
+  });
+
+  document.querySelectorAll('.emote-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const emoteId = parseInt((btn as HTMLElement).dataset.emote || '0');
+      MP.sendEmote(emoteId);
+      emoteGrid.classList.add('hidden');
+    });
+  });
+
+  // Hide emote grid when clicking elsewhere
+  document.addEventListener('click', () => {
+    emoteGrid.classList.add('hidden');
   });
 
   // ===== MULTIPLAYER EVENT HANDLERS =====
