@@ -98,7 +98,7 @@ export default {
                 status: 'ok',
                 service: 'dungeon-crawler-server',
                 version: '2.0.0',
-                minClientVersion: '1.3.3',
+                minClientVersion: '1.4.0',
                 runtime: 'cloudflare-workers',
             });
         }
