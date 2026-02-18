@@ -292,10 +292,17 @@ function handleServerMessage(msg: ServerMessage): void {
 
 // ===== API METHODS =====
 
-// Auth — now uses REST endpoint to UserRegistry DO
-export async function login(email: string, username: string): Promise<void> {
+// Auth — username only, device ID auto-generated
+export async function login(username: string): Promise<void> {
     try {
-        const result = await apiPost('/api/user/auth', { email, username });
+        // Auto-generate a persistent device ID
+        let deviceId = localStorage.getItem('coop-device-id');
+        if (!deviceId) {
+            deviceId = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+            localStorage.setItem('coop-device-id', deviceId);
+        }
+
+        const result = await apiPost('/api/user/auth', { email: deviceId, username });
 
         if (result.type === 'auth_ok') {
             localProfile = result.profile;

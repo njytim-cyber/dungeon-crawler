@@ -54,11 +54,10 @@ export function initMultiplayerUI(onGameStart: (floor: number, seed: number) => 
     });
 
     MP.on('auth_error', (message: string) => {
-        showLoginError(message);
+        showNotification(`⚠️ ${message}`);
     });
 
     MP.on('connection_error', (message: string) => {
-        showLoginError(message);
         showNotification(`⚠️ ${message}`);
     });
 
@@ -124,6 +123,17 @@ export function initMultiplayerUI(onGameStart: (floor: number, seed: number) => 
 }
 
 // ===== OVERLAY CONTROL =====
+// Fun auto-generated names
+const NAME_ADJECTIVES = ['Brave', 'Swift', 'Shadow', 'Iron', 'Storm', 'Frost', 'Fire', 'Dark', 'Star', 'Noble', 'Wild', 'Silent', 'Golden', 'Crimson', 'Mystic'];
+const NAME_NOUNS = ['Knight', 'Mage', 'Rogue', 'Hunter', 'Wolf', 'Dragon', 'Phoenix', 'Blade', 'Arrow', 'Shield', 'Sage', 'Hawk', 'Bear', 'Fox', 'Viper'];
+
+function generateRandomName(): string {
+    const adj = NAME_ADJECTIVES[Math.floor(Math.random() * NAME_ADJECTIVES.length)];
+    const noun = NAME_NOUNS[Math.floor(Math.random() * NAME_NOUNS.length)];
+    const num = Math.floor(Math.random() * 99) + 1;
+    return `${adj}${noun}${num}`;
+}
+
 export function showCoopMenu(): void {
     MP.connectToServer();
     coopOverlay.classList.remove('hidden');
@@ -133,7 +143,21 @@ export function showCoopMenu(): void {
         friendsSidebar.classList.remove('hidden');
         renderFriendsSidebar();
     } else {
-        showLoginScreen();
+        // Auto-login: generate name if first time, otherwise use saved name
+        let username = localStorage.getItem('coop-username');
+        if (!username) {
+            username = generateRandomName();
+            localStorage.setItem('coop-username', username);
+        }
+        // Show brief connecting splash
+        coopOverlay.innerHTML = `
+            <div class="coop-panel coop-login">
+                <h2>⚔️ Entering Co-op...</h2>
+                <p class="coop-subtitle">Playing as <strong style="color:#f1c40f">${username}</strong></p>
+                <p class="coop-note">You can change your name in the co-op menu.</p>
+            </div>
+        `;
+        MP.login(username);
     }
 }
 
@@ -148,66 +172,7 @@ export function isCoopOpen(): boolean {
 
 // ===== VIEWS =====
 
-// --- LOGIN ---
-function showLoginScreen(): void {
-    currentView = 'login';
-    coopOverlay.innerHTML = `
-        <div class="coop-panel coop-login">
-            <button class="coop-back-btn" id="coop-back">← Back</button>
-            <h2>🎮 Co-op Login</h2>
-            <p class="coop-subtitle">Login to play with friends! Get a colorful nametag + starter gear.</p>
-            <div class="coop-form">
-                <label>Email</label>
-                <input type="email" id="coop-email" placeholder="your@email.com" autocomplete="email" />
-                <label>Username</label>
-                <input type="text" id="coop-username" placeholder="CoolPlayer123" maxlength="20" autocomplete="username" />
-                <div id="coop-login-error" class="coop-error hidden"></div>
-                <button class="coop-btn coop-btn-primary" id="coop-login-btn">🚀 Login & Play</button>
-            </div>
-            <p class="coop-note">Username is permanent but can be changed later.</p>
-        </div>
-    `;
 
-    document.getElementById('coop-back')!.onclick = () => {
-        hideCoopOverlay();
-        window.dispatchEvent(new Event('coop-back-to-menu'));
-    };
-
-    document.getElementById('coop-login-btn')!.onclick = () => {
-        const email = (document.getElementById('coop-email') as HTMLInputElement).value.trim();
-        const username = (document.getElementById('coop-username') as HTMLInputElement).value.trim();
-        if (!email || !username) {
-            showLoginError('Please enter both email and username.');
-            return;
-        }
-        // Show connecting state
-        const btn = document.getElementById('coop-login-btn')!;
-        btn.textContent = '⏳ Connecting...';
-        (btn as HTMLButtonElement).disabled = true;
-        MP.login(email, username);
-        // Re-enable after 3s if no response
-        setTimeout(() => {
-            btn.textContent = '🚀 Login & Play';
-            (btn as HTMLButtonElement).disabled = false;
-        }, 3000);
-    };
-
-    // Clear error when user types
-    coopOverlay.querySelectorAll('input').forEach(input => {
-        input.addEventListener('input', () => {
-            const el = document.getElementById('coop-login-error');
-            if (el) el.classList.add('hidden');
-        });
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') document.getElementById('coop-login-btn')!.click();
-        });
-    });
-}
-
-function showLoginError(msg: string): void {
-    const el = document.getElementById('coop-login-error');
-    if (el) { el.textContent = msg; el.classList.remove('hidden'); }
-}
 
 // --- MAIN CO-OP MENU ---
 function showCoopMain(): void {
@@ -222,7 +187,6 @@ function showCoopMain(): void {
                 <div class="coop-avatar" style="background:${avatarDef.colors.body}">${avatarDef.emoji}</div>
                 <div class="coop-profile-info">
                     <span class="coop-username" style="color:${profile.nameColor || '#fff'}">${profile.username}</span>
-                    <span class="coop-email">${profile.email}</span>
                 </div>
                 <button class="coop-btn coop-btn-sm" id="coop-change-avatar">🎭 Avatar</button>
                 <button class="coop-btn coop-btn-sm" id="coop-change-name">✏️ Name</button>
