@@ -273,13 +273,22 @@ export class GameLobby implements DurableObject {
                     player.dir = msg.dir;
                     player.animFrame = msg.animFrame;
                 }
+                // Look up metadata for username/class so clients always have it
+                const ws = this.state.getWebSockets().find(w => this.sessions.get(w) === uid);
+                const meta = ws ? this.getWebSocketMeta(ws) : null;
+                const lobbyPlayer = this.lobby?.players.find(p => p.uid === uid);
                 this.broadcastExcept(uid, {
                     type: 'player_update',
                     uid,
+                    username: meta?.username || 'Player',
+                    className: lobbyPlayer?.className || 'warrior',
+                    avatar: meta?.avatar ?? 0,
+                    nameColor: meta?.nameColor || '',
                     x: msg.x, y: msg.y,
                     dir: msg.dir,
                     px: msg.px, py: msg.py,
                     animFrame: msg.animFrame,
+                    floor: msg.floor,
                 });
                 break;
             }
@@ -320,6 +329,7 @@ export class GameLobby implements DurableObject {
                     floor: msg.floor,
                     seed: msg.seed,
                     fromUid: uid,
+                    fromUsername: meta?.username || 'Player',
                 });
                 if (this.lobby) {
                     this.lobby.floor = msg.floor;

@@ -247,13 +247,17 @@ function handleServerMessage(msg: ServerMessage): void {
                 rp.x = msg.x; rp.y = msg.y;
                 rp.px = msg.px; rp.py = msg.py;
                 rp.dir = msg.dir; rp.animFrame = msg.animFrame;
+                if (msg.username) rp.username = msg.username;
+                if (msg.className) rp.className = msg.className as any;
+                if (msg.avatar !== undefined) rp.avatar = msg.avatar;
+                if (msg.nameColor !== undefined) rp.nameColor = msg.nameColor;
+                if (msg.floor !== undefined) rp.floor = msg.floor;
             } else {
-                // Auto-create entry if player_joined hasn't arrived yet (race condition)
                 remotePlayers.set(msg.uid, {
                     uid: msg.uid,
-                    username: 'Player',
-                    avatar: 0,
-                    className: 'warrior' as any,
+                    username: msg.username || 'Player',
+                    avatar: msg.avatar ?? 0,
+                    className: (msg.className || 'warrior') as any,
                     x: msg.x, y: msg.y,
                     px: msg.px, py: msg.py,
                     dir: msg.dir, animFrame: msg.animFrame,
@@ -261,6 +265,8 @@ function handleServerMessage(msg: ServerMessage): void {
                     equipment: {} as any,
                     alive: true,
                     level: 1,
+                    nameColor: msg.nameColor || '',
+                    floor: msg.floor,
                 });
             }
             break;
@@ -289,7 +295,7 @@ function handleServerMessage(msg: ServerMessage): void {
             break;
 
         case 'floor_change':
-            emit('floor_change', msg.floor, msg.seed, msg.fromUid);
+            emit('floor_change', msg.floor, msg.seed, msg.fromUid, msg.fromUsername);
             break;
 
         case 'shared_loot':
@@ -540,8 +546,8 @@ export async function listPublicLobbies(): Promise<void> {
 }
 
 // In-game sync — all via WebSocket
-export function sendPlayerMove(x: number, y: number, dir: number, px: number, py: number, animFrame: number): void {
-    sendWsMsg({ type: 'player_move', x, y, dir: dir as 0 | 1 | 2 | 3, px, py, animFrame });
+export function sendPlayerMove(x: number, y: number, dir: number, px: number, py: number, animFrame: number, floor: number): void {
+    sendWsMsg({ type: 'player_move', x, y, dir: dir as 0 | 1 | 2 | 3, px, py, animFrame, floor });
 }
 
 export function sendPlayerAttack(enemyIndex: number, damage: number, killed: boolean): void {

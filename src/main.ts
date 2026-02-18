@@ -917,7 +917,7 @@ function update(dt: number): void {
     if (mpSyncTimer >= 0.1) {
       mpSyncTimer = 0;
       if (player.x !== lastSentX || player.y !== lastSentY || player.dir !== lastSentDir) {
-        MP.sendPlayerMove(player.x, player.y, player.dir, player.px, player.py, player.animFrame);
+        MP.sendPlayerMove(player.x, player.y, player.dir, player.px, player.py, player.animFrame, player.floor);
         lastSentX = player.x;
         lastSentY = player.y;
         lastSentDir = player.dir;
@@ -1296,6 +1296,9 @@ function render(): void {
     ctx.font = '6px "Press Start 2P"';
 
     remotePlayers.forEach((rp: RemotePlayerState) => {
+      // Only show players on the same floor
+      if (rp.floor !== undefined && rp.floor !== player.floor) return;
+
       const rpx = rp.px - camX;
       const rpy = rp.py - camY;
 
@@ -1547,12 +1550,16 @@ function render(): void {
         ctx.fillText(localProfile.username, psx + tileSize / 2, psy - tileSize - 6);
         ctx.restore();
       }
-      // Show/hide emote picker
+      // Show/hide emote picker and leave button
       const emotePicker = document.getElementById('emote-picker');
+      const leaveBtn = document.getElementById('leave-coop-btn');
       if (emotePicker) emotePicker.classList.remove('hidden');
+      if (leaveBtn) leaveBtn.classList.remove('hidden');
     } else {
       const emotePicker = document.getElementById('emote-picker');
+      const leaveBtn = document.getElementById('leave-coop-btn');
       if (emotePicker) emotePicker.classList.add('hidden');
+      if (leaveBtn) leaveBtn.classList.add('hidden');
     }
 
     // Attack visual
@@ -1871,6 +1878,20 @@ function init(): void {
       if (opener) opener(player);
     });
   });
+
+  // Leave co-op button
+  const leaveCoopBtn = document.getElementById('leave-coop-btn')!;
+  leaveCoopBtn.addEventListener('click', () => {
+    if (!isMultiplayerActive()) return;
+    if (confirm('Leave co-op game? You will return to the title screen.')) {
+      MP.leaveLobby();
+      gameState = 'TITLE' as any;
+      document.getElementById('title-screen')!.classList.remove('hidden');
+      document.getElementById('hud')!.classList.add('hidden');
+      leaveCoopBtn.classList.add('hidden');
+    }
+  });
+
   // ===== EMOTE PICKER (Co-op) =====
   const emoteToggle = document.getElementById('emote-toggle')!;
   const emoteGrid = document.getElementById('emote-grid')!;
@@ -1969,10 +1990,10 @@ function init(): void {
   });
 
   // Handle floor change from teammates
-  MP.on('floor_change', (floor: number, seed: number, _fromUid: string) => {
+  MP.on('floor_change', (floor: number, seed: number, _fromUid: string, fromUsername?: string) => {
     if (!player || gameState !== 'PLAYING') return;
-    // Follow the party to the new floor with the same seed for identical map
-    addMessage(`🚪 Party is moving to Floor ${floor}!`, 'msg-rare');
+    const name = fromUsername || 'A teammate';
+    addMessage(`🚪 ${name} moved to Floor ${floor}!`, 'msg-rare');
     setTimeout(() => {
       if (player && gameState === 'PLAYING') {
         enterFloor(floor, seed);

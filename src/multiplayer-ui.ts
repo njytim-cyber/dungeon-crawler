@@ -66,6 +66,12 @@ export function initMultiplayerUI(onGameStart: (floor: number, seed: number) => 
             window.dispatchEvent(new CustomEvent('mp-starter-gear', { detail: starterGear }));
         }
         showCoopMain();
+        // Auto-join if opened via direct link (?join=CODE)
+        const pendingCode = (window as any).__pendingJoinCode;
+        if (pendingCode) {
+            delete (window as any).__pendingJoinCode;
+            setTimeout(() => MP.joinLobby(pendingCode), 300);
+        }
     });
 
     MP.on('auth_error', (message: string) => {
@@ -135,6 +141,20 @@ export function initMultiplayerUI(onGameStart: (floor: number, seed: number) => 
         hideCoopOverlay();
         if (onStartCallback) onStartCallback(floor, seed);
     });
+
+    // Check for ?join=CODE in URL — auto-open co-op and join
+    const urlParams = new URLSearchParams(window.location.search);
+    const joinCode = urlParams.get('join');
+    if (joinCode) {
+        // Clean the URL so the join code isn't stuck
+        window.history.replaceState({}, '', window.location.pathname);
+        // Store for after login
+        (window as any).__pendingJoinCode = joinCode;
+        // Auto-open co-op overlay
+        setTimeout(() => {
+            showCoopMenu();
+        }, 500);
+    }
 }
 
 // ===== OVERLAY CONTROL =====
@@ -381,7 +401,7 @@ function renderLobbyView(lobby: LobbyInfo): void {
                 <h2>${escapeHtml(lobby.name)}</h2>
                 <div class="coop-lobby-info-bar">
                     <span class="coop-lobby-code-display">Code: <strong>${escapeHtml(lobby.code)}</strong></span>
-                    <button class="coop-btn coop-btn-sm" id="coop-copy-code" title="Copy lobby code">📋</button>
+                    <button class="coop-btn coop-btn-sm" id="coop-copy-code" title="Copy join link">🔗</button>
                     <span class="coop-lobby-vis">${lobby.visibility === 'public' ? '🌍 Public' : '🔒 Private'}</span>
                     <span>👤 ${lobby.players.length}/7</span>
                 </div>
@@ -407,21 +427,21 @@ function renderLobbyView(lobby: LobbyInfo): void {
     const copyBtn = document.getElementById('coop-copy-code');
     if (copyBtn) {
         copyBtn.onclick = () => {
-            navigator.clipboard.writeText(lobby.code).then(() => {
+            const joinUrl = `${window.location.origin}?join=${lobby.code}`;
+            navigator.clipboard.writeText(joinUrl).then(() => {
                 copyBtn.textContent = '✅';
-                setTimeout(() => { copyBtn.textContent = '📋'; }, 1500);
-                showNotification(`📋 Lobby code "${lobby.code}" copied! Share it with friends.`);
+                setTimeout(() => { copyBtn.textContent = '🔗'; }, 1500);
+                showNotification(`🔗 Join link copied! Share it with friends.`);
             }).catch(() => {
-                // Fallback: select text
                 const el = document.createElement('textarea');
-                el.value = lobby.code;
+                el.value = joinUrl;
                 document.body.appendChild(el);
                 el.select();
                 document.execCommand('copy');
                 document.body.removeChild(el);
                 copyBtn.textContent = '✅';
-                setTimeout(() => { copyBtn.textContent = '📋'; }, 1500);
-                showNotification(`📋 Lobby code "${lobby.code}" copied!`);
+                setTimeout(() => { copyBtn.textContent = '🔗'; }, 1500);
+                showNotification(`🔗 Join link copied!`);
             });
         };
     }
