@@ -502,7 +502,7 @@ export class GameLobby implements DurableObject {
     }
 
     private getWebSocketMeta(ws: WebSocket): WebSocketMeta | null {
-        const tags = this.state.getWebSocketTags(ws);
+        const tags = this.state.getTags(ws);
         if (tags && tags.length > 0) {
             try { return JSON.parse(tags[0]); } catch { return null; }
         }

@@ -34,55 +34,64 @@ function generateFloor(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE);
     const ctx = c.getContext('2d')!;
 
-    ctx.fillStyle = '#4a3b2a';
+    ctx.fillStyle = '#1e1e24'; // Dark cool gray/indigo base
     ctx.fillRect(0, 0, 16, 16);
 
     const stones = [
-        { x: 1, y: 1, w: 6, h: 6, base: '#56473a', hi: '#6b5c4c', lo: '#3e3024' },
-        { x: 9, y: 1, w: 6, h: 6, base: '#52432e', hi: '#665840', lo: '#3b2c1e' },
-        { x: 1, y: 9, w: 6, h: 6, base: '#584c3c', hi: '#6e6050', lo: '#423428' },
-        { x: 9, y: 9, w: 6, h: 6, base: '#504234', hi: '#645844', lo: '#3a2c1c' },
+        { x: 1, y: 1, w: 6, h: 6, base: '#2b2b36', hi: '#3f3f4e', lo: '#15151a' },
+        { x: 9, y: 1, w: 6, h: 6, base: '#292933', hi: '#3c3c4a', lo: '#141418' },
+        { x: 1, y: 9, w: 6, h: 6, base: '#2d2d38', hi: '#424252', lo: '#16161c' },
+        { x: 9, y: 9, w: 6, h: 6, base: '#26262f', hi: '#353542', lo: '#121216' },
     ];
     for (const s of stones) {
         ctx.fillStyle = s.base;
         ctx.fillRect(s.x, s.y, s.w, s.h);
         for (let px = 0; px < 3; px++) {
-            ctx.fillStyle = `rgba(${Math.random() > 0.5 ? 200 : 50},${Math.random() > 0.5 ? 180 : 40},${Math.random() > 0.5 ? 160 : 30},0.03)`;
+            // Little cute sparkles on the stone
+            ctx.fillStyle = `rgba(${Math.random() > 0.5 ? 180 : 150},${Math.random() > 0.5 ? 200 : 160},${Math.random() > 0.5 ? 255 : 200},0.04)`;
             ctx.fillRect(s.x + 1 + Math.floor(Math.random() * (s.w - 2)), s.y + 1 + Math.floor(Math.random() * (s.h - 2)), 1, 1);
         }
         ctx.fillStyle = s.hi;
         ctx.fillRect(s.x, s.y, s.w, 1); ctx.fillRect(s.x, s.y, 1, s.h);
-        ctx.fillStyle = 'rgba(255,255,255,0.04)';
+        // Bevel
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
         ctx.fillRect(s.x + 1, s.y + 1, s.w - 2, 1);
         ctx.fillStyle = s.lo;
         ctx.fillRect(s.x, s.y + s.h - 1, s.w, 1); ctx.fillRect(s.x + s.w - 1, s.y, 1, s.h);
-        ctx.fillStyle = 'rgba(0,0,0,0.12)';
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
         ctx.fillRect(s.x + s.w - 1, s.y + s.h - 1, 1, 1);
     }
 
-    ctx.fillStyle = '#1e1408';
+    // Grid lines / grout
+    ctx.fillStyle = '#111115';
     ctx.fillRect(0, 7, 16, 2); ctx.fillRect(7, 0, 2, 16);
-    ctx.fillStyle = 'rgba(255,255,255,0.03)';
+    ctx.fillStyle = 'rgba(255,255,255,0.02)';
     ctx.fillRect(0, 7, 16, 1); ctx.fillRect(7, 0, 1, 16);
-    ctx.fillStyle = '#2e2014';
+    ctx.fillStyle = '#18181e';
     ctx.fillRect(0, 0, 16, 1); ctx.fillRect(0, 15, 16, 1);
     ctx.fillRect(0, 0, 1, 16); ctx.fillRect(15, 0, 1, 16);
 
+    // Pebbles/dust
     for (let i = 0; i < 5; i++) {
-        ctx.fillStyle = Math.random() > 0.5 ? '#685a48' : '#4a3c2c';
+        ctx.fillStyle = Math.random() > 0.5 ? '#3b3b48' : '#18181e';
         ctx.fillRect(2 + Math.floor(Math.random() * 12), 2 + Math.floor(Math.random() * 12), 1, 1);
     }
 
+    // Cute luminescent moss
     if (Math.random() > 0.55) {
-        ctx.fillStyle = 'rgba(50, 130, 50, 0.25)';
+        ctx.fillStyle = 'rgba(70, 200, 180, 0.3)';
         const mx = Math.floor(Math.random() * 11) + 2;
         const my = Math.floor(Math.random() * 11) + 2;
         ctx.fillRect(mx, my, 2, 1); ctx.fillRect(mx + 1, my + 1, 1, 1);
-        ctx.fillStyle = 'rgba(70, 150, 70, 0.15)';
+        ctx.fillStyle = 'rgba(100, 255, 200, 0.2)';
         ctx.fillRect(mx - 1, my, 1, 1);
+        // Cute tiny moss particle
+        ctx.fillStyle = '#64ffc8';
+        ctx.fillRect(mx, my, 1, 1);
     }
 
-    ctx.fillStyle = 'rgba(0,0,0,0.06)';
+    // Corners shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
     ctx.fillRect(0, 0, 2, 2); ctx.fillRect(14, 0, 2, 2);
     ctx.fillRect(0, 14, 2, 2); ctx.fillRect(14, 14, 2, 2);
 
@@ -94,15 +103,15 @@ function generateWall(): HTMLCanvasElement {
     const ctx = c.getContext('2d')!;
 
     // Top face with gradient sim
-    ctx.fillStyle = '#2c3e50';
+    ctx.fillStyle = '#15151a'; // Deep abyss color
     ctx.fillRect(0, 0, TILE, 4);
-    ctx.fillStyle = '#354d63';
+    ctx.fillStyle = '#1a1a22';
     ctx.fillRect(1, 0, 14, 1);
-    ctx.fillStyle = '#3a5570';
+    ctx.fillStyle = '#22222b';
     ctx.fillRect(2, 1, 12, 1);
 
     // Front face
-    ctx.fillStyle = '#34495e';
+    ctx.fillStyle = '#1e1e24'; // Matches base floor
     ctx.fillRect(0, 4, TILE, 12);
 
     // Bricks with color variation
@@ -114,45 +123,50 @@ function generateWall(): HTMLCanvasElement {
     ];
     for (const b of bricks) {
         const r = Math.random() * 10;
-        ctx.fillStyle = r > 7 ? '#3f5872' : r > 3 ? '#3d566e' : '#3b5268';
+        // Gritty steel/slate brick look
+        ctx.fillStyle = r > 7 ? '#2a2b36' : r > 3 ? '#282833' : '#25262e';
         ctx.fillRect(b.x, b.y, b.w, b.h);
-        ctx.fillStyle = '#4a6580'; ctx.fillRect(b.x, b.y, b.w, 1);
-        ctx.fillStyle = 'rgba(255,255,255,0.04)'; ctx.fillRect(b.x + 1, b.y, b.w - 2, 1);
-        ctx.fillStyle = '#456078'; ctx.fillRect(b.x, b.y, 1, b.h);
-        ctx.fillStyle = '#1a252f'; ctx.fillRect(b.x, b.y + b.h - 1, b.w, 1);
-        ctx.fillStyle = '#1e2d3d'; ctx.fillRect(b.x + b.w - 1, b.y, 1, b.h);
+
+        // Edge highlights & shadows
+        ctx.fillStyle = '#383a48'; ctx.fillRect(b.x, b.y, b.w, 1); // Top
+        ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(b.x + 1, b.y, b.w - 2, 1);
+        ctx.fillStyle = '#323440'; ctx.fillRect(b.x, b.y, 1, b.h); // Left
+        ctx.fillStyle = '#111116'; ctx.fillRect(b.x, b.y + b.h - 1, b.w, 1); // Bottom
+        ctx.fillStyle = '#14141a'; ctx.fillRect(b.x + b.w - 1, b.y, 1, b.h); // Right
+
         if (Math.random() > 0.5) {
-            ctx.fillStyle = 'rgba(255,255,255,0.03)';
+            ctx.fillStyle = 'rgba(255,255,255,0.04)';
             ctx.fillRect(b.x + 1 + Math.floor(Math.random() * (b.w - 2)), b.y + 1, 1, 1);
         }
     }
 
     // Mortar
-    ctx.fillStyle = '#1a252f';
+    ctx.fillStyle = '#0f0f12';
     ctx.fillRect(0, 4, TILE, 1); ctx.fillRect(0, 8, TILE, 1); ctx.fillRect(0, 12, TILE, 1);
     ctx.fillRect(8, 4, 1, 4); ctx.fillRect(4, 8, 1, 5); ctx.fillRect(11, 8, 1, 5);
 
     // Edge shadows
-    ctx.fillStyle = '#0d1620'; ctx.fillRect(0, 4, 1, 12); ctx.fillRect(15, 4, 1, 12);
+    ctx.fillStyle = '#0a0a0d'; ctx.fillRect(0, 4, 1, 12); ctx.fillRect(15, 4, 1, 12);
 
     // Cracks with branches
     if (Math.random() > 0.4) {
-        ctx.fillStyle = '#0a1018';
+        ctx.fillStyle = '#050508';
         const cx = 3 + Math.floor(Math.random() * 10);
         ctx.fillRect(cx, 10, 1, 3); ctx.fillRect(cx + 1, 12, 1, 2);
         if (Math.random() > 0.5) ctx.fillRect(cx - 1, 11, 1, 1);
     }
 
-    // Damp patches
+    // Damp patches/moss on walls
     if (Math.random() > 0.65) {
-        ctx.fillStyle = 'rgba(100,140,180,0.07)';
+        // Bio-luminescent moss tint
+        ctx.fillStyle = 'rgba(100,255,200,0.08)';
         ctx.fillRect(2 + Math.floor(Math.random() * 10), 6 + Math.floor(Math.random() * 6), 3, 2);
     }
 
     // Top edge glow
-    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(0, 4, TILE, 1);
+    ctx.fillStyle = 'rgba(255,255,255,0.04)'; ctx.fillRect(0, 4, TILE, 1);
     // Bottom AO
-    ctx.fillStyle = 'rgba(0,0,0,0.1)'; ctx.fillRect(0, 14, TILE, 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(0, 14, TILE, 2);
 
     return c;
 }
@@ -161,30 +175,30 @@ function generateDoor(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE);
     const ctx = c.getContext('2d')!;
 
-    // Stone frame with depth
-    ctx.fillStyle = '#2c3e50'; ctx.fillRect(0, 0, TILE, TILE);
-    ctx.fillStyle = '#243342'; ctx.fillRect(1, 0, 1, TILE); ctx.fillRect(14, 0, 1, TILE);
+    // Stone frame with depth matching the new walls
+    ctx.fillStyle = '#15151a'; ctx.fillRect(0, 0, TILE, TILE);
+    ctx.fillStyle = '#111115'; ctx.fillRect(1, 0, 1, TILE); ctx.fillRect(14, 0, 1, TILE);
 
-    // Wood door
-    ctx.fillStyle = '#6d4c41'; ctx.fillRect(2, 1, 12, 15);
+    // Heavy dark wood door
+    ctx.fillStyle = '#4a3028'; ctx.fillRect(2, 1, 12, 15);
     // Grain
-    ctx.fillStyle = '#5d4037'; ctx.fillRect(5, 1, 1, 15); ctx.fillRect(10, 1, 1, 15);
-    ctx.fillStyle = 'rgba(0,0,0,0.08)'; ctx.fillRect(3, 1, 1, 15); ctx.fillRect(7, 1, 1, 15); ctx.fillRect(12, 1, 1, 15);
+    ctx.fillStyle = '#3a241c'; ctx.fillRect(5, 1, 1, 15); ctx.fillRect(10, 1, 1, 15);
+    ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(3, 1, 1, 15); ctx.fillRect(7, 1, 1, 15); ctx.fillRect(12, 1, 1, 15);
 
     // Iron bands with rivets
-    ctx.fillStyle = '#78909c'; ctx.fillRect(2, 3, 12, 2); ctx.fillRect(2, 10, 12, 2);
-    ctx.fillStyle = '#b0bec5'; ctx.fillRect(3, 3, 1, 1); ctx.fillRect(12, 3, 1, 1);
+    ctx.fillStyle = '#454a55'; ctx.fillRect(2, 3, 12, 2); ctx.fillRect(2, 10, 12, 2);
+    ctx.fillStyle = '#6b7280'; ctx.fillRect(3, 3, 1, 1); ctx.fillRect(12, 3, 1, 1);
     ctx.fillRect(3, 10, 1, 1); ctx.fillRect(12, 10, 1, 1);
-    ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(2, 5, 12, 1); ctx.fillRect(2, 12, 12, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(2, 5, 12, 1); ctx.fillRect(2, 12, 12, 1);
 
-    // Ornate handle
-    ctx.fillStyle = '#ffd54f'; ctx.fillRect(10, 7, 2, 3);
-    ctx.fillStyle = '#ffca28'; ctx.fillRect(10, 7, 1, 1);
-    ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(11, 9, 1, 1);
+    // Ornate handle - glowing iron
+    ctx.fillStyle = '#7a7a85'; ctx.fillRect(10, 7, 2, 3);
+    ctx.fillStyle = '#9ca3af'; ctx.fillRect(10, 7, 1, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(11, 9, 1, 1);
 
     // Arch highlight + bottom shadow
-    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(3, 1, 10, 1);
-    ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(2, 14, 12, 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.03)'; ctx.fillRect(3, 1, 10, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(2, 14, 12, 2);
 
     return c;
 }
@@ -193,28 +207,30 @@ function generateStairs(down: boolean): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE);
     const ctx = c.getContext('2d')!;
 
-    // Dark cavity
-    ctx.fillStyle = down ? '#1a1208' : '#4a3b2a';
+    // Dark cavity base
+    ctx.fillStyle = down ? '#08080a' : '#1e1e24';
     ctx.fillRect(0, 0, TILE, TILE);
 
     const steps = 5;
     const stepH = Math.floor(TILE / steps);
     for (let i = 0; i < steps; i++) {
         const y = i * stepH;
-        const shade = down ? (0.5 + i * 0.12) : (1.0 - i * 0.12);
-        const r = Math.floor(127 * shade), g = Math.floor(140 * shade), b = Math.floor(141 * shade);
+        const shade = down ? (0.3 + i * 0.1) : (0.8 - i * 0.1);
+        const r = Math.floor(43 * shade), g = Math.floor(43 * shade), b = Math.floor(54 * shade);
         ctx.fillStyle = `rgb(${r},${g},${b})`;
         ctx.fillRect(3, y, 10, stepH - 1);
-        ctx.fillStyle = `rgba(255,255,255,${0.06 + (down ? i * 0.02 : (4 - i) * 0.02)})`;
+        // Highlight
+        ctx.fillStyle = `rgba(255,255,255,${0.04 + (down ? i * 0.02 : (4 - i) * 0.02)})`;
         ctx.fillRect(3, y, 10, 1);
-        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
         ctx.fillRect(3, y + stepH - 1, 10, 1);
     }
 
-    // Side walls
-    ctx.fillStyle = '#2c3e50'; ctx.fillRect(0, 0, 3, TILE); ctx.fillRect(13, 0, 3, TILE);
-    ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(2, 0, 1, TILE); ctx.fillRect(13, 0, 1, TILE);
-    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(0, 0, 1, TILE); ctx.fillRect(15, 0, 1, TILE);
+    // Side walls (matching new brick style)
+    ctx.fillStyle = '#15151a'; ctx.fillRect(0, 0, 3, TILE); ctx.fillRect(13, 0, 3, TILE);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(2, 0, 1, TILE); ctx.fillRect(13, 0, 1, TILE);
+    ctx.fillStyle = 'rgba(255,255,255,0.03)'; ctx.fillRect(0, 0, 1, TILE); ctx.fillRect(15, 0, 1, TILE);
 
     // Direction arrow
     ctx.fillStyle = down ? '#e74c3c' : '#2ecc71';
@@ -232,31 +248,31 @@ function generateChest(): HTMLCanvasElement {
     const ctx = c.getContext('2d')!;
 
     // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.beginPath(); ctx.ellipse(8, 14, 6, 2.5, 0, 0, Math.PI * 2); ctx.fill();
 
-    // Body with shading
-    ctx.fillStyle = '#7b5b3a'; ctx.fillRect(2, 6, 12, 8);
-    ctx.fillStyle = '#6d4c2e'; ctx.fillRect(2, 12, 12, 2);
-    ctx.fillStyle = '#8a6844'; ctx.fillRect(3, 7, 10, 2);
+    // Body with dark worn wood
+    ctx.fillStyle = '#3a2e2a'; ctx.fillRect(2, 6, 12, 8);
+    ctx.fillStyle = '#2b211e'; ctx.fillRect(2, 12, 12, 2);
+    ctx.fillStyle = '#4c3f3a'; ctx.fillRect(3, 7, 10, 2);
 
     // Lid
-    ctx.fillStyle = '#9c7c5a'; ctx.fillRect(2, 3, 12, 4);
-    ctx.fillStyle = '#a88b66'; ctx.fillRect(3, 3, 10, 1);
-    ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(2, 6, 12, 1);
+    ctx.fillStyle = '#4f3e37'; ctx.fillRect(2, 3, 12, 4);
+    ctx.fillStyle = '#5f4b43'; ctx.fillRect(3, 3, 10, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(2, 6, 12, 1);
 
-    // Metal bands
-    ctx.fillStyle = '#ffc107'; ctx.fillRect(3, 3, 2, 11); ctx.fillRect(11, 3, 2, 11);
-    ctx.fillStyle = '#ffe082'; ctx.fillRect(3, 3, 1, 11);
-    ctx.fillStyle = '#e6a800'; ctx.fillRect(4, 3, 1, 11); ctx.fillRect(12, 3, 1, 11);
+    // Dark iron bands
+    ctx.fillStyle = '#555b6e'; ctx.fillRect(3, 3, 2, 11); ctx.fillRect(11, 3, 2, 11);
+    ctx.fillStyle = '#6b7280'; ctx.fillRect(3, 3, 1, 11);
+    ctx.fillStyle = '#404554'; ctx.fillRect(4, 3, 1, 11); ctx.fillRect(12, 3, 1, 11);
 
-    // Lock
-    ctx.fillStyle = '#ff8f00'; ctx.fillRect(7, 7, 2, 3);
-    ctx.fillStyle = '#ffd54f'; ctx.fillRect(7, 7, 1, 1);
-    ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(8, 9, 1, 1);
+    // Dark Lock
+    ctx.fillStyle = '#7a7a85'; ctx.fillRect(7, 7, 2, 3);
+    ctx.fillStyle = '#9ca3af'; ctx.fillRect(7, 7, 1, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(8, 9, 1, 1);
 
     // Shine
-    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(4, 3, 8, 1);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(4, 3, 8, 1);
 
     return c;
 }
@@ -266,45 +282,45 @@ function generateChestOpen(): HTMLCanvasElement {
     const ctx = c.getContext('2d')!;
 
     // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.beginPath(); ctx.ellipse(8, 14, 6, 2.5, 0, 0, Math.PI * 2); ctx.fill();
 
     // Dark interior
-    ctx.fillStyle = '#2a1a0e'; ctx.fillRect(2, 6, 12, 8);
-    ctx.fillStyle = '#3e2518'; ctx.fillRect(3, 7, 10, 2);
+    ctx.fillStyle = '#14100d'; ctx.fillRect(2, 6, 12, 8);
+    ctx.fillStyle = '#221915'; ctx.fillRect(3, 7, 10, 2);
 
     // Open lid
-    ctx.fillStyle = '#6d4c2e'; ctx.fillRect(2, 0, 12, 6);
-    ctx.fillStyle = '#7b5b3a'; ctx.fillRect(3, 1, 10, 4);
-    ctx.fillStyle = '#5d3c22'; ctx.fillRect(3, 4, 10, 2);
+    ctx.fillStyle = '#2b211e'; ctx.fillRect(2, 0, 12, 6);
+    ctx.fillStyle = '#3a2e2a'; ctx.fillRect(3, 1, 10, 4);
+    ctx.fillStyle = '#221915'; ctx.fillRect(3, 4, 10, 2);
 
-    // Gold + gems inside
-    ctx.fillStyle = '#ffd54f'; ctx.fillRect(4, 9, 2, 2); ctx.fillRect(7, 8, 3, 3); ctx.fillRect(11, 9, 2, 2);
+    // Bright magical loot inside (gives contrast)
+    ctx.fillStyle = '#00ffff'; ctx.fillRect(4, 9, 2, 2); ctx.fillRect(7, 8, 3, 3); ctx.fillRect(11, 9, 2, 2);
     ctx.fillStyle = '#e74c3c'; ctx.fillRect(5, 10, 1, 1);
     ctx.fillStyle = '#3498db'; ctx.fillRect(9, 9, 1, 1);
-    ctx.fillStyle = 'rgba(255,255,200,0.5)'; ctx.fillRect(8, 8, 1, 1);
+    ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.fillRect(8, 8, 1, 1);
 
     // Bands on lid
-    ctx.fillStyle = '#ffc107'; ctx.fillRect(3, 0, 2, 6); ctx.fillRect(11, 0, 2, 6);
+    ctx.fillStyle = '#555b6e'; ctx.fillRect(3, 0, 2, 6); ctx.fillRect(11, 0, 2, 6);
 
     return c;
 }
 
 function generateTrap(): HTMLCanvasElement {
     const c = createCanvas(TILE, TILE); const ctx = c.getContext('2d')!;
-    ctx.fillStyle = '#4a3b2a'; ctx.fillRect(0, 0, TILE, TILE);
+    ctx.fillStyle = '#1e1e24'; ctx.fillRect(0, 0, TILE, TILE);
     // Pressure plate
-    ctx.fillStyle = '#56473a'; ctx.fillRect(3, 3, 10, 10);
-    ctx.fillStyle = '#3e3024'; ctx.fillRect(3, 12, 10, 1); ctx.fillRect(12, 3, 1, 10);
+    ctx.fillStyle = '#2b2b36'; ctx.fillRect(3, 3, 10, 10);
+    ctx.fillStyle = '#15151a'; ctx.fillRect(3, 12, 10, 1); ctx.fillRect(12, 3, 1, 10);
     // Pin holes
-    ctx.fillStyle = '#2a1e14';
+    ctx.fillStyle = '#0a0a0d';
     ctx.beginPath(); ctx.arc(5, 5, 1.2, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(11, 5, 1.2, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(8, 8, 1.5, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(5, 11, 1.2, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(11, 11, 1.2, 0, Math.PI * 2); ctx.fill();
     // Danger tint
-    ctx.fillStyle = 'rgba(180, 50, 30, 0.08)'; ctx.fillRect(3, 3, 10, 10);
+    ctx.fillStyle = 'rgba(180, 50, 30, 0.15)'; ctx.fillRect(3, 3, 10, 10);
     return c;
 }
 
@@ -499,350 +515,397 @@ function generateCharacter(className: ClassName, dir: number, frame: number): HT
     const ctx = c.getContext('2d')!;
     const colors = CLASS_COLORS[className] || CLASS_COLORS['warrior'];
 
-    // Palette
+    // Enhanced Palette
     const skin = colors.head;
-    const skinDark = shadeColor(skin, -20);
+    const skinDark = shadeColor(skin, -15);
+    const skinDarker = shadeColor(skin, -30);
+    const blush = 'rgba(255, 105, 180, 0.4)'; // Cute blush
     const hair = colors.hair;
-    const hairLight = shadeColor(hair, 30);
+    const hairLight = shadeColor(hair, 40);
     const hairDark = shadeColor(hair, -30);
     const body = colors.body;
-    const bodyLight = shadeColor(body, 25);
-    const bodyDark = shadeColor(body, -25);
+    const bodyLight = shadeColor(body, 30);
+    const bodyDark = shadeColor(body, -30);
     const detail = colors.detail;
+    const detailLight = shadeColor(detail, 40);
 
-    const bob = frame % 2 === 0 ? 0 : 1;
+    // Animation bob
+    const isWalking = (dir === 2 || dir === 3) && frame === 1;
+    const isWalkingFrontBack = (dir === 0 || dir === 1) && frame === 1;
+    const bob = isWalking ? -1 : (isWalkingFrontBack ? (frame === 1 ? -1 : 0) : (frame % 2 === 0 ? 0 : 1));
+
+    // Base coordinates
+    const centerX = 16;
+    const headSize = 18; // Slightly larger head for 'cute' proportions
+    const headY = 12 + bob;
+    const bodyW = 16;
+    const bodyH = 16;
+    const bodyY = headY + headSize - 2;
+    const legY = bodyY + bodyH;
+    const legH = 14;
 
     // --- SHADOW ---
-    ctx.fillStyle = 'rgba(0,0,0,0.2)';
-    ctx.beginPath(); ctx.ellipse(16, 58, 10, 3, 0, 0, Math.PI * 2); ctx.fill();
-
-    // --- BASE MANNEQUIN COORDINATES ---
-    // Keeping it 32x64, but focusing details.
-    // Head: 16x16 roughly, centered at x=16, y=14
-    // Body: 14x16, y=30
-    // Legs: y=46 to 60
-
-    const centerX = 16;
-    const headY = 13 + bob;
-    const bodyY = 28 + bob;
-    const legY = 44 + bob;
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath();
+    // Pulse shadow slightly during walk
+    const shadowW = isWalking ? 9 : 11;
+    ctx.ellipse(centerX, legY + legH - 2, shadowW, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
 
     // --- LEGS ---
-    const legH = 16;
+    const pantsColor = '#2c3e50';
+    const pantsDark = '#1a252f';
+    const shoeColor = '#3e2723';
+
     let leftLegY = legY;
     let rightLegY = legY;
 
-    // Walk animation
-    if (dir === 2 || dir === 3) {
-        if (frame === 1) {
-            // Walking
-            if (dir === 2) { leftLegY -= 2; rightLegY += 2; } // Side view walk
-            else { leftLegY += 2; rightLegY -= 2; }
+    if (dir === 0 || dir === 1) { // Front & Back
+        if (isWalkingFrontBack) {
+            leftLegY -= 2;
+            rightLegY += 1;
         }
-    }
 
-    // Draw Legs
-    const pantsColor = '#222'; // Default darker legs/boots
-    ctx.fillStyle = pantsColor;
-
-    if (dir === 2 || dir === 3) {
-        // Side view legs — mirror depending on direction
-        const facing = dir === 2 ? -1 : 1; // -1 = left, 1 = right
-        const frontLegX = centerX + facing * -3;
-        const backLegX = centerX + facing * 1;
-        // Draw back leg first (darker, further)
-        ctx.fillStyle = shadeColor(pantsColor, -20);
-        ctx.fillRect(backLegX, legY, 5, legH - 2);
-        ctx.fillStyle = '#111';
-        ctx.fillRect(backLegX, legY + legH - 4, 5, 4);
-
-        // Front leg (closer, brighter)
         ctx.fillStyle = pantsColor;
-        const frontBob = frame === 1 ? -2 : 0;
-        ctx.fillRect(frontLegX, legY + frontBob, 5, legH - 2 - frontBob);
-        ctx.fillStyle = '#222';
-        ctx.fillRect(frontLegX, legY + legH - 4, 5, 4);
-
-    } else {
-        // Front/Back view legs
-        ctx.fillStyle = pantsColor;
-        ctx.fillRect(centerX - 5, leftLegY, 5, legH); // Left
+        ctx.fillRect(centerX - 6, leftLegY, 5, legH); // Left
         ctx.fillRect(centerX + 1, rightLegY, 5, legH); // Right
 
+        // Inner shading
+        ctx.fillStyle = pantsDark;
+        ctx.fillRect(centerX - 2, leftLegY, 1, legH);
+        ctx.fillRect(centerX + 1, rightLegY, 1, legH);
+
         // Boots
-        ctx.fillStyle = '#111';
-        ctx.fillRect(centerX - 5, leftLegY + legH - 4, 5, 4);
-        ctx.fillRect(centerX + 1, rightLegY + legH - 4, 5, 4);
+        ctx.fillStyle = shoeColor;
+        ctx.fillRect(centerX - 7, leftLegY + legH - 4, 7, 4);
+        ctx.fillRect(centerX, rightLegY + legH - 4, 7, 4);
+        // Boot highlights
+        ctx.fillStyle = shadeColor(shoeColor, 20);
+        ctx.fillRect(centerX - 6, leftLegY + legH - 3, 2, 1);
+        ctx.fillRect(centerX + 1, rightLegY + legH - 3, 2, 1);
+    } else { // Profile
+        const facing = dir === 2 ? -1 : 1;
+        const frontLegX = centerX + facing * -2;
+        const backLegX = centerX + facing * 2;
+
+        // Back leg
+        ctx.fillStyle = pantsDark;
+        ctx.fillRect(backLegX - 2, legY, 5, legH - 2);
+        ctx.fillStyle = shadeColor(shoeColor, -20);
+        ctx.fillRect(backLegX - 3, legY + legH - 4, 7, 4);
+
+        // Front leg
+        const frontBob = isWalking ? -3 : 0;
+        ctx.fillStyle = pantsColor;
+        ctx.fillRect(frontLegX - 3, legY + frontBob, 6, legH - 2 - frontBob);
+        ctx.fillStyle = shoeColor;
+        ctx.fillRect(frontLegX - 4, legY + legH - 4 + Math.max(0, frontBob), 8, 4);
+        ctx.fillStyle = shadeColor(shoeColor, 20);
+        ctx.fillRect(frontLegX - (dir === 2 ? 2 : 0), legY + legH - 3 + Math.max(0, frontBob), 2, 1);
     }
 
-    // --- ARM BEHIND (for side view) ---
-    if (dir === 3) { // Facing Right
+    // --- ARM BEHIND (Profile) ---
+    if (dir === 3) {
         ctx.fillStyle = bodyDark;
-        ctx.fillRect(centerX + 4, bodyY + 4, 4, 10);
-    } else if (dir === 2) { // Facing Left
+        ctx.fillRect(centerX + 3, bodyY + 3, 5, 11);
+    } else if (dir === 2) {
         ctx.fillStyle = bodyDark;
-        ctx.fillRect(centerX - 8, bodyY + 4, 4, 10);
+        ctx.fillRect(centerX - 8, bodyY + 3, 5, 11);
     }
 
-
-    // --- BODY ---
-    const bodyW = 14;
-    const bodyH = 18;
-    // Shift body slightly toward facing direction for profile
+    // --- BODY/TORSO ---
     const bodyShift = (dir === 2) ? -1 : (dir === 3) ? 1 : 0;
     const bodyX = centerX - bodyW / 2 + bodyShift;
 
+    // Base body shape with curved shoulders
     ctx.fillStyle = body;
-    ctx.fillRect(bodyX, bodyY, bodyW, bodyH);
+    ctx.fillRect(bodyX + 1, bodyY, bodyW - 2, bodyH);
+    ctx.fillRect(bodyX, bodyY + 2, bodyW, bodyH - 2);
 
-    // Side shading on body for profile views
-    if (dir === 2 || dir === 3) {
+    // Shading/Lighting
+    if (dir === 0 || dir === 1) {
+        ctx.fillStyle = bodyLight;
+        ctx.fillRect(bodyX + 2, bodyY + 1, bodyW - 4, 3);
         ctx.fillStyle = bodyDark;
-        if (dir === 2) {
-            ctx.fillRect(bodyX + bodyW - 2, bodyY, 2, bodyH); // Right edge darker
-        } else {
-            ctx.fillRect(bodyX, bodyY, 2, bodyH); // Left edge darker
+        ctx.fillRect(bodyX + 1, bodyY + bodyH - 3, bodyW - 2, 3);
+        ctx.fillRect(bodyX, bodyY + 2, 2, bodyH - 2);
+        ctx.fillRect(bodyX + bodyW - 2, bodyY + 2, 2, bodyH - 2);
+    } else {
+        ctx.fillStyle = bodyLight;
+        ctx.fillRect(bodyX + (dir === 3 ? 2 : 0), bodyY + 1, bodyW - 2, 2);
+        ctx.fillStyle = bodyDark;
+        ctx.fillRect(bodyX + (dir === 2 ? bodyW - 3 : 0), bodyY + 2, 3, bodyH - 2);
+    }
+
+    // Class Details
+    if (['warrior', 'paladin', 'berserker'].includes(className)) {
+        ctx.fillStyle = '#bdc3c7'; // Metal Base
+        ctx.fillRect(bodyX + 2, bodyY + 2, bodyW - 4, bodyH - 4);
+        ctx.fillStyle = '#ecf0f1'; // Metal Highlight
+        ctx.fillRect(bodyX + 3, bodyY + 3, bodyW - 6, 2);
+        ctx.fillStyle = detail; // Trim
+        ctx.fillRect(bodyX + 1, bodyY + 8, bodyW - 2, 4);
+        if (dir === 0) {
+            ctx.fillStyle = detailLight;
+            ctx.fillRect(centerX - 2, bodyY + 4, 4, 4); // Chest gem/emblem
+        }
+    } else if (['mage', 'necromancer', 'cleric'].includes(className)) {
+        ctx.fillStyle = body; // Flowing robes
+        ctx.fillRect(bodyX - 2, bodyY + 12, bodyW + 4, 12);
+        ctx.fillStyle = bodyDark;
+        ctx.fillRect(bodyX - 2, bodyY + 12, 2, 12);
+        ctx.fillRect(bodyX + bodyW, bodyY + 12, 2, 12);
+        ctx.fillStyle = detail;
+        ctx.fillRect(bodyX + 4, bodyY, 4, bodyH + 12);
+        ctx.fillStyle = '#f1c40f'; // Gold trim
+        ctx.fillRect(bodyX - 1, bodyY + bodyH + 6, bodyW + 2, 2);
+    } else {
+        ctx.fillStyle = detail; // Tunic/vest
+        ctx.fillRect(bodyX + 2, bodyY + 3, 3, bodyH - 5);
+        ctx.fillRect(bodyX + bodyW - 5, bodyY + 3, 3, bodyH - 5);
+        ctx.fillStyle = '#5d4037'; // Belt
+        ctx.fillRect(bodyX - 1, bodyY + bodyH - 4, bodyW + 2, 4);
+        if (dir === 0) {
+            ctx.fillStyle = '#f1c40f'; // Buckle
+            ctx.fillRect(centerX - 3, bodyY + bodyH - 4, 6, 4);
+            ctx.fillStyle = '#000';
+            ctx.fillRect(centerX - 1, bodyY + bodyH - 3, 2, 2);
         }
     }
 
-    // Detail/Armor logic
-    if (className === 'warrior' || className === 'paladin' || className === 'berserker') {
-        // Plate Armor
-        ctx.fillStyle = bodyLight;
-        ctx.fillRect(bodyX + 2, bodyY + 2, bodyW - 4, bodyH - 6); // Chestplate
-        ctx.fillStyle = detail;
-        ctx.fillRect(bodyX + 4, bodyY + 6, bodyW - 8, 4); // Band
-    } else if (className === 'mage' || className === 'necromancer' || className === 'cleric') {
-        // Robes - go down over legs a bit
-        ctx.fillStyle = body;
-        ctx.fillRect(bodyX - 1, bodyY + 10, bodyW + 2, 14); // Skirt part
-        ctx.fillStyle = detail;
-        ctx.fillRect(bodyX + 4, bodyY, 6, bodyH + 10); // Center strip
-        // Gold trim
-        ctx.fillStyle = '#F1C40F';
-        ctx.fillRect(bodyX + 2, bodyY + bodyH + 8, bodyW - 4, 2);
-    } else {
-        // Tunic/Vest (Rogue, Ranger, etc)
-        ctx.fillStyle = detail;
-        ctx.fillRect(bodyX + 2, bodyY + 2, 4, bodyH - 4); // Vest straps?
-        ctx.fillRect(bodyX + bodyW - 6, bodyY + 2, 4, bodyH - 4);
-        // Belt
-        ctx.fillStyle = '#5d4037';
-        ctx.fillRect(bodyX - 1, bodyY + bodyH - 4, bodyW + 2, 3);
-        ctx.fillStyle = '#f1c40f';
-        ctx.fillRect(centerX - 2, bodyY + bodyH - 4, 4, 3); // Buckle
-    }
-
-
     // --- HEAD ---
-    const headSize = 16; // Proportional head for dungeon adventurer
     const headX = centerX - headSize / 2;
-    // Neck
-    ctx.fillStyle = skinDark;
-    ctx.fillRect(centerX - 2, headY + 14, 4, 3);
-
-    // Face shape — shift for profile views
-    ctx.fillStyle = skin;
     const faceShift = (dir === 2) ? -2 : (dir === 3) ? 2 : 0;
+
+    // Neck
+    ctx.fillStyle = skinDarker;
+    ctx.fillRect(centerX - 3, headY + headSize - 4, 6, 4);
+
+    // Face Shape (rounded corners for cuteness)
+    ctx.fillStyle = skin;
     ctx.fillRect(headX + 2 + faceShift, headY, headSize - 4, headSize);
-    ctx.fillRect(headX + faceShift, headY + 2, headSize, headSize - 6);
+    ctx.fillRect(headX + faceShift, headY + 2, headSize, headSize - 4);
+
+    // Cheek/Jaw Shading
+    ctx.fillStyle = skinDark;
+    ctx.fillRect(headX + 2 + faceShift, headY + headSize - 2, headSize - 4, 2);
+    if (dir === 0) {
+        ctx.fillRect(headX, headY + headSize - 4, 2, 4);
+        ctx.fillRect(headX + headSize - 2, headY + headSize - 4, 2, 4);
+    }
 
     // --- HAIR BACK ---
     if (dir === 1) { // Back view
         ctx.fillStyle = hair;
-        ctx.fillRect(headX - 1, headY - 1, headSize + 2, headSize + 4);
+        ctx.fillRect(headX - 1, headY - 1, headSize + 2, headSize + 6);
+        ctx.fillRect(headX + 1, headY + headSize + 4, headSize - 2, 3);
         ctx.fillStyle = hairDark;
-        ctx.fillRect(headX + 2, headY + headSize, headSize - 4, 4);
+        ctx.fillRect(headX + 2, headY + headSize + 2, headSize - 4, 4);
+        ctx.fillStyle = hairLight; // Crown highlight
+        ctx.fillRect(headX + 3, headY + 2, headSize - 6, 3);
     } else if (dir === 2) {
-        // Left profile — hair visible on right side (back of head)
         ctx.fillStyle = hairDark;
-        ctx.fillRect(headX + headSize - 3 + faceShift, headY + 2, 4, 14);
+        ctx.fillRect(headX + headSize - 4 + faceShift, headY + 2, 5, 16);
     } else if (dir === 3) {
-        // Right profile — hair visible on left side (back of head)
         ctx.fillStyle = hairDark;
-        ctx.fillRect(headX - 1 + faceShift, headY + 2, 4, 14);
+        ctx.fillRect(headX - 1 + faceShift, headY + 2, 5, 16);
     } else {
-        // Front — hair behind both sides
         ctx.fillStyle = hairDark;
-        ctx.fillRect(headX - 1, headY + 4, 3, 12);
-        ctx.fillRect(headX + headSize - 2, headY + 4, 3, 12);
+        ctx.fillRect(headX - 2, headY + 6, 4, 14);
+        ctx.fillRect(headX + headSize - 2, headY + 6, 4, 14);
     }
 
+    // --- FACE DETAILS ---
+    if (dir !== 1) {
+        const eyeY = headY + 9;
 
-    // --- FACE ---
-    if (dir === 0 || dir === 2 || dir === 3) {
         if (dir === 0) { // Front
-            // Eyes — small dot eyes with a sparkle (the 'bit of cute')
-            const eyeY = headY + 8;
-            ctx.fillStyle = '#111';
-            ctx.fillRect(centerX - 5, eyeY, 2, 2); // Left eye
-            ctx.fillRect(centerX + 3, eyeY, 2, 2); // Right eye
-            // Tiny white sparkle — gives life without being anime
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(centerX - 5, eyeY, 1, 1);
-            ctx.fillRect(centerX + 3, eyeY, 1, 1);
+            // Blush
+            ctx.fillStyle = blush;
+            ctx.fillRect(centerX - 7, eyeY + 2, 3, 2);
+            ctx.fillRect(centerX + 4, eyeY + 2, 3, 2);
 
-            // Mouth — small neutral line
-            ctx.fillStyle = skinDark;
+            // Eyes
+            ctx.fillStyle = '#111';
+            // Larger, cuter eyes
+            ctx.fillRect(centerX - 6, eyeY - 1, 3, 4); // Left eye
+            ctx.fillRect(centerX + 3, eyeY - 1, 3, 4); // Right eye
+
+            // Eye Highlights (Anime/Cute style)
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(centerX - 6, eyeY - 1, 2, 2); // Top left gleam
+            ctx.fillRect(centerX - 4, eyeY + 1, 1, 1); // Bottom right gleam
+            ctx.fillRect(centerX + 3, eyeY - 1, 2, 2);
+            ctx.fillRect(centerX + 5, eyeY + 1, 1, 1);
+
+            // Cute tiny mouth
+            ctx.fillStyle = skinDarker;
             ctx.fillRect(centerX - 1, eyeY + 4, 2, 1);
 
         } else if (dir === 2) { // Left Profile
-            const eyeX = headX + faceShift + 1;
-            const eyeY = headY + 8;
+            const eyeX = headX + faceShift + 2;
+            ctx.fillStyle = blush;
+            ctx.fillRect(eyeX - 1, eyeY + 2, 3, 2);
 
-            // Eye
             ctx.fillStyle = '#111';
-            ctx.fillRect(eyeX, eyeY, 2, 2);
+            ctx.fillRect(eyeX, eyeY - 1, 2, 4);
             ctx.fillStyle = '#fff';
-            ctx.fillRect(eyeX, eyeY, 1, 1);
+            ctx.fillRect(eyeX, eyeY - 1, 1, 2);
 
-            // Nose
-            ctx.fillStyle = skinDark;
-            ctx.fillRect(eyeX - 1, eyeY + 2, 1, 1);
-
-            // Mouth
-            ctx.fillStyle = skinDark;
-            ctx.fillRect(eyeX, eyeY + 4, 2, 1);
+            ctx.fillStyle = skinDarker;
+            ctx.fillRect(eyeX - 2, eyeY + 3, 1, 1); // Nose
+            ctx.fillRect(eyeX, eyeY + 4, 2, 1);     // Mouth
 
         } else if (dir === 3) { // Right Profile
-            const faceRight = headX + faceShift + headSize;
-            const eyeX = faceRight - 3;
-            const eyeY = headY + 8;
+            const eyeX = headX + faceShift + headSize - 4;
+            ctx.fillStyle = blush;
+            ctx.fillRect(eyeX + 1, eyeY + 2, 3, 2);
 
-            // Eye
             ctx.fillStyle = '#111';
-            ctx.fillRect(eyeX, eyeY, 2, 2);
+            ctx.fillRect(eyeX + 1, eyeY - 1, 2, 4);
             ctx.fillStyle = '#fff';
-            ctx.fillRect(eyeX + 1, eyeY, 1, 1);
+            ctx.fillRect(eyeX + 2, eyeY - 1, 1, 2);
 
-            // Nose
-            ctx.fillStyle = skinDark;
-            ctx.fillRect(faceRight - 1, eyeY + 2, 1, 1);
-
-            // Mouth
-            ctx.fillStyle = skinDark;
-            ctx.fillRect(eyeX, eyeY + 4, 2, 1);
+            ctx.fillStyle = skinDarker;
+            ctx.fillRect(eyeX + 4, eyeY + 3, 1, 1); // Nose
+            ctx.fillRect(eyeX + 1, eyeY + 4, 2, 1); // Mouth
         }
     }
 
     // --- HAIR FRONT ---
     if (dir !== 1) { // Not back view
         ctx.fillStyle = hair;
-        // Top cap
-        ctx.fillRect(headX + faceShift, headY - 3, headSize, 6);
-        ctx.fillStyle = hairLight; // Highlight
-        ctx.fillRect(headX + 4 + faceShift, headY - 2, headSize - 8, 2);
+        // Top head volume
+        ctx.fillRect(headX + faceShift - 1, headY - 4, headSize + 2, 7);
+        ctx.fillStyle = hairLight;
+        ctx.fillRect(headX + 3 + faceShift, headY - 3, headSize - 6, 2);
+        ctx.fillRect(headX + 5 + faceShift, headY - 1, headSize - 10, 1);
 
         ctx.fillStyle = hair;
         if (dir === 0) {
-            // Bangs
-            ctx.fillRect(headX, headY, 4, 8);
-            ctx.fillRect(headX + headSize - 4, headY, 4, 8);
-            ctx.fillRect(centerX - 2, headY, 4, 5); // Center bang
+            // Sweeping bangs
+            ctx.fillRect(headX - 1, headY, 5, 9);
+            ctx.fillRect(headX + headSize - 4, headY, 5, 9);
+            ctx.fillRect(centerX - 3, headY, 6, 5); // Center bang
+            // Forehead hair overlap
+            ctx.fillRect(centerX - 5, headY + 5, 3, 2);
+            ctx.fillRect(centerX + 2, headY + 5, 3, 2);
         } else if (dir === 2) {
-            // Left view — hair sweeps left, short sideburn above eye level
-            ctx.fillRect(headX + faceShift, headY - 1, headSize, 5);
-            ctx.fillRect(headX - 2 + faceShift, headY + 2, 5, 4); // Sideburn stops above eyes
+            ctx.fillRect(headX - 1 + faceShift, headY, 6, 10); // Big front swoop
+            ctx.fillRect(headX + faceShift, headY - 2, headSize, 6);
         } else if (dir === 3) {
-            // Right view — hair sweeps right, short sideburn above eye level
-            ctx.fillRect(headX + faceShift, headY - 1, headSize, 5);
-            ctx.fillRect(headX + headSize - 3 + faceShift, headY + 2, 5, 4); // Sideburn stops above eyes
+            ctx.fillRect(headX + headSize - 5 + faceShift, headY, 6, 10);
+            ctx.fillRect(headX + faceShift, headY - 2, headSize, 6);
         }
     }
 
     // --- ARMS & WEAPONS ---
-    // Sturdy adventurer arms
-    const armY = bodyY + 4;
+    const armY = bodyY + 3;
+    const armW = 5;
+    const armH = 10;
 
     if (dir === 0) { // Front
         ctx.fillStyle = body; // Sleeves
-        ctx.fillRect(centerX - bodyW / 2 - 3, armY, 4, 8);
-        ctx.fillRect(centerX + bodyW / 2 - 1, armY, 4, 8);
+        ctx.fillRect(centerX - bodyW / 2 - 4, armY, armW, armH);
+        ctx.fillRect(centerX + bodyW / 2 - 1, armY, armW, armH);
+        ctx.fillStyle = bodyDark; // Sleeve shadow
+        ctx.fillRect(centerX - bodyW / 2 - 4, armY + armH - 2, armW, 2);
+        ctx.fillRect(centerX + bodyW / 2 - 1, armY + armH - 2, armW, 2);
+
         ctx.fillStyle = skin; // Hands
-        ctx.fillRect(centerX - bodyW / 2 - 3, armY + 8, 4, 3);
-        ctx.fillRect(centerX + bodyW / 2 - 1, armY + 8, 4, 3);
+        ctx.fillRect(centerX - bodyW / 2 - 3, armY + armH, 3, 4);
+        ctx.fillRect(centerX + bodyW / 2, armY + armH, 3, 4);
 
         // Weapon Holding
-        const weaponY = armY + 6 + bob;
+        const weaponY = armY + 8 + bob;
         // Warrior/Paladin: Sword
         if (['warrior', 'paladin', 'berserker'].includes(className)) {
-            // Draw sword in right hand (viewer's right)
             const hx = centerX + bodyW / 2 + 1;
-            ctx.fillStyle = '#888'; // Blade
-            ctx.fillRect(hx, weaponY - 12, 4, 16);
-            ctx.fillStyle = '#EEE'; // Shine
-            ctx.fillRect(hx + 1, weaponY - 12, 1, 14);
-            ctx.fillStyle = '#D4AF37'; // Hilt
-            ctx.fillRect(hx - 2, weaponY + 2, 8, 2);
-            ctx.fillRect(hx + 1, weaponY + 4, 2, 3); // Handle
+            ctx.fillStyle = '#7f8c8d'; // Blade
+            ctx.fillRect(hx - 1, weaponY - 16, 5, 20);
+            ctx.fillStyle = '#ecf0f1'; // Shine
+            ctx.fillRect(hx, weaponY - 15, 2, 18);
+            ctx.fillStyle = '#f1c40f'; // Hilt crossguard
+            ctx.fillRect(hx - 3, weaponY + 2, 9, 3);
+            ctx.fillStyle = '#d35400'; // Handle leather
+            ctx.fillRect(hx, weaponY + 5, 3, 5);
+            ctx.fillStyle = '#f1c40f'; // Pommel
+            ctx.fillRect(hx - 1, weaponY + 10, 5, 2);
         }
-        // Mage/Necro/Cleric: Staff
         else if (['mage', 'necromancer', 'cleric'].includes(className)) {
-            const hx = centerX + bodyW / 2 + 2;
-            ctx.fillStyle = '#5d4037'; // Stick
-            ctx.fillRect(hx, weaponY - 14, 2, 24);
-            // Orb
-            ctx.fillStyle = className === 'necromancer' ? '#800080' : (className === 'cleric' ? '#F1C40F' : '#3498DB');
-            ctx.beginPath(); ctx.arc(hx + 1, weaponY - 14, 4, 0, Math.PI * 2); ctx.fill();
-        }
-        // Rogue/Assassin: Daggers
-        else if (['rogue', 'assassin'].includes(className)) {
             const hx = centerX + bodyW / 2 + 1;
-            const hx2 = centerX - bodyW / 2 - 1;
-            ctx.fillStyle = '#AAA';
-            ctx.fillRect(hx, weaponY + 2, 2, 6); // R Dagger
-            ctx.fillRect(hx2, weaponY + 2, 2, 6); // L Dagger
-            // Reverse grip?
+            ctx.fillStyle = '#5d4037'; // Wood
+            ctx.fillRect(hx, weaponY - 18, 3, 30);
+            ctx.fillStyle = '#3e2723';
+            ctx.fillRect(hx + 2, weaponY - 18, 1, 30);
+            // Glowing Orb
+            const orbColor = className === 'necromancer' ? '#9b59b6' : (className === 'cleric' ? '#f1c40f' : '#3498db');
+            ctx.fillStyle = orbColor;
+            ctx.beginPath(); ctx.arc(hx + 1, weaponY - 18, 5, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.beginPath(); ctx.arc(hx, weaponY - 19, 2, 0, Math.PI * 2); ctx.fill();
+            // Glow effect
+            ctx.fillStyle = orbColor.replace(')', ', 0.3)').replace('rgb', 'rgba'); // Hacky glow if rgb
+            ctx.globalAlpha = 0.4;
+            ctx.beginPath(); ctx.arc(hx + 1, weaponY - 18, 8, 0, Math.PI * 2); ctx.fill();
+            ctx.globalAlpha = 1.0;
         }
-        // Ranger: Bow
+        else if (['rogue', 'assassin'].includes(className)) {
+            const hx = centerX + bodyW / 2;
+            const hx2 = centerX - bodyW / 2 - 3;
+            // Dual daggers held reverse grip
+            ctx.fillStyle = '#bdc3c7';
+            ctx.fillRect(hx, weaponY + 4, 3, 8);
+            ctx.fillRect(hx2, weaponY + 4, 3, 8);
+            ctx.fillStyle = '#2c3e50'; // Hilt
+            ctx.fillRect(hx, weaponY, 3, 4);
+            ctx.fillRect(hx2, weaponY, 3, 4);
+        }
         else if (className === 'ranger') {
-            const hx = centerX - bodyW / 2 - 4;
-            ctx.strokeStyle = '#5d4037';
-            ctx.lineWidth = 2;
+            const hx = centerX - bodyW / 2 - 6;
+            ctx.strokeStyle = '#8d6e63';
+            ctx.lineWidth = 3;
             ctx.beginPath();
-            ctx.arc(hx, weaponY + 4, 8, -Math.PI / 2, Math.PI / 2);
+            ctx.arc(hx + 3, weaponY + 4, 10, -Math.PI / 2 - 0.2, Math.PI / 2 + 0.2);
             ctx.stroke();
-            ctx.strokeStyle = '#EEE';
+            ctx.strokeStyle = '#ecf0f1'; // Bowstring
             ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.moveTo(hx, weaponY - 4); ctx.lineTo(hx, weaponY + 12); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(hx + 2, weaponY - 5); ctx.lineTo(hx + 2, weaponY + 13); ctx.stroke();
         }
 
-    } else if (dir === 2) { // Left
-        // Front arm on left side (facing direction)
+    } else if (dir === 2) { // Left Profile
         ctx.fillStyle = body;
-        ctx.fillRect(centerX - 6, armY + 2, 4, 8);
+        ctx.fillRect(centerX - 7, armY + 1, armW + 1, armH);
         ctx.fillStyle = skin;
-        ctx.fillRect(centerX - 6, armY + 10, 4, 3);
-        // Weapon/shield in front
+        ctx.fillRect(centerX - 6, armY + armH + 1, 4, 4);
+
         if (['warrior', 'paladin'].includes(className)) {
-            ctx.fillStyle = '#888';
-            ctx.fillRect(centerX - 10, armY - 2, 4, 14); // Sword blade
-            ctx.fillStyle = '#D4AF37';
-            ctx.fillRect(centerX - 11, armY + 6, 6, 2); // Hilt
+            ctx.fillStyle = '#bdc3c7';
+            ctx.fillRect(centerX - 12, armY - 4, 5, 18); // Sword blade
+            ctx.fillStyle = '#f1c40f';
+            ctx.fillRect(centerX - 13, armY + 14, 7, 3); // Hilt
         } else if (['mage', 'necromancer', 'cleric'].includes(className)) {
             ctx.fillStyle = '#5d4037';
-            ctx.fillRect(centerX - 7, armY - 10, 2, 22); // Staff
-            ctx.fillStyle = className === 'necromancer' ? '#800080' : (className === 'cleric' ? '#F1C40F' : '#3498DB');
-            ctx.beginPath(); ctx.arc(centerX - 6, armY - 10, 3, 0, Math.PI * 2); ctx.fill();
+            ctx.fillRect(centerX - 8, armY - 14, 3, 28);
+            ctx.fillStyle = className === 'necromancer' ? '#9b59b6' : (className === 'cleric' ? '#f1c40f' : '#3498db');
+            ctx.beginPath(); ctx.arc(centerX - 6, armY - 14, 4, 0, Math.PI * 2); ctx.fill();
         }
-
-    } else if (dir === 3) { // Right
-        // Front arm on right side (facing direction)
+    } else if (dir === 3) { // Right Profile
         ctx.fillStyle = body;
-        ctx.fillRect(centerX + 2, armY + 2, 4, 8);
+        ctx.fillRect(centerX + 1, armY + 1, armW + 1, armH);
         ctx.fillStyle = skin;
-        ctx.fillRect(centerX + 2, armY + 10, 4, 3);
-        // Weapon in front
+        ctx.fillRect(centerX + 2, armY + armH + 1, 4, 4);
+
         if (['warrior', 'paladin', 'berserker'].includes(className)) {
-            ctx.fillStyle = '#888';
-            ctx.fillRect(centerX + 6, armY - 2, 4, 14); // Sword blade
-            ctx.fillStyle = '#D4AF37';
-            ctx.fillRect(centerX + 5, armY + 6, 6, 2); // Hilt
+            ctx.fillStyle = '#bdc3c7';
+            ctx.fillRect(centerX + 7, armY - 4, 5, 18); // Sword blade
+            ctx.fillStyle = '#f1c40f';
+            ctx.fillRect(centerX + 6, armY + 14, 7, 3); // Hilt
         } else if (['mage', 'necromancer', 'cleric'].includes(className)) {
             ctx.fillStyle = '#5d4037';
-            ctx.fillRect(centerX + 5, armY - 10, 2, 22); // Staff
-            ctx.fillStyle = className === 'necromancer' ? '#800080' : (className === 'cleric' ? '#F1C40F' : '#3498DB');
-            ctx.beginPath(); ctx.arc(centerX + 6, armY - 10, 3, 0, Math.PI * 2); ctx.fill();
+            ctx.fillRect(centerX + 5, armY - 14, 3, 28);
+            ctx.fillStyle = className === 'necromancer' ? '#9b59b6' : (className === 'cleric' ? '#f1c40f' : '#3498db');
+            ctx.beginPath(); ctx.arc(centerX + 6, armY - 14, 4, 0, Math.PI * 2); ctx.fill();
         }
     }
 
