@@ -91,14 +91,18 @@ export class UserRegistry implements DurableObject {
         // Helper to check internal-only endpoints
         const isInternal = request.headers.get('X-Internal-Secret') === INTERNAL_SECRET;
 
-        // Stale lobby cleanup (remove lobbies older than 15 minutes)
-        const LOBBY_TTL = 15 * 60 * 1000;
+        // Stale lobby cleanup (remove lobbies older than 5 minutes with no updates)
+        const LOBBY_TTL = 5 * 60 * 1000;
         const now = Date.now();
         let lobbiesChanged = false;
         for (const [id, lobby] of this.activeLobbies) {
             if (now - lobby.createdAt > LOBBY_TTL) {
                 this.activeLobbies.delete(id);
-                this.lobbyCodeToId.delete(lobby.code?.toUpperCase());
+                // Clean up code mapping too
+                if (lobby.code) {
+                    this.lobbyCodeToId.delete(lobby.code.toUpperCase());
+                    this.lobbyCodeToId.delete(lobby.code); // case-sensitive fallback
+                }
                 lobbiesChanged = true;
             }
         }
