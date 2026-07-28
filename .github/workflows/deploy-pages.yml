@@ -1,0 +1,63 @@
+name: Deploy to GitHub Pages
+
+# Builds the game and publishes it to GitHub Pages on every push to main.
+# The site lands at https://<owner>.github.io/dungeon-crawler/
+on:
+  push:
+    branches: [main]
+  # Lets you re-run a deploy by hand from the Actions tab
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; a newer push supersedes an in-flight run
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # No lockfile guarantees, so plain install rather than `npm ci`
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        env:
+          # Tells vite.config.ts to use the /dungeon-crawler/ base path
+          DEPLOY_TARGET: gh-pages
+        run: npm run build
+
+      # Pages is a SPA-ish single page; 404 -> index keeps deep links working
+      - name: Add SPA fallback
+        run: cp dist/index.html dist/404.html
+
+      - name: Configure Pages
+        # enablement turns Pages on for the repo if it is not already
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
