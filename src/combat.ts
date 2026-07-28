@@ -2,9 +2,10 @@
 
 import type { PlayerState, EnemyState, DungeonFloor, Direction } from './types';
 import { spawnHitParticles, addFloatingText, spawnDeathParticles } from './particles';
-import { rollLoot, getBossWeapon } from './items';
+import { rollLoot, getBossWeapon, getBossTrophy } from './items';
 import { GameAudio } from './audio';
 import { recordKill, updateQuestProgress, applySkillBonuses, applyRuneBonuses, getMuseumReward } from './systems';
+import { getBossDamageTaken } from './arena';
 
 let screenShake = 0;
 let screenShakeX = 0;
@@ -53,7 +54,13 @@ export function playerAttack(player: PlayerState, floor: DungeonFloor, addMsg: (
             const crit = Math.random() < player.stats.critChance;
             const baseDmg = Math.max(1, player.stats.atk - enemy.def / 2);
             const variance = 0.8 + Math.random() * 0.4;
-            let damage = Math.floor(baseDmg * variance * (crit ? 2 : 1));
+            // Bosses can raise a ward that soaks most of a hit
+            const ward = enemy.isBoss ? getBossDamageTaken(floor.bossFight ?? null) : 1;
+            let damage = Math.max(1, Math.floor(baseDmg * variance * (crit ? 2 : 1) * ward));
+
+            if (ward < 1) {
+                addFloatingText(enemy.px + 8, enemy.py - 12, 'WARDED', '#4fc3f7');
+            }
 
             enemy.hp -= damage;
             GameAudio.hit();
@@ -93,13 +100,18 @@ export function playerAttack(player: PlayerState, floor: DungeonFloor, addMsg: (
                     addMsg(`${enemy.type} dropped ${loot.name}!`, `msg-${loot.rarity}`);
                 }
 
-                // Boss weapon drop (guaranteed!)
+                // Boss drops: signature weapon + trophy, both guaranteed
                 if (enemy.isBoss) {
                     const bossWeapon = getBossWeapon(player.floor);
                     if (bossWeapon) {
                         floor.items.push({ x: enemy.x + 1, y: enemy.y, def: bossWeapon, count: 1 });
                         addMsg(`⚔️ BOSS DROP: ${bossWeapon.name}!`, 'msg-legendary');
                         addFloatingText(enemy.px + 8, enemy.py - 8, '⚔️ BOSS LOOT!', '#e67e22');
+                    }
+                    const trophy = getBossTrophy(player.floor);
+                    if (trophy) {
+                        floor.items.push({ x: enemy.x - 1, y: enemy.y, def: trophy, count: 1 });
+                        addMsg(`🏆 TROPHY: ${trophy.name}!`, 'msg-legendary');
                     }
                 }
 
@@ -121,17 +133,23 @@ export function playerAttack(player: PlayerState, floor: DungeonFloor, addMsg: (
 export function enemyAttack(enemy: EnemyState, player: PlayerState, addMsg: (msg: string, cls?: string) => void): number {
     if (player.invincibleTimer > 0) return 0;
 
-    const baseDmg = Math.max(1, enemy.atk - player.stats.def / 2);
-    const variance = 0.8 + Math.random() * 0.4;
-    const damage = Math.floor(baseDmg * variance);
+    // Armour reduces damage but never negates it — a hit always hurts.
+    // (Previously DEF/2 could trivialise whole floors.)
+    const mitigation = player.stats.def * 0.28;
+    const baseDmg = Math.max(enemy.atk * 0.35, enemy.atk - mitigation);
+    const variance = 0.85 + Math.random() * 0.35;
+    // Enemies crit too
+    const crit = Math.random() < 0.08;
+    const damage = Math.max(1, Math.floor(baseDmg * variance * (crit ? 1.8 : 1)));
 
     player.stats.hp -= damage;
-    player.invincibleTimer = 0.5;
+    // Shorter mercy window — you can't tank your way through a pack any more
+    player.invincibleTimer = 0.35;
     GameAudio.playerHurt();
     spawnHitParticles(player.px + 8, player.py + 8);
-    addFloatingText(player.px + 8, player.py, `-${damage}`, '#e74c3c');
-    screenShake = 0.2;
-    addMsg(`${enemy.type}${enemy.isBoss ? ' BOSS' : ''} hit you for ${damage} damage!`, 'msg-damage');
+    addFloatingText(player.px + 8, player.py, crit ? `CRIT -${damage}` : `-${damage}`, crit ? '#ff8a3d' : '#e74c3c');
+    screenShake = crit ? 0.32 : 0.2;
+    addMsg(`${enemy.type}${enemy.isBoss ? ' BOSS' : ''} hit you for ${damage}${crit ? ' (CRIT!)' : ''} damage!`, 'msg-damage');
 
     if (player.stats.hp <= 0) {
         player.stats.hp = 0;
@@ -152,14 +170,16 @@ export function checkLevelUp(player: PlayerState, addMsg: (msg: string, cls?: st
     player.baseStats.maxHp += 5 + Math.floor(player.level * 0.5);
     player.baseStats.atk += 1 + Math.floor(player.level * 0.2);
     player.baseStats.def += 1 + Math.floor(player.level * 0.15);
-    player.baseStats.hp = player.baseStats.maxHp;
 
-    // Recalculate
+    // Levelling no longer refills you. Health is a resource you have to
+    // manage with potions and food — that is the whole tension of a run.
+    const hpBefore = player.stats.hp;
     recalcStats(player);
-    player.stats.hp = player.stats.maxHp;
+    player.stats.hp = Math.min(hpBefore, player.stats.maxHp);
+    player.baseStats.hp = player.stats.hp;
 
     GameAudio.levelUp();
-    addMsg(`Level up! You are now level ${player.level}!`, 'msg-xp');
+    addMsg(`Level up! You are now level ${player.level}. (No free heal — ration your potions.)`, 'msg-xp');
 
     // Grant skill point every 3 levels
     if (player.systems && player.level % 3 === 0) {

@@ -105,8 +105,8 @@ export function initSettings(returnToHubFn: () => void): void {
     // Title screen settings button
     document.getElementById('title-settings-btn')!.addEventListener('click', () => openSettings(false));
 
-    // In-game settings button
-    document.getElementById('settings-ingame-btn')!.addEventListener('click', () => openSettings(true));
+    // In-game settings button (may not exist if using hamburger menu)
+    document.getElementById('settings-ingame-btn')?.addEventListener('click', () => openSettings(true));
 
     // Apply initial values
     sfxSlider.value = `${current.sfxVolume}`;

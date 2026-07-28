@@ -1,6 +1,7 @@
 // ===== HUD =====
 
 import type { PlayerState } from './types';
+import { displayDepth } from './types';
 import { Assets } from './assets';
 
 const messageLog = document.getElementById('message-log')!;
@@ -13,7 +14,7 @@ const floorText = document.getElementById('floor-text')!;
 const goldText = document.getElementById('gold-text');
 const timeText = document.getElementById('time-text');
 
-export function updateHUD(player: PlayerState, inTown = false): void {
+export function updateHUD(player: PlayerState, inTown = false, place?: string): void {
     const hpPct = Math.max(0, player.stats.hp / player.stats.maxHp * 100);
     healthBar.style.width = `${hpPct}%`;
     healthText.textContent = `${Math.ceil(player.stats.hp)}/${player.stats.maxHp}`;
@@ -23,7 +24,10 @@ export function updateHUD(player: PlayerState, inTown = false): void {
     xpText.textContent = `XP: ${player.xp}/${player.xpToLevel}`;
 
     levelText.textContent = `Lv. ${player.level}`;
-    floorText.textContent = inTown ? '🏘️ Town' : player.floor === 0 ? 'Hub' : `Floor ${player.floor}`;
+    floorText.textContent = place ? place
+        : inTown ? '🏘️ Town'
+            : player.floor === 0 ? 'Hub'
+                : displayDepth(player.floor);
 
     // Gold counter
     if (goldText) goldText.textContent = `💰 ${player.gold}`;

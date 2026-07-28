@@ -6,9 +6,17 @@ export type Direction = 0 | 1 | 2 | 3; // down, up, left, right
 
 export type TileType = 'WALL' | 'FLOOR' | 'DOOR' | 'STAIRS_DOWN' | 'STAIRS_UP' | 'CHEST' | 'TRAP'
     | 'GRASS' | 'WATER' | 'PATH' | 'BUILDING' | 'FENCE' | 'CROP' | 'FISH_SPOT' | 'FLOWER' | 'TREE'
-    | 'SECRET_WALL' | 'SPIKES' | 'MOVING_TRAP';
+    | 'SECRET_WALL' | 'SPIKES' | 'MOVING_TRAP'
+    // Boss arenas
+    | 'ARENA_FLOOR' | 'PILLAR' | 'BOSS_GATE' | 'BOSS_GATE_SEALED'
+    // Town smithy
+    | 'FORGE' | 'ANVIL' | 'BRIDGE'
+    // World progression props
+    | 'RUBBLE' | 'BRIDGE_BROKEN' | 'PORTAL' | 'PORTAL_BROKEN' | 'RUSH_GATE'
+    // City
+    | 'CITY_FLOOR' | 'CITY_BUILDING' | 'LAMP' | 'PLANTER';
 
-export type Rarity = 'common' | 'uncommon' | 'rare' | 'legendary';
+export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'mythic';
 
 export type EquipSlot = 'weapon' | 'armor' | 'ring';
 
@@ -16,7 +24,12 @@ export type ItemCategory = 'weapon' | 'armor' | 'ring' | 'consumable' | 'key' | 
 
 export type ClassName = 'warrior' | 'mage' | 'rogue' | 'paladin' | 'ranger' | 'necromancer' | 'berserker' | 'cleric' | 'assassin';
 
-export type EnemyType = 'slime' | 'skeleton' | 'bat' | 'ghost' | 'goblin' | 'spider' | 'orc' | 'demon' | 'wraith' | 'golem' | 'drake' | 'lich';
+export type EnemyType =
+    // Original roster
+    | 'slime' | 'skeleton' | 'bat' | 'ghost' | 'goblin' | 'spider' | 'orc' | 'demon' | 'wraith' | 'golem' | 'drake' | 'lich'
+    // Expanded roster
+    | 'rat' | 'kobold' | 'zombie' | 'cultist' | 'harpy' | 'gargoyle' | 'mimic' | 'banshee'
+    | 'minotaur' | 'basilisk' | 'revenant' | 'hellhound' | 'shade' | 'troll' | 'wisp' | 'devourer';
 
 export type NPCType = 'merchant' | 'healer' | 'sage' | 'cook' | 'fishmonger' | 'farmer' | 'blacksmith';
 
@@ -63,6 +76,59 @@ export interface ItemDef {
     value: number;
     isBossWeapon?: boolean;  // dropped by bosses
     isForged?: boolean;      // created at the forge
+    /** Forge enchantment level. Hard cap 3; Limit Breakers push it to 5. */
+    enchant?: number;
+}
+
+/** Normal enchant ceiling, and the absolute ceiling with Limit Breakers. */
+export const ENCHANT_CAP = 3;
+export const ENCHANT_CAP_BROKEN = 5;
+/** The City's master smith works to a higher standard. */
+export const ENCHANT_CAP_CITY = 4;
+
+/** Where the player currently is. Drives forge rules and map rendering. */
+export type Region = 'hub' | 'town' | 'city' | 'dungeon' | 'underworld' | 'rush';
+
+/** Dungeon 2 lives at floors 101-150 so all existing floor logic still works. */
+export const UNDERWORLD_START = 100;
+export const UNDERWORLD_FLOORS = 50;
+export const UNDERWORLD_END = UNDERWORLD_START + UNDERWORLD_FLOORS;
+
+export function isUnderworld(floor: number): boolean {
+    return floor > UNDERWORLD_START;
+}
+
+/** Display depth: floor 103 reads as "Underworld 3". */
+export function displayDepth(floor: number): string {
+    if (isUnderworld(floor)) return `Underworld ${floor - UNDERWORLD_START}`;
+    return `Floor ${floor}`;
+}
+
+/** One-off world unlocks, persisted with the save. */
+export interface WorldUnlocks {
+    /** Landslide cleared — the colosseum is reachable */
+    landslide: boolean;
+    /** Broken bridge repaired — the Underworld is open */
+    bridge: boolean;
+    /** Hub portal repaired — permanent town access */
+    portal: boolean;
+    /** The City has been reached at least once */
+    city: boolean;
+}
+
+export function defaultUnlocks(): WorldUnlocks {
+    return { landslide: false, bridge: false, portal: false, city: false };
+}
+
+/** Live state for a boss-rush attempt. */
+export interface BossRushState {
+    active: boolean;
+    /** Index into the rush roster */
+    index: number;
+    /** Seconds until the next boss is summoned */
+    spawnTimer: number;
+    kills: number;
+    goldEarned: boolean;
 }
 
 export interface InventoryItem {
@@ -125,6 +191,10 @@ export interface PlayerState {
     crops: CropPlot[];
     hasFishingRod: boolean;
     hasWateringCan: boolean;
+    // World progression
+    unlocks: WorldUnlocks;
+    /** Best boss-rush streak */
+    bossRushBest: number;
     // Systems
     systems?: import('./systems').GameSystems;
 }
@@ -206,9 +276,15 @@ export interface DungeonFloor {
     stairsUp: Position;
     chests: ChestState[];
     isTown?: boolean;
+    /** Which kind of place this map is */
+    region?: Region;
     biome?: string;
     hasSecretRoom?: boolean;
     isTrapRoom?: boolean;
+    /** Present on boss floors — the sealed chamber the boss is fought in */
+    arena?: import('./arena').ArenaData;
+    /** Live boss-fight state (phases, hazards, projectiles) */
+    bossFight?: import('./arena').BossFightState;
 }
 
 export interface DroppedItem {
@@ -221,7 +297,12 @@ export interface DroppedItem {
 export interface ChestState {
     x: number;
     y: number;
+    /** True once the lid is up — contents may still be waiting inside */
     opened: boolean;
+    /** Rolled lazily the first time the chest is opened. Max 5 entries. */
+    loot?: InventoryItem[];
+    /** Gold still sitting in the chest */
+    gold?: number;
 }
 
 export interface Particle {

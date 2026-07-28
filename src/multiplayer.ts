@@ -239,6 +239,8 @@ function handleServerMessage(msg: ServerMessage): void {
 
         case 'player_left':
             remotePlayers.delete(msg.uid);
+            // Their emote bubble would otherwise linger on screen forever
+            emoteBubbles.delete(msg.uid);
             emit('player_left', msg.uid);
             break;
 

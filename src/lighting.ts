@@ -58,6 +58,23 @@ export function updateVisibility(floor: DungeonFloor, player: PlayerState): void
             cy += rdy;
         }
     }
+
+    // Boss arenas are lit chambers — once you step inside, the whole stage is revealed
+    const arena = floor.arena;
+    if (arena) {
+        const inside = px >= arena.x - 1 && px < arena.x + arena.w + 1
+            && py >= arena.y - 2 && py < arena.y + arena.h + 1;
+        if (inside) {
+            for (let y = arena.y - 1; y <= arena.y + arena.h; y++) {
+                if (y < 0 || y >= height) continue;
+                for (let x = arena.x - 1; x <= arena.x + arena.w; x++) {
+                    if (x < 0 || x >= width) continue;
+                    visible[y][x] = true;
+                    explored[y][x] = true;
+                }
+            }
+        }
+    }
 }
 
 export function renderLighting(

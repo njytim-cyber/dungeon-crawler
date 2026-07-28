@@ -76,6 +76,16 @@ export const GameAudio = {
     doorOpen: () => { playNoise(0.15, 0.06); playTone(200, 0.2, 'sine', 0.05); },
     trapActivate: () => { playNoise(0.1, 0.15); playTone(100, 0.15, 'square', 0.15); playTone(80, 0.2, 'square', 0.12); },
     bossAppear: () => { playTone(100, 0.5, 'sawtooth', 0.15); playTone(80, 0.6, 'sawtooth', 0.1); setTimeout(() => { playTone(150, 0.3, 'sawtooth', 0.12); playNoise(0.3, 0.08); }, 300); },
+    // Two-thump heartbeat for the near-death state — volume scales with danger
+    heartbeat: (intensity = 1) => {
+        const v = 0.06 + intensity * 0.16;
+        playTone(58, 0.16, 'sine', v);
+        playTone(41, 0.2, 'sine', v * 0.7);
+        setTimeout(() => {
+            playTone(52, 0.14, 'sine', v * 0.8);
+            playTone(38, 0.18, 'sine', v * 0.55);
+        }, 175);
+    },
     stairsDescend: () => { for (let i = 0; i < 6; i++) setTimeout(() => playTone(400 - i * 50, 0.12, 'sine', 0.08), i * 80); },
     npcGreet: () => { playTone(523, 0.1, 'sine', 0.08); setTimeout(() => playTone(659, 0.12, 'sine', 0.08), 100); },
     saveGame: () => { playTone(700, 0.08, 'sine', 0.08); setTimeout(() => playTone(900, 0.15, 'sine', 0.1), 100); },
