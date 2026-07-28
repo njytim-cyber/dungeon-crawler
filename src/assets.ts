@@ -657,7 +657,7 @@ const KITS: Record<ClassName, Kit> = {
     assassin: { cloth: '#1e2028', clothDark: '#0e1014', leather: '#2a222a', metal: '#4e535c', metalHi: '#7b828c', accent: '#7a4a8a', skin: '#b08a66', hair: '#14101a', head: 'hood', weapon: 'dagger', cloak: true },
 };
 
-function generateCharacter(className: ClassName, dir: number, frame: number): HTMLCanvasElement {
+function generateCharacter(className: ClassName, dir: number, frame: number, drawWeaponHint = false): HTMLCanvasElement {
     const c = createCanvas(CHAR_W, CHAR_H);   // 32 x 64
     const ctx = c.getContext('2d')!;
     const k = KITS[className] || KITS.warrior;
@@ -915,10 +915,14 @@ function generateCharacter(className: ClassName, dir: number, frame: number): HT
         }
     }
 
-    // ---- Weapon in the off-hand, held ready ----
+    // ---- Weapon ----
+    // Only drawn when the character has nothing equipped; the real weapon is
+    // painted over this sprite at render time from the player's equipment
+    // (see equip-art.ts), so every blade looks like itself.
     const wx = CX + 9;
     const wy = torsoTop + 4 + armSwing;
-    switch (k.weapon) {
+    if (!drawWeaponHint) { /* skip */ }
+    else switch (k.weapon) {
         case 'sword':
             ctx.fillStyle = k.metalHi;
             ctx.fillRect(wx, wy - 12, 2, 16);

@@ -61,6 +61,68 @@ export interface ActiveBuff {
     remaining: number; // seconds left
 }
 
+// ===== ELEMENTS & STATUS EFFECTS =====
+
+export type Element = 'physical' | 'fire' | 'ice' | 'poison' | 'shadow' | 'holy' | 'lightning';
+
+export type StatusKind = 'burn' | 'freeze' | 'poison' | 'bleed' | 'stun' | 'weaken';
+
+export interface StatusEffect {
+    kind: StatusKind;
+    /** Seconds left */
+    remaining: number;
+    /** Damage per tick, or slow fraction for freeze */
+    power: number;
+    /** Seconds until the next tick */
+    tick: number;
+    /** Who applied it, for kill credit */
+    fromPlayer: boolean;
+}
+
+export interface StatusDef {
+    label: string;
+    icon: string;
+    color: string;
+    /** Seconds between damage ticks (0 = no damage) */
+    interval: number;
+}
+
+export const STATUS_DEFS: Record<StatusKind, StatusDef> = {
+    burn: { label: 'Burning', icon: '🔥', color: '#ff7a33', interval: 0.7 },
+    poison: { label: 'Poisoned', icon: '🧪', color: '#7ac74f', interval: 1.0 },
+    bleed: { label: 'Bleeding', icon: '🩸', color: '#d23b3b', interval: 0.85 },
+    freeze: { label: 'Frozen', icon: '❄️', color: '#7fd8ff', interval: 0 },
+    stun: { label: 'Stunned', icon: '💫', color: '#ffd54f', interval: 0 },
+    weaken: { label: 'Weakened', icon: '💀', color: '#a58ad0', interval: 0 },
+};
+
+export const ELEMENT_COLOR: Record<Element, string> = {
+    physical: '#d8dee3',
+    fire: '#ff7a33',
+    ice: '#7fd8ff',
+    poison: '#7ac74f',
+    shadow: '#a97bff',
+    holy: '#ffe9a8',
+    lightning: '#ffe066',
+};
+
+/** A rolled modifier on a dropped item. */
+export interface Affix {
+    id: string;
+    /** Shown before ("Vicious Sword") or after ("Sword of the Bear") */
+    kind: 'prefix' | 'suffix';
+    label: string;
+    stats?: Partial<Stats>;
+    element?: Element;
+    /** Chance 0-1 to inflict this on hit */
+    procChance?: number;
+    procStatus?: StatusKind;
+    procPower?: number;
+    procDuration?: number;
+    /** Relative value multiplier */
+    value: number;
+}
+
 export interface ItemDef {
     id: string;
     name: string;
@@ -78,6 +140,15 @@ export interface ItemDef {
     isForged?: boolean;      // created at the forge
     /** Forge enchantment level. Hard cap 3; Limit Breakers push it to 5. */
     enchant?: number;
+    /** Damage type this weapon deals */
+    element?: Element;
+    /** Rolled modifiers (see affixes.ts) */
+    affixes?: Affix[];
+    /** On-hit status application */
+    procChance?: number;
+    procStatus?: StatusKind;
+    procPower?: number;
+    procDuration?: number;
 }
 
 /** Normal enchant ceiling, and the absolute ceiling with Limit Breakers. */
@@ -195,8 +266,24 @@ export interface PlayerState {
     unlocks: WorldUnlocks;
     /** Best boss-rush streak */
     bossRushBest: number;
+    /** Active debuffs on the player */
+    statuses: StatusEffect[];
+    /** Class ability cooldown, seconds remaining */
+    abilityCooldown: number;
+    /** Where the player's dropped loot is waiting, if they died */
+    corpse?: CorpseState | null;
     // Systems
     systems?: import('./systems').GameSystems;
+}
+
+/** Everything you dropped where you fell. One chance to get it back. */
+export interface CorpseState {
+    floor: number;
+    x: number;
+    y: number;
+    gold: number;
+    items: InventoryItem[];
+    equipment: Equipment;
 }
 
 export interface EnemyState {
@@ -227,6 +314,10 @@ export interface EnemyState {
     eliteXpMult?: number;
     eliteGoldMult?: number;
     _eliteRGB?: number[];  // cached parsed RGB for perf
+    /** Active debuffs */
+    statuses?: StatusEffect[];
+    /** Set while frozen/stunned so the AI skips its turn */
+    disabledTimer?: number;
 }
 
 export interface LootDrop {
@@ -255,11 +346,19 @@ export interface DialogOption {
     itemId?: string; // for shop rendering
 }
 
+export type RoomKind = 'plain' | 'library' | 'vault' | 'shrine' | 'ambush' | 'hoard';
+
 export interface Room {
     x: number;
     y: number;
     w: number;
     h: number;
+    /** Special room type, if any */
+    kind?: RoomKind;
+    /** Set once the room's one-time reward or event has fired */
+    used?: boolean;
+    /** Ambush rooms track their wave here */
+    waveActive?: boolean;
 }
 
 export interface DungeonFloor {

@@ -1,6 +1,7 @@
 // ===== ITEM DATABASE =====
 
 import type { ItemDef, Rarity, LootDrop } from './types';
+import { rollAffixes } from './affixes';
 
 const ITEMS: Record<string, ItemDef> = {
     // Weapons
@@ -357,11 +358,12 @@ export function getBossTrophy(floor: number): ItemDef | null {
     return id ? getItemDef(id) || null : null;
 }
 
-export function rollLoot(drops: LootDrop[]): ItemDef | null {
+export function rollLoot(drops: LootDrop[], floor = 1): ItemDef | null {
     for (const drop of drops) {
         if (Math.random() < drop.chance) {
             const def = getItemDef(drop.itemId);
-            if (def) return def;
+            // Gear rolls affixes on the way out of the drop table
+            if (def) return rollAffixes(def, floor);
         }
     }
     return null;

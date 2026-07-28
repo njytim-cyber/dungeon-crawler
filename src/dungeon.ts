@@ -1,7 +1,7 @@
 // ===== DUNGEON GENERATOR =====
 // BSP-based procedural dungeon generation
 
-import type { TileType, Room, DungeonFloor, EnemyState, NPCState, Position, ChestState, DroppedItem, EnemyType, NPCType, DialogNode } from './types';
+import type { TileType, Room, RoomKind, DungeonFloor, EnemyState, NPCState, Position, ChestState, DroppedItem, EnemyType, NPCType, DialogNode } from './types';
 import { getItemsByFloor } from './items';
 import { getBiome } from './biomes';
 import { rollEliteModifier } from './systems';
@@ -367,7 +367,289 @@ function createNPC(type: NPCType, x: number, y: number, floor: number): NPCState
     };
 }
 
+// ===== ROOM ARCHETYPES =====
+// library  — a free skill point, once
+// vault    — locked; costs a key, holds guaranteed good loot
+// shrine   — a lasting blessing at a price in blood
+// ambush   — walking in seals it and spawns a wave
+// hoard    — piles of loot with elites standing on them
+function assignRoomKinds(
+    rooms: Room[],
+    tiles: TileType[][],
+    floor: number,
+    chests: ChestState[],
+): void {
+    // Never touch the first (spawn) or last (stairs / boss) room
+    const candidates = rooms.slice(1, Math.max(1, rooms.length - 1));
+    if (candidates.length === 0) return;
+
+    // Deeper floors host more of them
+    const wanted = Math.min(candidates.length, 1 + Math.floor(floor / 25) + (rng() < 0.4 ? 1 : 0));
+
+    const pool: RoomKind[] = ['library', 'vault', 'shrine', 'ambush', 'hoard'];
+    // Libraries thin out once you are drowning in skill points
+    if (floor > 60) pool.push('vault', 'hoard', 'ambush');
+
+    const taken = new Set<number>();
+    for (let n = 0; n < wanted; n++) {
+        let idx = -1;
+        for (let attempt = 0; attempt < 10; attempt++) {
+            const i = Math.floor(rng() * candidates.length);
+            if (!taken.has(i)) { idx = i; break; }
+        }
+        if (idx < 0) break;
+        taken.add(idx);
+
+        const room = candidates[idx];
+        const kind = pool[Math.floor(rng() * pool.length)];
+        room.kind = kind;
+        room.used = false;
+
+        const cx = room.x + Math.floor(room.w / 2);
+        const cy = room.y + Math.floor(room.h / 2);
+
+        switch (kind) {
+            case 'vault': {
+                // Two chests behind the cost of a key
+                for (const dx of [-1, 1]) {
+                    const vx = cx + dx;
+                    if (tiles[cy]?.[vx] === 'FLOOR') {
+                        tiles[cy][vx] = 'CHEST';
+                        chests.push({ x: vx, y: cy, opened: false });
+                    }
+                }
+                break;
+            }
+            case 'hoard': {
+                // A scatter of chests, guarded
+                let placed = 0;
+                for (let a = 0; a < 14 && placed < 3; a++) {
+                    const hx = room.x + 1 + Math.floor(rng() * (room.w - 2));
+                    const hy = room.y + 1 + Math.floor(rng() * (room.h - 2));
+                    if (tiles[hy]?.[hx] === 'FLOOR') {
+                        tiles[hy][hx] = 'CHEST';
+                        chests.push({ x: hx, y: hy, opened: false });
+                        placed++;
+                    }
+                }
+                break;
+            }
+            case 'ambush':
+                // Nothing on the map — the trap is the room itself
+                break;
+            case 'library':
+            case 'shrine':
+                // Marked visually at render time from room.kind
+                break;
+        }
+    }
+}
+
+// ===================================================================
+// UNDERWORLD CAVES (floors 101-150)
+// Cellular automata instead of BSP: no corridors, no right angles, just
+// chambers that open into each other. It should not feel like Dungeon 1.
+// ===================================================================
+function carveCaves(w: number, h: number, fillChance: number, steps: number): boolean[][] {
+    // true = solid rock
+    let grid: boolean[][] = Array.from({ length: h }, (_, y) =>
+        Array.from({ length: w }, (_, x) =>
+            (x < 2 || y < 2 || x >= w - 2 || y >= h - 2) ? true : rng() < fillChance));
+
+    const solidNeighbours = (g: boolean[][], x: number, y: number): number => {
+        let n = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                if (dx === 0 && dy === 0) continue;
+                const nx = x + dx, ny = y + dy;
+                if (nx < 0 || ny < 0 || nx >= w || ny >= h) { n++; continue; }
+                if (g[ny][nx]) n++;
+            }
+        }
+        return n;
+    };
+
+    for (let s = 0; s < steps; s++) {
+        const next: boolean[][] = grid.map(r => r.slice());
+        for (let y = 1; y < h - 1; y++) {
+            for (let x = 1; x < w - 1; x++) {
+                const n = solidNeighbours(grid, x, y);
+                // Classic 4-5 rule: rock stays rock with 4+, floor fills at 5+
+                next[y][x] = grid[y][x] ? n >= 4 : n >= 5;
+            }
+        }
+        grid = next;
+    }
+    return grid;
+}
+
+/** Flood fill from a seed, returning every reachable open tile. */
+function floodRegion(solid: boolean[][], sx: number, sy: number, seen: boolean[][]): Position[] {
+    const h = solid.length, w = solid[0].length;
+    const out: Position[] = [];
+    const stack: Position[] = [{ x: sx, y: sy }];
+    seen[sy][sx] = true;
+    while (stack.length) {
+        const p = stack.pop()!;
+        out.push(p);
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as number[][]) {
+            const nx = p.x + dx, ny = p.y + dy;
+            if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+            if (seen[ny][nx] || solid[ny][nx]) continue;
+            seen[ny][nx] = true;
+            stack.push({ x: nx, y: ny });
+        }
+    }
+    return out;
+}
+
+function generateUnderworldFloor(floor: number): DungeonFloor {
+    const depth = floor - 100;
+    const w = 52 + Math.floor(depth * 0.4);
+    const h = 40 + Math.floor(depth * 0.3);
+
+    // Deeper caves are tighter and more broken up
+    const solid = carveCaves(w, h, 0.45 + Math.min(0.06, depth * 0.001), 5);
+
+    // Keep only the largest cavern so nothing is stranded
+    const seen = createBoolGrid(w, h, false);
+    let best: Position[] = [];
+    for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+            if (solid[y][x] || seen[y][x]) continue;
+            const region = floodRegion(solid, x, y, seen);
+            if (region.length > best.length) best = region;
+        }
+    }
+    // Anything outside the main cavern becomes rock again
+    const open = new Set(best.map(p => `${p.x},${p.y}`));
+    const tiles = createGrid(w, h, 'WALL');
+    for (const p of best) tiles[p.y][p.x] = 'FLOOR';
+
+    // Fallback: if the automata produced almost nothing, bail to a plain room
+    if (best.length < 80) {
+        for (let y = 2; y < h - 2; y++) for (let x = 2; x < w - 2; x++) tiles[y][x] = 'FLOOR';
+        best = [];
+        for (let y = 2; y < h - 2; y++) for (let x = 2; x < w - 2; x++) best.push({ x, y });
+    }
+
+    const pickOpen = (): Position => best[Math.floor(rng() * best.length)];
+
+    // Stairs at opposite ends of the cavern
+    let up = pickOpen();
+    let down = pickOpen();
+    for (let i = 0; i < 60; i++) {
+        const a = pickOpen(), b = pickOpen();
+        if (Math.abs(a.x - b.x) + Math.abs(a.y - b.y) >
+            Math.abs(up.x - down.x) + Math.abs(up.y - down.y)) { up = a; down = b; }
+    }
+    tiles[up.y][up.x] = 'STAIRS_UP';
+    tiles[down.y][down.x] = 'STAIRS_DOWN';
+
+    // Lakes of whatever the biome bleeds — impassable, forcing detours
+    const lakeCount = 2 + Math.floor(rng() * 3);
+    for (let i = 0; i < lakeCount; i++) {
+        const c = pickOpen();
+        const r = 2 + Math.floor(rng() * 3);
+        for (let y = c.y - r; y <= c.y + r; y++) {
+            for (let x = c.x - r; x <= c.x + r; x++) {
+                if (!open.has(`${x},${y}`)) continue;
+                if (tiles[y]?.[x] !== 'FLOOR') continue;
+                const d = Math.hypot(x - c.x, y - c.y);
+                if (d <= r - 0.4) tiles[y][x] = 'WATER';
+            }
+        }
+    }
+    // Never seal the stairs behind a lake
+    tiles[up.y][up.x] = 'STAIRS_UP';
+    tiles[down.y][down.x] = 'STAIRS_DOWN';
+
+    // Chests tucked in dead ends
+    const chests: ChestState[] = [];
+    for (let i = 0; i < 2 + Math.floor(rng() * 3); i++) {
+        const c = pickOpen();
+        if (tiles[c.y][c.x] === 'FLOOR') {
+            tiles[c.y][c.x] = 'CHEST';
+            chests.push({ x: c.x, y: c.y, opened: false });
+        }
+    }
+
+    // Spikes instead of neat traps — the cave floor is hostile
+    for (let i = 0; i < 10 + depth; i++) {
+        const c = pickOpen();
+        if (tiles[c.y][c.x] === 'FLOOR') tiles[c.y][c.x] = rng() < 0.6 ? 'SPIKES' : 'TRAP';
+    }
+
+    // Enemies
+    const enemies: EnemyState[] = [];
+    const pool = getEnemyPool(floor);
+    const count = 12 + Math.floor(depth * 0.7);
+    for (let i = 0; i < count; i++) {
+        const c = pickOpen();
+        if (tiles[c.y][c.x] !== 'FLOOR') continue;
+        if (Math.abs(c.x - up.x) + Math.abs(c.y - up.y) < 6) continue;
+        const type = pool[Math.floor(rng() * pool.length)];
+        const e = createEnemy(type, c.x, c.y, floor, false);
+        const elite = rollEliteModifier(floor);
+        if (elite) {
+            e.isElite = true;
+            e.eliteModifier = elite.modifier;
+            e.eliteColor = elite.color;
+            e.eliteName = elite.name;
+            e.eliteXpMult = elite.xpMult;
+            e.eliteGoldMult = elite.goldMult;
+            e.hp = Math.floor(e.hp * elite.statMult.hp);
+            e.maxHp = e.hp;
+            e.atk = Math.floor(e.atk * elite.statMult.atk);
+            e.def = Math.floor(e.def * elite.statMult.def);
+            e.xpReward = Math.floor(e.xpReward * elite.xpMult);
+        }
+        enemies.push(e);
+    }
+
+    // Boss every 10 levels
+    if (floor % 10 === 0) {
+        const def = getBossDef(floor);
+        const bossType = def ? def.baseType : pool[pool.length - 1];
+        const boss = createEnemy(bossType, down.x, down.y, floor, true);
+        if (def) {
+            boss.hp = Math.floor(boss.hp * def.hpMult);
+            boss.maxHp = boss.hp;
+            boss.atk = Math.floor(boss.atk * def.atkMult);
+        }
+        enemies.push(boss);
+    }
+
+    const explored = createBoolGrid(w, h, false);
+    const visible = createBoolGrid(w, h, false);
+    const biome = getBiome(floor);
+
+    // A single notional room covering the cavern, so room-event code is happy
+    const rooms: Room[] = [{ x: 1, y: 1, w: w - 2, h: h - 2, kind: 'plain' }];
+
+    const result: DungeonFloor = {
+        width: w, height: h, tiles, rooms, explored, visible,
+        enemies, npcs: [], items: [] as DroppedItem[],
+        stairsDown: down, stairsUp: up, chests,
+        biome: biome.name,
+        region: 'underworld',
+    };
+
+    if (floor % 10 === 0) {
+        const arena = carveBossArena(result, floor, rng);
+        if (arena) result.arena = arena;
+    }
+
+    return result;
+}
+
 export function generateFloor(floor: number): DungeonFloor {
+    // Dungeon 2 uses an entirely different generator
+    if (floor > 100) return generateUnderworldFloor(floor);
+    return generateBSPFloor(floor);
+}
+
+function generateBSPFloor(floor: number): DungeonFloor {
     const w = 40 + Math.floor(floor * 0.3);
     const h = 30 + Math.floor(floor * 0.2);
     const tiles = createGrid(w, h, 'WALL');
@@ -562,6 +844,11 @@ export function generateFloor(floor: number): DungeonFloor {
         }
         isTrapRoom = true;
     }
+
+    // ===== ROOM ARCHETYPES =====
+    // Every floor seeds a couple of special rooms so exploring off the
+    // critical path is worth doing.
+    assignRoomKinds(rooms, tiles, floor, chests);
 
     // Biome
     const biome = getBiome(floor);

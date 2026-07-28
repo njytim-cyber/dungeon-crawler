@@ -37,7 +37,7 @@ const STRINGS: Record<Language, Record<string, string>> = {
         tut_hub_title: 'The Hub (Floor 0)',
         tut_hub: 'Floor 0 is a safe hub with a shop, healer, and sage. Return anytime via Settings to buy potions and gear up.',
         tut_shortcuts_title: 'Keyboard Shortcuts',
-        tut_shortcuts: 'Space/Q: Attack & open chests | Tab: Inventory | M: Menu | C: Chat | E: Interact | F: Fullscreen | Esc: Exit fullscreen / Close | N: Minimap | R: Potion | Ctrl+A: Take all | 1-5: Hotbar',
+        tut_shortcuts: 'Space/Q: Attack & open chests | X: Class ability | Tab: Inventory | M: Menu | C: Chat | E: Interact | F: Fullscreen | Esc: Exit fullscreen / Close | N: Minimap | R: Potion | Ctrl+A: Take all | G: Gold only | 1-5: Hotbar',
         tut_done: 'Got it!',
         tut_next: 'Next ▶',
         tut_prev: '◀ Back',

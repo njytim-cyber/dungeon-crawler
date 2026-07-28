@@ -570,6 +570,64 @@ export function getMuseumReward(count: number): { atk: number; def: number; maxH
     };
 }
 
+// ==================
+// TROPHY HALL
+// ==================
+// Boss trophies are their own collection with their own milestone bonuses,
+// so beating a boss you have already beaten still means something.
+
+export const TROPHY_IDS = [
+    'trophy_gloopus', 'trophy_ossaric', 'trophy_aranyx', 'trophy_hrimthar', 'trophy_vhalk',
+    'trophy_ignivarr', 'trophy_prisma', 'trophy_nyxaroth', 'trophy_verdrakar', 'trophy_abaddon',
+    'trophy_thalassor', 'trophy_cinderach', 'trophy_ossuarch', 'trophy_slagmaw', 'trophy_hollow',
+];
+
+export function isTrophy(itemId: string): boolean {
+    return TROPHY_IDS.includes(itemId);
+}
+
+export interface TrophySetBonus {
+    at: number;
+    name: string;
+    desc: string;
+    atk: number;
+    def: number;
+    maxHp: number;
+    critChance: number;
+}
+
+export const TROPHY_SETS: TrophySetBonus[] = [
+    { at: 3, name: 'Trophy Hunter', desc: 'Three heads on the wall.', atk: 2, def: 1, maxHp: 15, critChance: 0 },
+    { at: 5, name: 'Bane of Champions', desc: 'Half of the first dungeon answers to you.', atk: 4, def: 3, maxHp: 30, critChance: 0.02 },
+    { at: 10, name: 'Dungeon Sovereign', desc: 'Every champion of the upper dungeon has fallen.', atk: 8, def: 6, maxHp: 60, critChance: 0.04 },
+    { at: 15, name: 'The Undisputed', desc: 'Nothing below has a name you have not taken.', atk: 15, def: 12, maxHp: 120, critChance: 0.08 },
+];
+
+/** Which trophies from the hall the player has donated. */
+export function countTrophies(museum: string[]): number {
+    return museum.filter(id => TROPHY_IDS.includes(id)).length;
+}
+
+export function getTrophyBonus(museum: string[]): { atk: number; def: number; maxHp: number; critChance: number } {
+    const n = countTrophies(museum);
+    const out = { atk: 0, def: 0, maxHp: 0, critChance: 0 };
+    for (const set of TROPHY_SETS) {
+        if (n >= set.at) {
+            out.atk += set.atk;
+            out.def += set.def;
+            out.maxHp += set.maxHp;
+            out.critChance += set.critChance;
+        }
+    }
+    return out;
+}
+
+/** The next milestone the player is working toward, for UI. */
+export function nextTrophySet(museum: string[]): TrophySetBonus | null {
+    const n = countTrophies(museum);
+    return TROPHY_SETS.find(s => n < s.at) ?? null;
+}
+
 export function getAllArtifacts(): ArtifactDef[] { return [...ARTIFACTS]; }
 
 // ==================

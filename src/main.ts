@@ -1,16 +1,28 @@
 // ===== MAIN GAME ENGINE =====
 
 import './style.css';
-import type { PlayerState, DungeonFloor, GameState, ClassName, Direction, SaveData } from './types';
+import type { PlayerState, DungeonFloor, GameState, ClassName, Direction, SaveData, EnemyState } from './types';
 import { defaultUnlocks, displayDepth, isUnderworld, UNDERWORLD_START, UNDERWORLD_END } from './types';
 import { initAssets, Assets } from './assets';
 import { GameAudio } from './audio';
 import { initInput, Input } from './input';
 import { generateFloor, isWalkable, generateTown, generateCity, setSeed, clearSeed, createMinion } from './dungeon';
 import { getInteractAt, replaceTiles, getProp, PRICE, type InteractKind } from './world';
-import { getItemDef } from './items';
-import { playerAttack, enemyAttack, checkLevelUp, recalcStats, updateScreenShake, getScreenShake } from './combat';
-import { updateParticles, renderParticles, renderFloatingTexts, clearParticles, spawnTorchEmbers, spawnLevelUpParticles, addFloatingText, spawnHitParticles, spawnDeathParticles } from './particles';
+import { getItemDef, rollLoot, getBossWeapon, getBossTrophy } from './items';
+import {
+  getWeaponLook, getArmorLook, getRingColor, drawWeapon, drawArmor, drawRing,
+  getHandAnchor, isStrongRarity,
+} from './equip-art';
+import { ABILITIES, useAbility, type AbilityHooks } from './abilities';
+import {
+  applyStatus, tickEnemyStatuses, tickPlayerStatuses, renderStatusIcons,
+  statusTint, speedMultiplier, isDisabled,
+} from './status';
+import {
+  playerAttack, enemyAttack, checkLevelUp, recalcStats, updateScreenShake, getScreenShake,
+  getWeaponProfile, updatePlayerProjectiles, renderPlayerProjectiles, clearPlayerProjectiles,
+} from './combat';
+import { updateParticles, renderParticles, renderFloatingTexts, clearParticles, spawnTorchEmbers, spawnLevelUpParticles, addFloatingText, spawnHitParticles, spawnDeathParticles, spawnParticles } from './particles';
 import { updateVisibility, renderLighting, renderDayNightOverlay } from './lighting';
 import { renderMinimap } from './minimap';
 import { updateHUD, updateHotbar, addMessage, showHUD, hideHUD } from './hud';
@@ -24,11 +36,11 @@ import { startFishing, fishingCatch, isFishingActive, updateFishingCooldown, int
 import { isForgeOpen, initForge } from './forge';
 import { getBiome } from './biomes';
 import { getBiomeTiles, renderWallShadows, renderWallTops, renderTorchGlows, renderDungeonParticles, renderBiomeAmbient, updateDungeonParticles, findTorchPositions, clearDungeonParticles } from './dungeon-renderer';
-import { createGameSystems, checkAchievements, updateQuestProgress, refreshQuests, updatePet } from './systems';
+import { createGameSystems, checkAchievements, updateQuestProgress, refreshQuests, updatePet, recordKill } from './systems';
 import { getBossDef, getBossFullName } from './bosses';
 import { initChestUI, isChestOpen, openChest, getReachableChest, closeChest } from './chest';
 import { mountThumbnail } from './thumbnail';
-import { renderNearDeath, resetNearDeath } from './neardeath';
+import { renderNearDeath, resetNearDeath, getDanger } from './neardeath';
 import {
   createBossFight, updateBossFight, isInsideArena, getArenaTiles,
   renderArenaGround, renderArenaDecor, renderFightEffects, renderArenaAtmosphere,
@@ -216,6 +228,9 @@ function createPlayer(className: ClassName, name: string): PlayerState {
     totalFloorsCleared: 0,
     maxReachedFloor: 1,
     buffs: [],
+    statuses: [],
+    abilityCooldown: 0,
+    corpse: null,
     unlocks: defaultUnlocks(),
     bossRushBest: 0,
     fishCaught: 0,
@@ -580,6 +595,7 @@ function enterFloor(floor: number, seed?: number, remote = false): void {
 
   clearParticles();
   clearDungeonParticles();
+  clearPlayerProjectiles();
   resetNearDeath();
   hidePropPrompt();
   announcedProps.clear();
@@ -666,6 +682,9 @@ function saveGame(quiet = false): void {
       systems: player.systems,
       unlocks: { ...player.unlocks },
       bossRushBest: player.bossRushBest,
+      corpse: player.corpse,
+      statuses: [],
+      abilityCooldown: 0,
       hasFishingRod: player.hasFishingRod,
       hasWateringCan: player.hasWateringCan,
     },
@@ -696,6 +715,9 @@ function loadGame(data: SaveData): void {
   // Saves made before the world unlocks existed
   player.unlocks = { ...defaultUnlocks(), ...(p.unlocks || {}) };
   if (typeof player.bossRushBest !== 'number') player.bossRushBest = 0;
+  if (!Array.isArray(player.statuses)) player.statuses = [];
+  if (typeof player.abilityCooldown !== 'number') player.abilityCooldown = 0;
+  if (player.corpse === undefined) player.corpse = null;
 
   player.alive = true;
 
@@ -788,6 +810,8 @@ function resetGame(): void {
   GameAudio.stopAmbient();
   // Drop any world state that should not survive a new run
   rushState = null;
+  downedState = null;
+  clearPlayerProjectiles();
   townFloor = null;
   cityFloor = null;
   savedDungeonFloor = null;
@@ -874,13 +898,28 @@ function update(dt: number): void {
     }
   }
 
+  // X: class ability
+  if (Input.wasPressed('KeyX')) {
+    useAbility(player, currentFloor, abilityHooks);
+  }
+
   // Player movement
   const dir = Input.getDirection();
   player.moveTimer -= dt;
   player.attackCooldown -= dt;
   player.invincibleTimer -= dt;
+  if (player.abilityCooldown > 0) player.abilityCooldown -= dt;
 
-  if (dir && player.moveTimer <= 0 && player.alive) {
+  // Status effects on the player: damage over time, then freeze/stun gating
+  const statusDmg = tickPlayerStatuses(player, dt);
+  if (statusDmg > 0) {
+    player.stats.hp -= statusDmg;
+    if (player.stats.hp <= 0) { player.stats.hp = 0; player.alive = false; }
+  }
+  const frozenSlow = speedMultiplier(player);
+  const playerStunned = isDisabled(player);
+
+  if (dir && player.moveTimer <= 0 && player.alive && !playerStunned) {
     const nx = player.x + dir.x;
     const ny = player.y + dir.y;
 
@@ -896,7 +935,8 @@ function update(dt: number): void {
       if (!enemyBlocking) {
         player.x = nx;
         player.y = ny;
-        player.moveTimer = 0.12 / player.stats.spd;
+        // Frozen legs move slower
+        player.moveTimer = 0.12 / Math.max(0.2, player.stats.spd * frozenSlow);
 
         footstepTimer -= dt;
         if (footstepTimer <= 0) {
@@ -1035,6 +1075,9 @@ function update(dt: number): void {
 
         // Update visibility
         updateVisibility(currentFloor, player);
+        // Did we just walk into somewhere interesting?
+        checkRoomEvents();
+        checkCorpsePickup();
       }
     }
   }
@@ -1151,9 +1194,22 @@ function update(dt: number): void {
   }
 
   // Enemy AI
-  currentFloor.enemies.forEach(enemy => {
+  currentFloor.enemies.forEach((enemy, enemyIndex) => {
     // BUG FIX: skip dead enemies entirely
     if (!enemy.alive) return;
+
+    // Burn / poison / bleed tick down and can finish a wounded enemy off
+    const dot = tickEnemyStatuses(enemy, dt);
+    if (dot > 0) {
+      enemy.hp -= dot;
+      if (enemy.hp <= 0) {
+        killEnemy(enemy, enemyIndex, dot, true);
+        return;
+      }
+    }
+    // Frozen or stunned enemies lose their turn
+    if (isDisabled(enemy)) return;
+    const enemySlow = speedMultiplier(enemy);
 
     enemy.animTimer += dt;
     if (enemy.animTimer > 0.3) {
@@ -1171,8 +1227,21 @@ function update(dt: number): void {
 
       // Attack if adjacent — BUG FIX: also check enemy is alive AND has cooldown
       if (dist <= 1 && enemy.moveTimer <= 0) {
-        enemy.moveTimer = 0.8 / enemy.spd;
-        enemyAttack(enemy, player, addMessage);
+        enemy.moveTimer = 0.8 / Math.max(0.15, enemy.spd * enemySlow);
+        const dealt = enemyAttack(enemy, player, addMessage);
+        // Certain monsters leave something behind in the wound
+        if (dealt > 0) {
+          const venomous = ['spider', 'basilisk', 'devourer'];
+          const burning = ['hellhound', 'demon', 'drake', 'wisp'];
+          const chilling = ['golem', 'banshee'];
+          const draining = ['wraith', 'shade', 'lich', 'revenant'];
+          if (venomous.includes(enemy.type) && Math.random() < 0.35) applyStatus(player, 'poison', false);
+          else if (burning.includes(enemy.type) && Math.random() < 0.3) applyStatus(player, 'burn', false);
+          else if (chilling.includes(enemy.type) && Math.random() < 0.25) applyStatus(player, 'freeze', false);
+          else if (draining.includes(enemy.type) && Math.random() < 0.25) applyStatus(player, 'weaken', false);
+          else if (enemy.type === 'minotaur' && Math.random() < 0.2) applyStatus(player, 'stun', false);
+          else if (enemy.type === 'rat' && Math.random() < 0.25) applyStatus(player, 'bleed', false);
+        }
         // Show damage flash when player takes hit
         if (player.invincibleTimer <= 0) {
           showDamageFlash();
@@ -1180,7 +1249,7 @@ function update(dt: number): void {
       } else if (enemy.moveTimer <= 0 && dist > 1) {
         // Move toward player — try the dominant axis, then the other, then
         // sidestep. Without the fallbacks enemies pin themselves to walls.
-        enemy.moveTimer = 0.5 / enemy.spd;
+        enemy.moveTimer = 0.5 / Math.max(0.15, enemy.spd * enemySlow);
 
         const primary = Math.abs(dx) > Math.abs(dy)
           ? { x: Math.sign(dx), y: 0 }
@@ -1217,10 +1286,20 @@ function update(dt: number): void {
     enemy.py += (ety - enemy.py) * 0.15;
   });
 
+  // Arrows and bolts in flight
+  updatePlayerProjectiles(
+    dt, currentFloor, player,
+    (x, y) => isWalkable(currentFloor.tiles, x, y),
+    (enemy, index, dmg) => killEnemy(enemy, index, dmg),
+  );
+
   // Boss arena: gate, phases, hazards
   updateArena(dt);
   // Colosseum: summon the next challenger
   updateBossRush(dt);
+  // Co-op: bleeding out, and standing-near-a-teammate bonuses
+  updateDownedState(dt);
+  updatePartyAura(dt);
 
   // Level up check
   while (checkLevelUp(player, addMessage)) {
@@ -1261,6 +1340,21 @@ function update(dt: number): void {
     // The colosseum has its own respawn flow — dying there is not a run-ender
     if (currentFloor.region === 'rush' && rushState) {
       handleRushDeath();
+      return;
+    }
+    // CO-OP: you go down, not out. Teammates have 30 seconds to reach you.
+    if (isMultiplayerActive() && !player.systems?.hardcore) {
+      if (!downedState) {
+        downedState = { timer: 30 };
+        MP.sendPlayerStats(player.stats, player.level, player.equipment, false);
+        addMessage('🩸 You are DOWN. A teammate can still reach you — 30 seconds.', 'msg-damage');
+      }
+      return;
+    }
+    // Everywhere else: drop everything where you fell and get one chance
+    // to go back for it. Hardcore still means hardcore.
+    if (!player.systems?.hardcore) {
+      dropCorpseAndRevive();
       return;
     }
     // CO-OP BUG FIX: push the death to teammates immediately rather than
@@ -1308,6 +1402,16 @@ function update(dt: number): void {
   // Expire old chat messages (after 8 seconds)
   const now = performance.now();
   chatMessages = chatMessages.filter(m => now - m.time < 8000);
+
+  // ===== ADAPTIVE MUSIC =====
+  // Boss phases push the mix up; low health ducks it into a heartbeat.
+  {
+    const fight = currentFloor.bossFight;
+    const bossAlive = currentFloor.enemies.some(e => e.isBoss && e.alive);
+    const phase = fight && bossAlive ? fight.phase : 0;
+    GameAudio.setIntensity(phase >= 3 ? 1 : phase === 2 ? 0.7 : phase === 1 ? 0.45 : 0);
+    GameAudio.setDanger(getDanger(player));
+  }
 
   // Update particles and shake
   updateParticles(dt);
@@ -1650,6 +1754,378 @@ export function goToCity(): void {
   resetNearDeath();
   updateVisibility(currentFloor, player);
   showFloorTransition(-3);
+}
+
+// ===== CO-OP DOWNED STATE =====
+// In a party you bleed out instead of dying outright. Reaching zero puts you
+// on the floor with a timer; a teammate can pick you up, and if nobody does
+// you take the normal corpse-run death.
+let downedState: { timer: number } | null = null;
+
+export function isDowned(): boolean { return downedState !== null; }
+
+function updateDownedState(dt: number): void {
+  if (!downedState) return;
+  if (!isMultiplayerActive()) { downedState = null; return; }
+
+  downedState.timer -= dt;
+  // Crawling: you can still shuffle, slowly, but not fight
+  player.stats.hp = 0;
+
+  if (downedState.timer <= 0) {
+    downedState = null;
+    addMessage('🩸 You bled out.', 'msg-damage');
+    dropCorpseAndRevive();
+  }
+}
+
+/** Called when a teammate revives you. */
+function reviveFromDowned(byName: string): void {
+  if (!downedState) return;
+  downedState = null;
+  player.alive = true;
+  player.stats.hp = Math.max(1, Math.floor(player.stats.maxHp * 0.35));
+  player.invincibleTimer = 2.5;
+  if (player.statuses) player.statuses.length = 0;
+  spawnLevelUpParticles(player.px + 8, player.py + 8);
+  GameAudio.levelUp();
+  addMessage(`💚 ${byName} got you back on your feet.`, 'msg-legendary');
+  MP.sendPlayerStats(player.stats, player.level, player.equipment, true);
+}
+
+// ===== CO-OP ROLE SYNERGY =====
+// Standing near a teammate of a supporting class gives a passive edge, so
+// party composition matters without needing new netcode.
+function getPartyAura(): { atk: number; def: number; regen: number; labels: string[] } {
+    const out = { atk: 0, def: 0, regen: 0, labels: [] as string[] };
+    if (!isMultiplayerActive()) return out;
+    const near = MP.getRemotePlayers();
+    near.forEach(rp => {
+        if (rp.floor !== player.floor || !rp.alive) return;
+        const dist = Math.abs(rp.x - player.x) + Math.abs(rp.y - player.y);
+        if (dist > 6) return;
+        switch (rp.className) {
+            case 'cleric': out.regen += 1.5; out.labels.push('✝️ Cleric'); break;
+            case 'paladin': out.def += 4; out.labels.push('🛡️ Paladin'); break;
+            case 'warrior': out.def += 2; out.labels.push('⚔️ Warrior'); break;
+            case 'berserker': out.atk += 4; out.labels.push('🪓 Berserker'); break;
+            case 'mage': out.atk += 3; out.labels.push('🔮 Mage'); break;
+            case 'ranger': out.atk += 2; out.labels.push('🏹 Ranger'); break;
+        }
+    });
+    return out;
+}
+
+let auraTimer = 0;
+
+function updatePartyAura(dt: number): void {
+    if (!isMultiplayerActive() || !player.alive) return;
+    auraTimer -= dt;
+    if (auraTimer > 0) return;
+    auraTimer = 1;
+
+    const aura = getPartyAura();
+    if (aura.regen > 0 && player.stats.hp < player.stats.maxHp) {
+        player.stats.hp = Math.min(player.stats.maxHp, player.stats.hp + aura.regen);
+    }
+    // Aura stats are applied as a refreshed one-second buff so they never stack
+    if (player.buffs) {
+        player.buffs = player.buffs.filter(b => b.name !== 'Party Aura');
+        if (aura.atk > 0) {
+            player.buffs.push({ name: 'Party Aura', icon: '🤝', effect: { type: 'atk_boost', value: aura.atk, duration: 2 }, remaining: 2 });
+        }
+        if (aura.def > 0) {
+            player.buffs.push({ name: 'Party Aura', icon: '🤝', effect: { type: 'def_boost', value: aura.def, duration: 2 }, remaining: 2 });
+        }
+        if (aura.atk > 0 || aura.def > 0) recalcStats(player);
+    }
+}
+
+// ===== CORPSE RUNS =====
+// Dying costs you everything you were carrying, but not the run. Your gold and
+// gear stay on the floor you fell on; you wake in town at 1 HP with one chance
+// to walk back down and take it off your own body.
+function dropCorpseAndRevive(): void {
+  // A previous corpse you never reclaimed is lost for good
+  if (player.corpse) {
+    addMessage('💀 Your old remains crumble somewhere below. Whatever they held is gone.', 'msg-damage');
+  }
+
+  const droppedGold = Math.floor(player.gold * 0.8);
+  player.corpse = {
+    floor: player.floor,
+    x: player.x,
+    y: player.y,
+    gold: droppedGold,
+    items: player.inventory.map(i => ({ def: i.def, count: i.count })),
+    equipment: { ...player.equipment },
+  };
+
+  player.gold -= droppedGold;
+  player.inventory = [];
+  player.hotbar = [null, null, null, null, null];
+  player.equipment = { weapon: null, armor: null, ring: null };
+  if (player.statuses) player.statuses.length = 0;
+  if (player.buffs) player.buffs.length = 0;
+
+  recalcStats(player);
+  player.alive = true;
+  player.stats.hp = 1;
+  player.invincibleTimer = 3;
+
+  GameAudio.playerHurt();
+  addMessage('💀 You died. Everything you carried stayed behind.', 'msg-damage');
+  addMessage(`⚰️ Your remains wait on ${displayDepth(player.corpse.floor)}. Go and get them.`, 'msg-legendary');
+
+  // Wake up in town if you can reach it, otherwise the hub
+  if (player.unlocks.portal || townFloor) {
+    goToTown();
+  } else {
+    enterFloor(0);
+  }
+  updateHotbar(player);
+}
+
+/** Walking onto your own corpse takes everything back. */
+function checkCorpsePickup(): void {
+  const c = player.corpse;
+  if (!c) return;
+  if (player.floor !== c.floor) return;
+  if (Math.abs(player.x - c.x) + Math.abs(player.y - c.y) > 1) return;
+
+  player.gold += c.gold;
+  let recovered = 0;
+  for (const entry of c.items) {
+    if (addItemToInventory(player, entry.def, entry.count)) recovered++;
+  }
+  // Re-equip what you were wearing, if the slot is still free
+  for (const slot of ['weapon', 'armor', 'ring'] as const) {
+    const piece = c.equipment[slot];
+    if (piece && !player.equipment[slot]) player.equipment[slot] = piece;
+    else if (piece) addItemToInventory(player, piece);
+  }
+
+  player.corpse = null;
+  recalcStats(player);
+  updateHotbar(player);
+  GameAudio.levelUp();
+  spawnLevelUpParticles(player.px + 8, player.py + 8);
+  addMessage(`⚰️ You take it all back. +${c.gold}g, ${recovered} item${recovered === 1 ? '' : 's'}.`, 'msg-legendary');
+  addFloatingText(player.px + 8, player.py - 20, '⚰️ RECLAIMED', '#ffd54f');
+}
+
+// ===== SPECIAL ROOMS =====
+// Fires once when the player first steps inside a marked room.
+function checkRoomEvents(): void {
+  if (!currentFloor.rooms || currentFloor.isTown) return;
+
+  for (const room of currentFloor.rooms) {
+    if (!room.kind || room.kind === 'plain' || room.used) continue;
+    const inside = player.x >= room.x && player.x < room.x + room.w
+      && player.y >= room.y && player.y < room.y + room.h;
+    if (!inside) continue;
+
+    switch (room.kind) {
+      case 'library': {
+        room.used = true;
+        if (player.systems) player.systems.skillPoints++;
+        addMessage('📚 A reading room, miraculously dry. You learn something. (+1 skill point)', 'msg-legendary');
+        addFloatingText(player.px + 8, player.py - 16, '📚 +1 SKILL', '#6ba3d8');
+        GameAudio.levelUp();
+        spawnLevelUpParticles(player.px + 8, player.py + 8);
+        break;
+      }
+
+      case 'shrine': {
+        room.used = true;
+        // A lasting blessing, paid for in blood
+        const cost = Math.max(8, Math.floor(player.stats.maxHp * 0.15));
+        if (player.stats.hp <= cost + 1) {
+          addMessage('⛩️ A shrine. You are too weak to give it anything.', 'msg-common');
+          break;
+        }
+        player.stats.hp -= cost;
+        const blessings = [
+          { label: 'STRENGTH', apply: () => { player.baseStats.atk += 3; }, color: '#e05a45' },
+          { label: 'RESOLVE', apply: () => { player.baseStats.def += 3; }, color: '#8fc4e8' },
+          { label: 'VITALITY', apply: () => { player.baseStats.maxHp += 20; }, color: '#2ecc71' },
+          { label: 'PRECISION', apply: () => { player.baseStats.critChance += 0.04; }, color: '#f1c40f' },
+        ];
+        const b = blessings[Math.floor(Math.random() * blessings.length)];
+        b.apply();
+        recalcStats(player);
+        addMessage(`⛩️ The shrine drinks ${cost} HP and grants ${b.label}.`, 'msg-legendary');
+        addFloatingText(player.px + 8, player.py - 16, `⛩️ ${b.label}`, b.color);
+        spawnLevelUpParticles(player.px + 8, player.py + 8);
+        break;
+      }
+
+      case 'ambush': {
+        if (room.waveActive) break;
+        room.waveActive = true;
+        room.used = true;
+        const count = 3 + Math.floor(player.floor / 12);
+        let spawned = 0;
+        for (let a = 0; a < count * 4 && spawned < count; a++) {
+          const sx = room.x + Math.floor(Math.random() * room.w);
+          const sy = room.y + Math.floor(Math.random() * room.h);
+          if (!isWalkable(currentFloor.tiles, sx, sy)) continue;
+          if (Math.abs(sx - player.x) + Math.abs(sy - player.y) < 2) continue;
+          const pool = currentFloor.enemies.length ? currentFloor.enemies[0].type : 'skeleton';
+          const m = createMinion(pool, sx, sy, player.floor, 1);
+          m.aggroRange = 20;
+          currentFloor.enemies.push(m);
+          spawnParticles(sx * 16 + 8, sy * 16 + 8, 10, '#e74c3c', 2.5, 0, 2);
+          spawned++;
+        }
+        addMessage(`⚠️ AMBUSH! ${spawned} of them, and the door is behind you.`, 'msg-damage');
+        GameAudio.bossAppear();
+        break;
+      }
+
+      case 'vault': {
+        room.used = true;
+        if (player.keys > 0) {
+          player.keys--;
+          addMessage('🗝️ Your key turns. The vault opens.', 'msg-legendary');
+        } else {
+          addMessage('🔒 A vault. Sealed — you need a Dungeon Key.', 'msg-uncommon');
+        }
+        break;
+      }
+
+      case 'hoard': {
+        room.used = true;
+        addMessage('💰 A hoard — and something is standing on it.', 'msg-rare');
+        break;
+      }
+    }
+  }
+}
+
+// ===== SHARED KILL HANDLER =====
+// Status ticks, projectiles and abilities all kill things outside the normal
+// swing path, so loot, XP and gold live in one place.
+function killEnemy(enemy: EnemyState, index: number, damage: number, silent = false): void {
+  if (!enemy.alive) return;
+  enemy.alive = false;
+  enemy.hp = 0;
+  GameAudio.enemyDeath();
+  spawnDeathParticles(enemy.px + 8, enemy.py + 8, '#e74c3c');
+
+  let xpGain = enemy.xpReward;
+  if (player.buffs) {
+    for (const buff of player.buffs) {
+      if (buff.effect.type === 'xp_boost') xpGain = Math.floor(xpGain * (1 + buff.effect.value));
+    }
+  }
+  player.xp += xpGain;
+  player.totalKills++;
+  player.totalDamageDealt += damage;
+  if (!silent) addMessage(`Defeated ${enemy.type}! +${xpGain} XP`, 'msg-xp');
+
+  if (player.systems) {
+    recordKill(player.systems.bestiary, enemy.type, player.floor);
+    updateQuestProgress(player.systems.quests, 'kill', enemy.type);
+  }
+
+  const loot = rollLoot(enemy.dropTable, player.floor);
+  if (loot) {
+    currentFloor.items.push({ x: enemy.x, y: enemy.y, def: loot, count: 1 });
+    addMessage(`${enemy.type} dropped ${loot.name}!`, `msg-${loot.rarity}`);
+  }
+
+  if (enemy.isBoss) {
+    const bossWeapon = getBossWeapon(player.floor);
+    if (bossWeapon) {
+      currentFloor.items.push({ x: enemy.x + 1, y: enemy.y, def: bossWeapon, count: 1 });
+      addMessage(`⚔️ BOSS DROP: ${bossWeapon.name}!`, 'msg-legendary');
+    }
+    const trophy = getBossTrophy(player.floor);
+    if (trophy) {
+      currentFloor.items.push({ x: enemy.x - 1, y: enemy.y, def: trophy, count: 1 });
+      addMessage(`🏆 TROPHY: ${trophy.name}!`, 'msg-legendary');
+    }
+  }
+
+  const goldGain = Math.floor((5 + Math.random() * 10 * (1 + player.floor * 0.1)) * (enemy.eliteGoldMult || 1));
+  player.gold += goldGain;
+  addFloatingText(enemy.px + 8, enemy.py + 16, `+${goldGain}g`, '#f1c40f');
+
+  if (isMultiplayerActive()) {
+    MP.sendPlayerAttack(index, damage, true);
+    MP.sendShareLoot(xpGain, goldGain, enemy.type);
+  }
+}
+
+const abilityHooks: AbilityHooks = {
+  addMsg: addMessage,
+  damageEnemy: (enemy, index, amount, color) => {
+    if (!enemy.alive) return;
+    enemy.hp -= amount;
+    spawnHitParticles(enemy.px + 8, enemy.py + 8);
+    addFloatingText(enemy.px + 8, enemy.py, `${amount}`, color);
+    if (enemy.hp <= 0) killEnemy(enemy, index, amount);
+    else if (isMultiplayerActive()) MP.sendPlayerAttack(index, amount, false);
+  },
+  isWalkable: (x, y) => isWalkable(currentFloor.tiles, x, y)
+    && !currentFloor.enemies.some(e => e.alive && e.x === x && e.y === y),
+  shake: () => { /* screen shake is owned by combat.ts */ },
+};
+
+// ===== EQUIPPED GEAR OVERLAY =====
+// Draws the actual equipped weapon, armour and ring onto a character sprite.
+// Works for the local player and for co-op teammates.
+function drawEquipmentOn(
+  ctx2: CanvasRenderingContext2D,
+  equipment: { weapon: import('./types').ItemDef | null; armor: import('./types').ItemDef | null; ring: import('./types').ItemDef | null },
+  dir: number,
+  originX: number,
+  originY: number,
+  size: number,
+  time: number,
+  swing: number,
+): void {
+  const scale = size / 32;   // sprite space is 32 wide, 64 tall
+  ctx2.save();
+  ctx2.translate(originX, originY);
+  ctx2.scale(scale, scale);
+
+  // Armour first — it sits under the weapon arm
+  const armorLook = getArmorLook(equipment.armor);
+  if (armorLook) drawArmor(ctx2, armorLook, 16, 20, 19);
+
+  // Weapon in the off-hand
+  const weaponLook = getWeaponLook(equipment.weapon);
+  if (weaponLook) {
+    const hand = getHandAnchor(dir);
+    drawWeapon(ctx2, weaponLook, hand.x, hand.y, dir === 2 || dir === 3, swing);
+  }
+
+  // Ring on the free hand
+  const ringColor = getRingColor(equipment.ring);
+  if (ringColor) {
+    const hx = dir === 2 ? 25 : 7;
+    drawRing(ctx2, ringColor, hx, 32, isStrongRarity(equipment.ring), time);
+  }
+
+  ctx2.restore();
+}
+
+function drawPlayerEquipment(
+  ctx2: CanvasRenderingContext2D,
+  p: PlayerState,
+  originX: number,
+  originY: number,
+  size: number,
+  time: number,
+): void {
+  // Swing progress drives the weapon's rotation
+  const profile = getWeaponProfile(p);
+  const swing = p.attackCooldown > 0
+    ? Math.max(0, Math.min(1, 1 - p.attackCooldown / profile.cooldown))
+    : 0;
+  drawEquipmentOn(ctx2, p.equipment, p.dir, originX, originY, size, time, swing);
 }
 
 // ===== FULLSCREEN =====
@@ -2202,8 +2678,22 @@ function render(): void {
         ctx.fill();
         ctx.restore();
         ctx.drawImage(sprite, sx, sy, tileSize, tileSize);
+
+        // Wash of colour while burning / frozen / poisoned
+        const tint = statusTint(enemy.statuses);
+        if (tint) {
+          ctx.save();
+          ctx.globalAlpha = 0.28 + Math.sin(frameTime * 0.008 + enemy.x) * 0.08;
+          ctx.globalCompositeOperation = 'source-atop';
+          ctx.fillStyle = tint;
+          ctx.fillRect(sx, sy, tileSize, tileSize);
+          ctx.restore();
+        }
       }
     }
+
+    // Status pips over the head
+    renderStatusIcons(ctx, enemy.statuses, sx, sy, tileSize, frameTime);
 
     // Health bar — bosses use the framed bar at the top of the screen instead
     const hpPct = enemy.hp / enemy.maxHp;
@@ -2488,36 +2978,9 @@ function render(): void {
 
       ctx.drawImage(sprite, psx, psy - tileSize, tileSize, tileSize * 2);
 
-      // Tint body based on equipped armor
-      if (player.equipment.armor) {
-        const armorId = player.equipment.armor.id;
-        let tintColor = '';
-        if (armorId === 'leather_armor') tintColor = 'rgba(139, 90, 43, 0.45)';
-        else if (armorId === 'chain_mail') tintColor = 'rgba(180, 195, 210, 0.45)';
-        else if (armorId === 'plate_armor') tintColor = 'rgba(120, 140, 160, 0.5)';
-        else if (armorId === 'dragon_armor') tintColor = 'rgba(200, 50, 30, 0.4)';
-        else tintColor = 'rgba(100, 80, 60, 0.35)'; // generic armor tint
-        
-        if (tintColor) {
-          ctx.fillStyle = tintColor;
-          // Tint torso area (body region of the sprite)
-          ctx.fillRect(psx + 8, psy - tileSize + 18, 16, 16);
-        }
-      }
-      // Ring glow effect
-      if (player.equipment.ring) {
-        const ringId = player.equipment.ring.id;
-        let glowColor = 'rgba(200, 200, 200, 0.3)';
-        if (ringId === 'ruby_ring') glowColor = 'rgba(231, 76, 60, 0.3)';
-        else if (ringId === 'emerald_ring') glowColor = 'rgba(46, 204, 113, 0.3)';
-        else if (ringId === 'ring_of_power') glowColor = 'rgba(241, 196, 15, 0.4)';
-        
-        ctx.fillStyle = glowColor;
-        const handX = psx + (player.dir === 2 ? 4 : 22);
-        ctx.beginPath();
-        ctx.arc(handX, psy - 4, 4, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      // ===== EQUIPPED GEAR, PAINTED ON THE CHARACTER =====
+      // Sprite space is 32x64; scale into whatever tileSize we render at.
+      drawPlayerEquipment(ctx, player, psx, psy - tileSize, tileSize, frameTime);
     }
 
     ctx.globalAlpha = 1;
@@ -2626,6 +3089,32 @@ function render(): void {
     renderBiomeAmbient(ctx, biome, canvas.width, canvas.height);
   }
 
+  // Your remains, if you left any on this floor
+  if (player.corpse && player.corpse.floor === player.floor) {
+    const c = player.corpse;
+    const csx = c.x * tileSize - camX;
+    const csy = c.y * tileSize - camY;
+    const pulse = 0.55 + Math.sin(frameTime * 0.003) * 0.3;
+    const r = tileSize * 1.3 * pulse;
+    const g = ctx.createRadialGradient(csx + tileSize / 2, csy + tileSize / 2, 0, csx + tileSize / 2, csy + tileSize / 2, r);
+    g.addColorStop(0, `rgba(255,213,79,${0.3 * pulse})`);
+    g.addColorStop(1, 'rgba(255,180,60,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(csx + tileSize / 2 - r, csy + tileSize / 2 - r, r * 2, r * 2);
+    ctx.save();
+    ctx.font = `${Math.floor(tileSize * 0.7)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText('⚰️', csx + tileSize / 2, csy + tileSize * 0.85);
+    ctx.restore();
+    ctx.textAlign = 'left';
+  }
+
+  // Arrows and bolts in flight
+  renderPlayerProjectiles(ctx, camX, camY, tileSize);
+
+  // Player's own status pips
+  renderStatusIcons(ctx, player.statuses, player.px - camX, player.py - camY, tileSize, frameTime);
+
   // Arena fog — only once the player is actually in the chamber
   if (arenaDef && playerInArena) {
     renderArenaAtmosphere(ctx, arenaDef, canvas.width, canvas.height, arena!.cleared ? 0.4 : 1);
@@ -2727,6 +3216,76 @@ function render(): void {
 
   // Near-death: blood floods the screen, heartbeat rises
   renderNearDeath(ctx, player, canvas.width, canvas.height, frameTime);
+
+  // ===== DOWNED (CO-OP) =====
+  if (isDowned() && downedState) {
+    ctx.save();
+    ctx.fillStyle = `rgba(90,0,10,${0.35 + Math.sin(frameTime * 0.006) * 0.1})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.textAlign = 'center';
+    ctx.font = '16px "Press Start 2P"';
+    ctx.fillStyle = '#ff5252';
+    ctx.shadowColor = '#ff0000';
+    ctx.shadowBlur = 20;
+    ctx.fillText('YOU ARE DOWN', canvas.width / 2, canvas.height * 0.4);
+    ctx.font = '9px "Press Start 2P"';
+    ctx.fillStyle = '#ffb3b3';
+    ctx.shadowBlur = 8;
+    ctx.fillText('A teammate can still reach you', canvas.width / 2, canvas.height * 0.4 + 28);
+    // Bleed-out bar
+    const bw = Math.min(360, canvas.width - 80);
+    const bx = (canvas.width - bw) / 2;
+    const by = canvas.height * 0.4 + 46;
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(bx, by, bw, 10);
+    ctx.fillStyle = '#c0392b';
+    ctx.fillRect(bx, by, bw * (downedState.timer / 30), 10);
+    ctx.font = '7px "Press Start 2P"';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(`${Math.ceil(downedState.timer)}s`, canvas.width / 2, by + 24);
+    ctx.restore();
+    ctx.textAlign = 'left';
+  }
+
+  // ===== ABILITY BUTTON =====
+  // Bottom-left dial showing the class move and its cooldown.
+  if (gameState === 'PLAYING' && player.alive) {
+    const ab = ABILITIES[player.className];
+    const r = 26;
+    const cx = 46;
+    const cy = canvas.height - 46;
+    const ready = player.abilityCooldown <= 0;
+    const frac = ready ? 1 : 1 - player.abilityCooldown / ab.cooldown;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(8,8,16,0.8)';
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+    // Cooldown sweep
+    ctx.strokeStyle = ready ? ab.color : 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 2, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac);
+    ctx.stroke();
+    if (ready) {
+      ctx.globalAlpha = 0.35 + Math.sin(frameTime * 0.005) * 0.2;
+      ctx.shadowColor = ab.color;
+      ctx.shadowBlur = 14;
+      ctx.beginPath(); ctx.arc(cx, cy, r - 2, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
+    }
+    ctx.font = '16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.globalAlpha = ready ? 1 : 0.45;
+    ctx.fillText(ab.icon, cx, cy + 5);
+    ctx.globalAlpha = 1;
+    ctx.font = '6px "Press Start 2P"';
+    ctx.fillStyle = ready ? ab.color : '#777';
+    ctx.fillText(ready ? 'X' : `${Math.ceil(player.abilityCooldown)}`, cx, cy + r - 2);
+    ctx.restore();
+    ctx.textAlign = 'left';
+  }
 
   // Minimap
   if (Input.isMinimapVisible()) {
@@ -3235,10 +3794,14 @@ function init(): void {
     if (!player) return;
     const profile = MP.getProfile();
     if (profile && targetUid === profile.uid && !player.alive) {
-      player.alive = true;
-      player.stats.hp = Math.floor(player.stats.maxHp * 0.3);
-      addMessage(`💚 ${fromUsername} revived you!`, 'msg-legendary');
-      spawnLevelUpParticles(player.px + 8, player.py + 8);
+      if (isDowned()) {
+        reviveFromDowned(fromUsername);
+      } else {
+        player.alive = true;
+        player.stats.hp = Math.floor(player.stats.maxHp * 0.3);
+        addMessage(`💚 ${fromUsername} revived you!`, 'msg-legendary');
+        spawnLevelUpParticles(player.px + 8, player.py + 8);
+      }
     }
   });
 
