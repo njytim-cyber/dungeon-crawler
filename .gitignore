@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Accidental Word conversions of source files (index.html, README.md, logs...)
+# These are lossy — never commit them.
+*.docx
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

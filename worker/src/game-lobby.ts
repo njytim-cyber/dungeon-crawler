@@ -46,6 +46,8 @@ export class GameLobby implements DurableObject {
         this.state.blockConcurrencyWhile(async () => {
             const stored = await this.state.storage.get<LobbyInfo>('lobby');
             if (stored) this.lobby = stored;
+            const storedLobbyId = await this.state.storage.get<string>('lobbyId');
+            if (storedLobbyId) this.lobbyId = storedLobbyId;
         });
     }
 
@@ -121,6 +123,7 @@ export class GameLobby implements DurableObject {
 
             await this.state.storage.put('lobby', this.lobby);
             this.lobbyId = url.searchParams.get('lobbyId') || url.pathname.split('/')[1] || 'unknown';
+            await this.state.storage.put('lobbyId', this.lobbyId);
             console.log(`  Lobby created: ${code} (${this.lobby.visibility}) by ${body.hostUsername}`);
 
             // Register public lobby with UserRegistry for listing
@@ -478,7 +481,9 @@ export class GameLobby implements DurableObject {
                 // Delete lobby when empty
                 this.unregisterLobby();
                 this.state.storage.delete('lobby');
+                this.state.storage.delete('lobbyId');
                 this.lobby = null;
+                this.lobbyId = null;
                 console.log(`  Lobby deleted (empty)`);
             } else {
                 // Assign new host if host left
@@ -502,7 +507,7 @@ export class GameLobby implements DurableObject {
     }
 
     private getWebSocketMeta(ws: WebSocket): WebSocketMeta | null {
-        const tags = this.state.getWebSocketTags(ws);
+        const tags = this.state.getTags(ws);
         if (tags && tags.length > 0) {
             try { return JSON.parse(tags[0]); } catch { return null; }
         }

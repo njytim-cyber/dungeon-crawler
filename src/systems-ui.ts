@@ -2,8 +2,14 @@
 // UI panels for Bestiary, Skills, Achievements, Quests, Pet
 
 import type { PlayerState } from './types';
-import { getEnemyLore, getAllAchievements, getAvailableSkills, getSkillLevel, canLearnSkill, getHeartLevel, getAllArtifacts } from './systems';
+import {
+    getEnemyLore, getAllAchievements, getAvailableSkills, getSkillLevel, canLearnSkill,
+    getHeartLevel, getAllArtifacts,
+    TROPHY_IDS, isTrophy, countTrophies, getTrophyBonus, nextTrophySet,
+} from './systems';
 import { recalcStats } from './combat';
+import { getItemDef } from './items';
+import { addMessage } from './hud';
 
 let currentPanel: string | null = null;
 
@@ -191,7 +197,51 @@ export function openMuseum(player: PlayerState): void {
     }
     html += '</div>';
     html += `<div class="sys-summary">${player.systems.museum.length}/${allArtifacts.length} donated | Bonus: +${Math.floor(player.systems.museum.length * 0.5)} ATK, +${Math.floor(player.systems.museum.length * 0.3)} DEF, +${player.systems.museum.length * 2} HP</div>`;
+
+    // ===== TROPHY HALL =====
+    const held = player.inventory.filter(i => isTrophy(i.def.id));
+    const donatedTrophies = countTrophies(player.systems.museum);
+    const bonus = getTrophyBonus(player.systems.museum);
+    const next = nextTrophySet(player.systems.museum);
+
+    html += `<div class="sys-tab-section-title" style="margin-top:18px">🏆 Trophy Hall</div>`;
+    html += '<div class="systems-grid">';
+    for (const id of TROPHY_IDS) {
+        const def = getItemDef(id);
+        const donated = player.systems.museum.includes(id);
+        const inBag = held.find(h => h.def.id === id);
+        html += `<div class="sys-card ${donated ? 'donated' : inBag ? 'learnable' : 'empty'}" ${inBag && !donated ? `data-trophy="${id}"` : ''}>
+            <div class="sys-card-icon">${donated ? '🏆' : inBag ? '📦' : '❓'}</div>
+            <div class="sys-card-title">${donated || inBag ? (def?.name ?? id) : '???'}</div>
+            <div class="sys-card-desc">${donated ? 'On the wall' : inBag ? 'In your bag' : 'Defeat the boss'}</div>
+            ${inBag && !donated ? '<div class="sys-card-action">Click to mount</div>' : ''}
+        </div>`;
+    }
+    html += '</div>';
+
+    html += `<div class="sys-summary">${donatedTrophies}/${TROPHY_IDS.length} mounted`;
+    if (bonus.atk || bonus.def || bonus.maxHp || bonus.critChance) {
+        html += ` | Set bonus: +${bonus.atk} ATK, +${bonus.def} DEF, +${bonus.maxHp} HP, +${Math.round(bonus.critChance * 100)}% CRIT`;
+    }
+    if (next) html += `<br><span style="color:#888">Next: ${next.name} at ${next.at} — ${next.desc}</span>`;
+    html += '</div>';
+
     content.innerHTML = html;
+
+    // Mounting a trophy consumes it from the bag
+    content.querySelectorAll('[data-trophy]').forEach(el => {
+        el.addEventListener('click', () => {
+            const id = (el as HTMLElement).dataset.trophy!;
+            if (!player.systems) return;
+            const idx = player.inventory.findIndex(i => i.def.id === id);
+            if (idx < 0) return;
+            player.inventory.splice(idx, 1);
+            player.systems.museum.push(id);
+            recalcStats(player);
+            addMessage(`🏆 Mounted ${getItemDef(id)?.name ?? id} in the Trophy Hall.`, 'msg-legendary');
+            openMuseum(player);   // refresh
+        });
+    });
 }
 
 export function openHearts(player: PlayerState): void {

@@ -3,6 +3,7 @@
 
 import type { PlayerState, ItemDef, EquipSlot, DroppedItem } from './types';
 import { Assets } from './assets';
+import { isWalkable } from './dungeon';
 
 import { recalcStats } from './combat';
 import { GameAudio } from './audio';
@@ -22,14 +23,37 @@ let isOpen = false;
 
 // For drop item — the floor items array
 let floorItems: DroppedItem[] | null = null;
+let currentFloorRef: { tiles: any[][] } | null = null;
 
-export function setFloorItems(items: DroppedItem[]): void {
+export function setFloorItems(items: DroppedItem[], floor?: { tiles: any[][] }): void {
     floorItems = items;
+    if (floor) currentFloorRef = floor;
 }
 
 export function initInventory(player: PlayerState): void {
     closeBtn.addEventListener('click', () => toggleInventory(player));
     document.getElementById('inventory-btn')!.addEventListener('click', () => toggleInventory(player));
+
+    // Tab switching
+    document.querySelectorAll('.inv-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const tabName = (tab as HTMLElement).dataset.tab!;
+            document.querySelectorAll('.inv-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            const itemsContent = document.getElementById('inv-tab-items')!;
+            const systemContent = document.getElementById('inv-tab-system')!;
+            const titleEl = document.getElementById('inventory-panel-title')!;
+            if (tabName === 'items') {
+                itemsContent.classList.remove('hidden');
+                systemContent.classList.add('hidden');
+                titleEl.textContent = '\u2694\uFE0F INVENTORY';
+            } else {
+                itemsContent.classList.add('hidden');
+                systemContent.classList.remove('hidden');
+                titleEl.textContent = '\uD83D\uDCBE SYSTEM';
+            }
+        });
+    });
 
     // Tooltip hide on click outside
     panel.addEventListener('mouseleave', () => hideTooltip());
@@ -255,11 +279,26 @@ function dropItem(player: PlayerState, index: number): void {
     const item = player.inventory[index];
     if (!item) return;
 
-    // Drop at player's feet
+    // Drop in front of player (or at feet if blocked)
     if (floorItems) {
+        let dx = 0, dy = 0;
+        if (player.dir === 0) dy = 1;
+        else if (player.dir === 1) dy = -1;
+        else if (player.dir === 2) dx = -1;
+        else if (player.dir === 3) dx = 1;
+
+        let dropX = player.x + dx;
+        let dropY = player.y + dy;
+
+        // If the tile in front is not walkable, drop at player's feet instead
+        if (currentFloorRef && !isWalkable(currentFloorRef.tiles, dropX, dropY)) {
+            dropX = player.x;
+            dropY = player.y;
+        }
+
         const drop: DroppedItem = {
-            x: player.x,
-            y: player.y,
+            x: dropX,
+            y: dropY,
             def: item.def,
             count: item.count,
         };
@@ -399,6 +438,11 @@ function useOrEquipItem(player: PlayerState, index: number): void {
             if (item.count <= 0) player.inventory.splice(index, 1);
             addMessage('The scroll glows... You are teleported to town!', 'msg-rare');
             window.dispatchEvent(new CustomEvent('escape-to-town'));
+        } else if (def.id === 'city_scroll') {
+            item.count--;
+            if (item.count <= 0) player.inventory.splice(index, 1);
+            addMessage('The paper unfolds into a street. You step through.', 'msg-legendary');
+            window.dispatchEvent(new CustomEvent('travel-to-city'));
         }
     }
 

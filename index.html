@@ -1,33 +1,37 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Dungeon Crawler RPG</title>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f0f23" />
   <meta name="description"
-    content="A 2D top-down dungeon crawler RPG with 100 floors, 9 character classes, and procedurally generated dungeons.">
-  <meta name="theme-color" content="#0f0f23">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="mobile-web-app-capable" content="yes">
-  <link rel="manifest" href="/manifest.json">
-  <link rel="apple-touch-icon" href="/icon-192.png">
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    content="A 2D top-down dungeon crawler RPG with 100 floors, 9 classes, and procedurally generated dungeons." />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+  <title>⚔️ Dungeon Crawler</title>
 </head>
 
 <body>
+  <!-- ===== GAME CANVAS ===== -->
   <canvas id="gameCanvas"></canvas>
 
-  <!-- Floor Transition Overlay -->
+  <!-- ===== FLOOR TRANSITION ===== -->
   <div id="floor-transition" class="hidden">
     <div id="floor-transition-text">Floor 1</div>
   </div>
 
-  <!-- Damage Flash Overlay -->
+  <!-- ===== DAMAGE FLASH ===== -->
   <div id="damage-flash" class="hidden"></div>
 
-  <!-- Fishing Minigame Overlay -->
+  <!-- ===== FISHING MINIGAME ===== -->
   <div id="fishing-overlay" class="hidden">
     <div id="fishing-box">
       <div id="fishing-title">🎣 Fishing!</div>
@@ -41,29 +45,30 @@
     </div>
   </div>
 
-  <!-- Forge Overlay -->
+  <!-- ===== FORGE ===== -->
   <div id="forge-overlay" class="hidden">
     <div id="forge-box">
       <div id="forge-header">
         <h2>⚒️ THE FORGE</h2>
         <button id="forge-close-btn">✕</button>
       </div>
-      <div id="forge-instruction">Select 2 weapons to combine into one mighty weapon!</div>
+      <div id="forge-instruction">Combine two pieces of the same kind into one stronger piece.</div>
+      <div id="forge-tabs"></div>
       <div id="forge-selection">
-        <div id="forge-sel1-label" class="forge-sel-label">Select weapon 1</div>
-        <div class="forge-plus">+</div>
-        <div id="forge-sel2-label" class="forge-sel-label">Select weapon 2</div>
-        <div class="forge-equals">=</div>
-        <div class="forge-result-label">?</div>
+        <span class="forge-sel-label" id="forge-sel1-label">Select weapon 1</span>
+        <span class="forge-plus">+</span>
+        <span class="forge-sel-label" id="forge-sel2-label">Select weapon 2</span>
+        <span class="forge-equals">=</span>
+        <span class="forge-result-label">?</span>
       </div>
       <div id="forge-weapon-grid"></div>
       <div id="forge-preview"></div>
       <div id="forge-result-stats"></div>
-      <button id="forge-confirm-btn" class="hidden">🔥 FORGE!</button>
+      <button id="forge-confirm-btn" disabled>🔥 FORGE!</button>
     </div>
   </div>
 
-  <!-- HUD Overlay -->
+  <!-- ===== HUD ===== -->
   <div id="hud" class="hidden">
     <div id="hud-top">
       <div id="hud-stats">
@@ -79,79 +84,178 @@
           <span id="level-text">Lv. 1</span>
           <span id="floor-text">Floor 1</span>
           <span id="gold-text">💰 0</span>
-          <span id="time-text" style="color: #f39c12; margin-left: 8px;">08:00</span>
+          <span id="time-text">08:00</span>
         </div>
       </div>
       <div id="minimap-container">
-        <canvas id="minimapCanvas" width="140" height="140"></canvas>
+        <canvas id="minimapCanvas" width="128" height="128"></canvas>
       </div>
     </div>
+
     <div id="hotbar">
-      <div class="hotbar-slot" data-slot="0"><span class="hotbar-key">1</span></div>
-      <div class="hotbar-slot" data-slot="1"><span class="hotbar-key">2</span></div>
-      <div class="hotbar-slot" data-slot="2"><span class="hotbar-key">3</span></div>
-      <div class="hotbar-slot" data-slot="3"><span class="hotbar-key">4</span></div>
-      <div class="hotbar-slot" data-slot="4"><span class="hotbar-key">5</span></div>
+      <div class="hotbar-slot"><span class="hotbar-key">1</span></div>
+      <div class="hotbar-slot"><span class="hotbar-key">2</span></div>
+      <div class="hotbar-slot"><span class="hotbar-key">3</span></div>
+      <div class="hotbar-slot"><span class="hotbar-key">4</span></div>
+      <div class="hotbar-slot"><span class="hotbar-key">5</span></div>
     </div>
+
     <div id="message-log"></div>
+
     <button id="inventory-btn" title="Inventory (I)">🎒</button>
-    <button id="save-btn" title="Save Game">💾</button>
-    <button id="settings-ingame-btn" title="Settings (Esc)">⚙️</button>
-    <button id="leave-coop-btn" class="hidden" title="Leave Co-op">🚪</button>
-    <div id="systems-buttons">
-      <button class="sys-btn" data-panel="bestiary" title="Bestiary (B)">📖</button>
-      <button class="sys-btn" data-panel="achievements" title="Achievements">🏆</button>
-      <button class="sys-btn" data-panel="skills" title="Skills (K)">🌟</button>
-      <button class="sys-btn" data-panel="quests" title="Quests (J)">📋</button>
-      <button class="sys-btn" data-panel="museum" title="Museum">🏛️</button>
-      <button class="sys-btn" data-panel="hearts" title="Relationships">❤️</button>
+    <button id="hamburger-btn" title="Menu">☰</button>
+    <button id="leave-coop-btn" class="hidden" title="Leave co-op">🚪</button>
+  </div>
+
+  <!-- ===== HAMBURGER DRAWER ===== -->
+  <div id="hamburger-overlay" class="hidden">
+    <div id="hamburger-backdrop"></div>
+    <div id="hamburger-drawer">
+      <div class="hamburger-drawer-header">
+        <span>Menu</span>
+        <button id="hamburger-close">✕</button>
+      </div>
+      <div class="hamburger-drawer-items">
+        <button class="hamburger-item" data-panel="bestiary"><span class="hamburger-icon">📖</span>Bestiary</button>
+        <button class="hamburger-item" data-panel="achievements"><span
+            class="hamburger-icon">🏆</span>Achievements</button>
+        <button class="hamburger-item" data-panel="skills"><span class="hamburger-icon">🌟</span>Skills</button>
+        <button class="hamburger-item" data-panel="quests"><span class="hamburger-icon">📋</span>Quests</button>
+        <button class="hamburger-item" data-panel="museum"><span class="hamburger-icon">🏛️</span>Museum</button>
+        <button class="hamburger-item" data-panel="hearts"><span class="hamburger-icon">❤️</span>Relationships</button>
+      </div>
     </div>
   </div>
 
-  <!-- Systems Overlay (Bestiary, Skills, etc) -->
+  <!-- ===== SYSTEMS OVERLAY (bestiary / quests / skills / …) ===== -->
   <div id="systems-overlay" class="hidden">
     <div id="systems-panel">
       <div id="systems-header">
-        <h2 id="systems-title">Systems</h2>
+        <span id="systems-title">Systems</span>
         <button id="systems-close">✕</button>
       </div>
       <div id="systems-content"></div>
     </div>
   </div>
 
-  <!-- Inventory Panel (Fullscreen) -->
+  <!-- ===== INVENTORY ===== -->
   <div id="inventory-panel" class="hidden">
     <div id="inventory-header">
-      <h2>⚔️ INVENTORY</h2>
+      <h2 id="inventory-panel-title">⚔️ INVENTORY</h2>
       <button id="close-inventory">✕</button>
     </div>
-    <div id="inventory-body">
-      <div id="inventory-sidebar">
-        <div id="equipment-section">
-          <h3>Equipment</h3>
-          <div id="equipment-slots">
-            <div class="equip-slot" data-slot="weapon"><span class="equip-label">Weapon</span></div>
-            <div class="equip-slot" data-slot="armor"><span class="equip-label">Armor</span></div>
-            <div class="equip-slot" data-slot="ring"><span class="equip-label">Ring</span></div>
+
+    <div id="inventory-tabs">
+      <button class="inv-tab active" data-tab="items">⚔️ Items</button>
+      <button class="inv-tab" data-tab="system">💾 System</button>
+    </div>
+
+    <div id="inv-tab-items" class="inv-tab-content">
+      <div id="inventory-body">
+        <div id="inventory-sidebar">
+          <div id="equipment-section">
+            <h3>Equipment</h3>
+            <div id="equipment-slots">
+              <div class="equip-slot" data-slot="weapon"><span class="equip-label">Weapon</span></div>
+              <div class="equip-slot" data-slot="armor"><span class="equip-label">Armor</span></div>
+              <div class="equip-slot" data-slot="ring"><span class="equip-label">Ring</span></div>
+            </div>
+          </div>
+          <div id="player-stats-panel">
+            <h3>Stats</h3>
+            <div id="stats-display"></div>
           </div>
         </div>
-        <div id="player-stats-panel">
-          <h3>Stats</h3>
-          <div id="stats-display"></div>
+
+        <div id="inventory-grid-section">
+          <h3>Items <span id="inv-count"></span></h3>
+          <div id="inventory-grid"></div>
         </div>
       </div>
-      <div id="inventory-grid-section">
-        <h3>Items <span id="inv-count" style="color:#666; font-weight:normal;"></span></h3>
-        <div id="inventory-grid"></div>
+    </div>
+
+    <div id="inv-tab-system" class="inv-tab-content hidden">
+      <div id="system-tab-content">
+        <div class="sys-tab-section">
+          <div class="sys-tab-section-title">💾 Save Game</div>
+          <div id="save-slot-area">
+            <div id="save-slot-card">
+              <span class="save-slot-icon">📁</span>
+              <div class="save-slot-info">
+                <span class="save-slot-name">Game Save</span>
+                <span class="save-slot-detail" id="save-slot-detail">Tap to save your progress</span>
+              </div>
+            </div>
+            <button id="save-btn" class="sys-tab-action-btn">💾 Save Now</button>
+          </div>
+        </div>
+
+        <div class="sys-tab-section">
+          <div class="sys-tab-section-title">⚙️ Settings</div>
+          <div class="sys-tab-settings">
+            <div class="sys-setting-row">
+              <span class="sys-setting-label">Language</span>
+              <div class="sys-setting-control">
+                <button class="lang-btn-tab active" data-lang="en">English</button>
+                <button class="lang-btn-tab" data-lang="zh">中文</button>
+              </div>
+            </div>
+            <div class="sys-setting-row">
+              <span class="sys-setting-label">Sound Effects</span>
+              <div class="sys-setting-control">
+                <input type="range" id="sfx-volume-tab" min="0" max="100" value="70" />
+                <span id="sfx-value-tab">70%</span>
+              </div>
+            </div>
+            <div class="sys-setting-row">
+              <span class="sys-setting-label">Music</span>
+              <div class="sys-setting-control">
+                <input type="range" id="music-volume-tab" min="0" max="100" value="50" />
+                <span id="music-value-tab">50%</span>
+              </div>
+            </div>
+            <div class="sys-setting-row">
+              <span class="sys-setting-label">Controls</span>
+              <div class="sys-setting-control">
+                <button class="ctrl-btn-tab active" id="ctrl-joystick-tab">Joystick</button>
+                <button class="ctrl-btn-tab" id="ctrl-dpad-tab">D-Pad</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sys-tab-section">
+          <div class="sys-tab-section-title">🔧 Quick Actions</div>
+          <div class="sys-tab-actions">
+            <button id="show-tutorial-tab-btn" class="sys-tab-action-btn">📖 Tutorial</button>
+            <button id="return-hub-tab-btn" class="sys-tab-action-btn">🏠 Return to Hub</button>
+          </div>
+          <div style="text-align:center;margin-top:10px;font-size:8px;color:#555;" id="settings-version-tab"></div>
+        </div>
       </div>
     </div>
-    <div id="item-tooltip" class="hidden"></div>
   </div>
 
-  <!-- Item Context Menu -->
+  <!-- ===== CHEST LOOT PANEL ===== -->
+  <div id="chest-panel" class="hidden">
+    <div id="chest-backdrop"></div>
+    <div id="chest-box">
+      <div id="chest-header">
+        <h2>🧰 TREASURE CHEST</h2>
+        <button id="chest-close">✕</button>
+      </div>
+      <div id="chest-gold" class="hidden"></div>
+      <div id="chest-slots"></div>
+      <button id="chest-take-all">TAKE ALL <span class="chest-hint">Ctrl+A</span></button>
+      <button id="chest-take-gold" class="hidden">💰 TAKE GOLD ONLY <span class="chest-hint">G</span></button>
+    </div>
+  </div>
+
+  <!-- ===== ITEM TOOLTIP / CONTEXT MENU ===== -->
+  <div id="item-tooltip" class="hidden"></div>
   <div id="item-context-menu" class="hidden"></div>
 
-  <!-- NPC Dialog -->
+  <!-- ===== NPC DIALOG ===== -->
   <div id="npc-dialog" class="hidden">
     <div id="npc-dialog-box">
       <div id="npc-name"></div>
@@ -160,10 +264,11 @@
     </div>
   </div>
 
-  <!-- Settings Panel -->
+  <!-- ===== SETTINGS PANEL ===== -->
   <div id="settings-panel" class="hidden">
     <div id="settings-content">
-      <h2 id="settings-title">⚙️ Settings</h2>
+      <div id="settings-title" data-i18n="settings">⚙️ Settings</div>
+
       <div class="settings-group">
         <label class="settings-label" data-i18n="lang">Language</label>
         <div class="settings-row">
@@ -171,124 +276,136 @@
           <button class="lang-btn" data-lang="zh">中文</button>
         </div>
       </div>
+
       <div class="settings-group">
         <label class="settings-label" data-i18n="sfx">Sound Effects</label>
         <div class="settings-row">
-          <input type="range" id="sfx-volume" min="0" max="100" value="70">
+          <input type="range" id="sfx-volume" min="0" max="100" value="70" />
           <span id="sfx-value">70%</span>
         </div>
       </div>
+
       <div class="settings-group">
         <label class="settings-label" data-i18n="music">Music</label>
         <div class="settings-row">
-          <input type="range" id="music-volume" min="0" max="100" value="50">
+          <input type="range" id="music-volume" min="0" max="100" value="50" />
           <span id="music-value">50%</span>
         </div>
       </div>
+
       <div class="settings-group">
         <label class="settings-label" data-i18n="controls">Controls</label>
         <div class="settings-row">
-          <button id="ctrl-joystick" class="ctrl-btn active">Joystick</button>
-          <button id="ctrl-dpad" class="ctrl-btn">D-Pad</button>
+          <button class="ctrl-btn active" id="ctrl-joystick">Joystick</button>
+          <button class="ctrl-btn" id="ctrl-dpad">D-Pad</button>
         </div>
       </div>
+
       <div class="settings-actions">
         <button id="show-tutorial-btn" data-i18n="tutorial_btn">📖 Tutorial</button>
         <button id="return-hub-btn" class="hidden" data-i18n="hub_btn">🏠 Return to Hub</button>
         <button id="close-settings" data-i18n="close">Close</button>
       </div>
-      <p id="settings-version" style="font-size: 8px; color: #555; text-align: center; margin-top: 12px;"></p>
+
+      <div style="text-align:center;margin-top:12px;font-size:8px;color:#555;" id="settings-version"></div>
     </div>
   </div>
 
-  <!-- Tutorial Overlay -->
+  <!-- ===== TUTORIAL ===== -->
   <div id="tutorial-overlay" class="hidden">
     <div id="tutorial-content">
-      <div id="tutorial-slide">
-        <h2 id="tutorial-heading">Welcome, Adventurer!</h2>
-        <p id="tutorial-text">Use WASD or the joystick to move. Click or press Space to attack.</p>
-      </div>
+      <div id="tutorial-heading">Welcome, Adventurer!</div>
+      <div id="tutorial-text">Use WASD or the joystick to move. Click or press Space to attack.</div>
       <div id="tutorial-dots"></div>
       <div id="tutorial-actions">
-        <button id="tutorial-prev" class="hidden">◀ Back</button>
-        <button id="tutorial-next">Next ▶</button>
+        <button id="tutorial-prev" data-i18n="tut_prev">◀ Back</button>
+        <button id="tutorial-next" data-i18n="tut_next">Next ▶</button>
       </div>
     </div>
   </div>
 
-  <!-- Title Screen -->
+  <!-- ===== TITLE SCREEN ===== -->
   <div id="title-screen">
+    <div id="title-thumb"></div>
     <div id="title-content">
-      <h1 id="game-title">⚔️ DUNGEON CRAWLER</h1>
-      <p id="game-subtitle">Descend into the depths...</p>
-      <p id="title-version" style="font-size: 8px; color: #555; margin-top: 4px;"></p>
+      <h1 id="game-title" data-i18n="game_title">⚔️ DUNGEON CRAWLER</h1>
+      <p id="game-subtitle" data-i18n="game_subtitle">Descend into the depths...</p>
 
       <div id="main-menu">
-        <button id="continue-btn" class="hidden">Continue (Floor <span id="save-floor">1</span>)</button>
+        <button id="continue-btn" class="hidden">Continue (Floor 1)</button>
         <button id="new-game-btn">New Game</button>
         <button id="coop-menu-btn">🎮 Co-op</button>
-        <button id="title-settings-btn">⚙️ Settings</button>
+        <button id="title-settings-btn" data-i18n="settings">⚙️ Settings</button>
       </div>
 
       <div id="class-select" class="hidden">
-        <h2>Choose Your Class</h2>
-        <div id="name-input-container" style="text-align: center; margin-bottom: 1rem;">
-          <input type="text" id="player-name-input" placeholder="Enter Name" maxlength="12"
-            style="padding: 8px; font-family: 'Press Start 2P'; font-size: 12px; width: 200px; text-align: center;">
-        </div>
+        <h2 data-i18n="choose_class">Choose Your Class</h2>
+        <input type="text" id="player-name-input" placeholder="Enter your name" maxlength="16"
+          style="font-family:inherit;font-size:10px;padding:10px 12px;margin-bottom:14px;width:min(280px,80vw);background:rgba(0,0,0,0.5);border:2px solid #555;border-radius:6px;color:#e0d8c0;text-align:center;" />
         <div id="class-grid"></div>
         <div id="class-description">Select a class to see details</div>
         <div id="class-actions">
-          <button id="start-run-btn" class="hidden" disabled>Begin Adventure</button>
+          <button id="start-run-btn" class="hidden" data-i18n="begin_adventure" disabled>Begin Adventure</button>
           <button id="back-to-menu-btn">Back</button>
         </div>
       </div>
+
+      <div style="margin-top:18px;font-size:8px;color:#444;" id="title-version"></div>
     </div>
   </div>
 
-  <!-- Game Over Screen -->
+  <!-- ===== GAME OVER ===== -->
   <div id="gameover-screen" class="hidden">
     <div id="gameover-content">
-      <h1>💀 YOU DIED</h1>
+      <h1 data-i18n="you_died">💀 YOU DIED</h1>
       <div id="death-stats"></div>
-      <button id="retry-btn">Try Again</button>
+      <button id="retry-btn" data-i18n="try_again">Try Again</button>
     </div>
   </div>
 
-  <!-- Victory Screen -->
+  <!-- ===== VICTORY ===== -->
   <div id="victory-screen" class="hidden">
     <div id="victory-content">
-      <h1>🏆 VICTORY!</h1>
-      <p>You conquered all 100 floors!</p>
+      <h1 data-i18n="victory">🏆 VICTORY!</h1>
+      <p data-i18n="victory_desc">You conquered all 100 floors!</p>
       <div id="victory-stats"></div>
-      <button id="victory-retry-btn">Play Again</button>
+      <button id="victory-retry-btn" data-i18n="play_again">Play Again</button>
     </div>
   </div>
 
-  <!-- Mobile Controls -->
-  <div id="mobile-controls" class="hidden">
-    <!-- Joystick (default) -->
+  <!-- ===== MOBILE CONTROLS ===== -->
+  <div id="mobile-controls">
     <div id="joystick-area">
       <div id="joystick-base">
         <div id="joystick-knob"></div>
       </div>
     </div>
-    <!-- D-Pad (toggle) -->
+
     <div id="dpad" class="hidden">
       <button class="dpad-btn" data-dir="up">▲</button>
       <button class="dpad-btn" data-dir="left">◀</button>
       <button class="dpad-btn" data-dir="right">▶</button>
       <button class="dpad-btn" data-dir="down">▼</button>
     </div>
+
     <div id="action-buttons">
-      <button id="mobile-attack" class="action-btn">⚔️</button>
-      <button id="mobile-interact" class="action-btn">💬</button>
+      <button class="action-btn" id="mobile-attack">⚔️</button>
     </div>
   </div>
 
-  <!-- Emote Picker (Co-op) -->
+  <button id="npc-popup-btn" class="hidden">💬 Talk</button>
+
+  <!-- ===== WORLD PROP PROMPT (portal / landslide / bridge / colosseum) ===== -->
+  <button id="prop-popup-btn" class="hidden">
+    <span class="prop-popup-glow"></span>
+    <span class="prop-popup-icon">🌀</span>
+    <span class="prop-popup-label">Investigate</span>
+    <span class="prop-popup-key">E</span>
+  </button>
+
+  <!-- ===== EMOTE PICKER (co-op) ===== -->
   <div id="emote-picker" class="hidden">
-    <button id="emote-toggle" title="Send Emoji (Shift+1-8)">😀</button>
+    <button id="emote-toggle">😀</button>
     <div id="emote-grid" class="hidden">
       <button class="emote-btn" data-emote="0">❤️</button>
       <button class="emote-btn" data-emote="1">👋</button>
@@ -302,15 +419,6 @@
   </div>
 
   <script type="module" src="/src/main.ts"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then(registration => console.log('SW registered: ', registration))
-          .catch(registrationError => console.log('SW registration failed: ', registrationError));
-      });
-    }
-  </script>
 </body>
 
 </html>

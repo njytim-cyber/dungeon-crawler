@@ -1,10 +1,12 @@
 // ===== DUNGEON GENERATOR =====
 // BSP-based procedural dungeon generation
 
-import type { TileType, Room, DungeonFloor, EnemyState, NPCState, Position, ChestState, DroppedItem, EnemyType, NPCType, DialogNode } from './types';
+import type { TileType, Room, RoomKind, DungeonFloor, EnemyState, NPCState, Position, ChestState, DroppedItem, EnemyType, NPCType, DialogNode } from './types';
 import { getItemsByFloor } from './items';
 import { getBiome } from './biomes';
 import { rollEliteModifier } from './systems';
+import { carveBossArena } from './arena';
+import { getBossDef } from './bosses';
 
 // ===== SEEDED PRNG =====
 // Mulberry32: fast, deterministic PRNG from a 32-bit seed
@@ -142,16 +144,16 @@ function collectRooms(node: BSPNode, rooms: Room[]): void {
 }
 
 const ENEMY_POOL_BY_DEPTH: EnemyType[][] = [
-    ['slime', 'bat'],                          // 1-10
-    ['slime', 'bat', 'goblin', 'skeleton'],    // 11-20
-    ['goblin', 'skeleton', 'spider'],          // 21-30
-    ['skeleton', 'spider', 'orc'],             // 31-40
-    ['spider', 'orc', 'ghost'],               // 41-50
-    ['orc', 'ghost', 'wraith'],               // 51-60
-    ['ghost', 'wraith', 'golem'],             // 61-70
-    ['wraith', 'golem', 'demon'],             // 71-80
-    ['golem', 'demon', 'drake'],              // 81-90
-    ['demon', 'drake', 'lich'],               // 91-100
+    ['rat', 'slime', 'bat', 'kobold'],                              // 1-10
+    ['slime', 'bat', 'goblin', 'skeleton', 'kobold', 'zombie'],     // 11-20
+    ['goblin', 'skeleton', 'spider', 'zombie', 'cultist', 'mimic'], // 21-30
+    ['skeleton', 'spider', 'orc', 'harpy', 'cultist', 'gargoyle'],  // 31-40
+    ['spider', 'orc', 'ghost', 'gargoyle', 'banshee', 'troll'],     // 41-50
+    ['orc', 'ghost', 'wraith', 'minotaur', 'hellhound', 'troll'],   // 51-60
+    ['ghost', 'wraith', 'golem', 'basilisk', 'hellhound', 'wisp'],  // 61-70
+    ['wraith', 'golem', 'demon', 'revenant', 'shade', 'basilisk'],  // 71-80
+    ['golem', 'demon', 'drake', 'revenant', 'shade', 'devourer'],   // 81-90
+    ['demon', 'drake', 'lich', 'devourer', 'shade', 'minotaur'],    // 91-100
 ];
 
 function getEnemyPool(floor: number): EnemyType[] {
@@ -161,19 +163,39 @@ function getEnemyPool(floor: number): EnemyType[] {
 
 function createEnemy(type: EnemyType, x: number, y: number, floor: number, isBoss: boolean): EnemyState {
     const scale = 1 + floor * 0.08;
+    // ATK values raised across the board — monsters are meant to threaten you
     const baseStats: Record<EnemyType, { hp: number; atk: number; def: number; spd: number; xp: number }> = {
-        slime: { hp: 15, atk: 3, def: 1, spd: 0.5, xp: 5 },
-        bat: { hp: 10, atk: 4, def: 0, spd: 1.2, xp: 4 },
-        skeleton: { hp: 25, atk: 6, def: 3, spd: 0.6, xp: 10 },
-        goblin: { hp: 20, atk: 5, def: 2, spd: 0.8, xp: 8 },
-        spider: { hp: 18, atk: 7, def: 2, spd: 1.0, xp: 12 },
-        ghost: { hp: 30, atk: 8, def: 4, spd: 0.7, xp: 15 },
-        orc: { hp: 40, atk: 10, def: 6, spd: 0.5, xp: 20 },
-        wraith: { hp: 35, atk: 12, def: 3, spd: 0.9, xp: 25 },
-        golem: { hp: 60, atk: 14, def: 12, spd: 0.3, xp: 35 },
-        demon: { hp: 50, atk: 16, def: 8, spd: 0.7, xp: 40 },
-        drake: { hp: 70, atk: 18, def: 10, spd: 0.6, xp: 50 },
-        lich: { hp: 55, atk: 20, def: 6, spd: 0.8, xp: 60 },
+        // --- original roster ---
+        slime: { hp: 18, atk: 5, def: 1, spd: 0.5, xp: 5 },
+        bat: { hp: 11, atk: 6, def: 0, spd: 1.4, xp: 4 },
+        skeleton: { hp: 28, atk: 9, def: 3, spd: 0.7, xp: 10 },
+        goblin: { hp: 22, atk: 8, def: 2, spd: 0.9, xp: 8 },
+        spider: { hp: 20, atk: 11, def: 2, spd: 1.1, xp: 12 },
+        ghost: { hp: 32, atk: 13, def: 4, spd: 0.8, xp: 15 },
+        orc: { hp: 46, atk: 16, def: 6, spd: 0.6, xp: 20 },
+        wraith: { hp: 38, atk: 19, def: 3, spd: 1.0, xp: 25 },
+        golem: { hp: 70, atk: 22, def: 12, spd: 0.35, xp: 35 },
+        demon: { hp: 56, atk: 25, def: 8, spd: 0.8, xp: 40 },
+        drake: { hp: 78, atk: 28, def: 10, spd: 0.7, xp: 50 },
+        lich: { hp: 60, atk: 32, def: 6, spd: 0.9, xp: 60 },
+
+        // --- expanded roster ---
+        rat: { hp: 8, atk: 4, def: 0, spd: 1.5, xp: 3 },
+        kobold: { hp: 16, atk: 7, def: 1, spd: 1.1, xp: 6 },
+        zombie: { hp: 34, atk: 8, def: 2, spd: 0.35, xp: 9 },       // slow, tanky
+        cultist: { hp: 24, atk: 12, def: 2, spd: 0.9, xp: 14 },      // glass cannon
+        harpy: { hp: 26, atk: 12, def: 1, spd: 1.5, xp: 16 },        // fast
+        gargoyle: { hp: 48, atk: 13, def: 11, spd: 0.45, xp: 22 },   // armoured
+        mimic: { hp: 40, atk: 20, def: 6, spd: 0.6, xp: 26 },        // ambusher
+        banshee: { hp: 30, atk: 18, def: 2, spd: 1.1, xp: 24 },
+        minotaur: { hp: 85, atk: 26, def: 9, spd: 0.75, xp: 45 },
+        basilisk: { hp: 62, atk: 24, def: 9, spd: 0.6, xp: 42 },
+        revenant: { hp: 66, atk: 27, def: 7, spd: 0.95, xp: 48 },
+        hellhound: { hp: 44, atk: 24, def: 5, spd: 1.5, xp: 38 },    // very fast
+        shade: { hp: 40, atk: 30, def: 3, spd: 1.2, xp: 52 },        // deadly, fragile
+        troll: { hp: 95, atk: 21, def: 8, spd: 0.45, xp: 40 },       // huge HP pool
+        wisp: { hp: 18, atk: 22, def: 0, spd: 1.7, xp: 30 },         // fast, squishy
+        devourer: { hp: 88, atk: 34, def: 11, spd: 0.8, xp: 70 },
     };
 
     const base = baseStats[type];
@@ -200,6 +222,16 @@ function createEnemy(type: EnemyType, x: number, y: number, floor: number, isBos
     };
 }
 
+/** Summon a weakened add during a boss fight. */
+export function createMinion(type: EnemyType, x: number, y: number, floor: number, hpScale: number): EnemyState {
+    const e = createEnemy(type, x, y, floor, false);
+    e.hp = Math.max(1, Math.floor(e.hp * hpScale));
+    e.maxHp = e.hp;
+    e.xpReward = Math.floor(e.xpReward * 0.5);
+    e.aggroRange = 14;
+    return e;
+}
+
 function createNPC(type: NPCType, x: number, y: number, floor: number): NPCState {
     const names: Record<NPCType, string> = {
         merchant: 'Travelling Merchant',
@@ -213,45 +245,74 @@ function createNPC(type: NPCType, x: number, y: number, floor: number): NPCState
     const dialogs: Record<NPCType, DialogNode[]> = {
         merchant: [
             {
-                text: `Welcome, adventurer! I have wares for you.`, options: [
+                text: `Welcome, adventurer! Buying or selling?`, options: [
                     { label: 'Health Potion (10g)', action: 'buy_hp', cost: 10, itemId: 'health_potion' },
                     { label: 'Greater Potion (30g)', action: 'buy_greater_hp', cost: 30, itemId: 'greater_health' },
                     { label: 'Escape Scroll (40g)', action: 'buy_escape', cost: 40, itemId: 'escape_scroll' },
+                    { label: 'More stock...', action: 'next' },
+                ]
+            },
+            {
+                text: 'The good stuff. And I buy gear, if you have any to shift.', options: [
+                    { label: 'Ultra Potion (80g)', action: 'buy_ultra_hp', cost: 80, itemId: 'ultra_health' },
+                    { label: 'Antidote (18g)', action: 'buy_antidote', cost: 18, itemId: 'antidote' },
+                    { label: 'Whetstone (45g)', action: 'buy_whetstone', cost: 45, itemId: 'whetstone' },
+                    { label: '💰 Sell gear', action: 'sell_gear' },
+                    { label: '🎒 Sell odds and ends', action: 'sell_junk' },
+                    { label: '◀ Back', action: 'prev' },
                     { label: 'Leave', action: 'close' },
                 ]
             },
         ],
         healer: [
-            { text: 'You look weary, traveler. Let me restore your strength.', options: [{ label: 'Heal me (free)', action: 'heal' }, { label: 'Leave', action: 'close' }] },
+            {
+                text: 'You look half-dead. I can mend that — for coin. Nothing here is free.', options: [
+                    { label: 'Full heal (price by wound)', action: 'heal' },
+                    { label: 'Quick patch-up (cheaper)', action: 'heal_partial' },
+                    { label: 'Buy Antidote (18g)', action: 'buy_antidote', cost: 18, itemId: 'antidote' },
+                    { label: 'Buy Phoenix Tear (200g)', action: 'buy_phoenix', cost: 200, itemId: 'phoenix_tear' },
+                    { label: 'Leave', action: 'close' },
+                ]
+            },
         ],
         sage: [
-            { text: `You have reached floor ${floor}. ${floor < 50 ? 'The deeper you go, the stronger the enemies.' : 'Few have ventured this deep.'}`, options: [{ label: 'Any advice?', action: 'hint' }, { label: 'Leave', action: 'close' }] },
+            {
+                text: `You have reached floor ${floor}. ${floor < 50 ? 'The deeper you go, the stronger the enemies.' : 'Few have ventured this deep.'}`, options: [
+                    { label: 'Any advice?', action: 'hint' },
+                    { label: 'Tell me about the bosses', action: 'lore_boss' },
+                    { label: 'What lies below?', action: 'lore_depth' },
+                    { label: 'Leave', action: 'close' },
+                ]
+            },
         ],
         cook: [
             {
                 text: 'Welcome to my kitchen! I cook food that gives you special powers. What would you like?', options: [
-                    { label: 'Bread (5g)', action: 'buy_bread', cost: 5, itemId: 'food_bread' },
-                    { label: 'Meat Stew (25g)', action: 'buy_stew', cost: 25, itemId: 'food_stew' },
-                    { label: 'Iron Soup (25g)', action: 'buy_soup', cost: 25, itemId: 'food_soup' },
-                    { label: 'Speed Salad (20g)', action: 'buy_salad', cost: 20, itemId: 'food_salad' },
+                    { label: 'Bread (5g)', action: 'buy_bread', cost: 5, itemId: 'bread' },
+                    { label: 'Meat Stew (25g)', action: 'buy_stew', cost: 25, itemId: 'meat_stew' },
+                    { label: 'Iron Soup (25g)', action: 'buy_soup', cost: 25, itemId: 'iron_soup' },
+                    { label: 'Speed Salad (20g)', action: 'buy_salad', cost: 20, itemId: 'speed_salad' },
                     { label: 'More food...', action: 'next' },
                 ]
             },
             {
                 text: 'Here are my specialty dishes!', options: [
-                    { label: 'Golden Pie (50g)', action: 'buy_pie', cost: 50, itemId: 'food_pie' },
-                    { label: 'Berry Smoothie (30g)', action: 'buy_smoothie', cost: 30, itemId: 'food_smoothie' },
-                    { label: 'Battle Cookie (40g)', action: 'buy_cookie', cost: 40, itemId: 'food_cookie' },
-                    { label: "Scholar's Tea (60g)", action: 'buy_tea', cost: 60, itemId: 'food_tea' },
-                    { label: 'Dragon Feast (100g)', action: 'buy_feast', cost: 100, itemId: 'food_feast' },
+                    { label: 'Golden Pie (50g)', action: 'buy_pie', cost: 50, itemId: 'golden_pie' },
+                    { label: 'Berry Smoothie (30g)', action: 'buy_smoothie', cost: 30, itemId: 'berry_smoothie' },
+                    { label: 'Battle Cookie (40g)', action: 'buy_cookie', cost: 40, itemId: 'battle_cookie' },
+                    { label: "Scholar's Tea (60g)", action: 'buy_tea', cost: 60, itemId: 'xp_tea' },
+                    { label: 'Dragon Feast (100g)', action: 'buy_feast', cost: 100, itemId: 'dragon_feast' },
+                    { label: '◀ Back to the menu', action: 'prev' },
                     { label: 'Leave', action: 'close' },
                 ]
             },
         ],
         fishmonger: [
             {
-                text: 'Ahoy! Want a fishing rod? Head to the pond south side to fish. Fish heal and give buffs!', options: [
+                text: 'Ahoy! Rod\'s for sale, river\'s to the east. And I buy every fish you pull out of it.', options: [
                     { label: 'Buy Fishing Rod (50g)', action: 'buy_rod', cost: 50, itemId: 'fishing_rod' },
+                    { label: '🐟 Sell me your catch', action: 'sell_fish' },
+                    { label: 'Where do I fish?', action: 'fish_hint' },
                     { label: 'Leave', action: 'close' },
                 ]
             },
@@ -262,27 +323,37 @@ function createNPC(type: NPCType, x: number, y: number, floor: number): NPCState
                     { label: 'Watering Can (40g)', action: 'buy_can', cost: 40, itemId: 'watering_can' },
                     { label: 'Wheat Seed (5g)', action: 'buy_wheat_seed', cost: 5, itemId: 'wheat_seed' },
                     { label: 'Berry Seed (8g)', action: 'buy_berry_seed', cost: 8, itemId: 'berry_seed' },
+                    { label: 'More seeds...', action: 'next' },
+                ]
+            },
+            {
+                text: 'The rare stock. And I\'ll take produce off your hands.', options: [
                     { label: 'Golden Seed (20g)', action: 'buy_golden_seed', cost: 20, itemId: 'golden_seed' },
                     { label: 'Dragon Seed (50g)', action: 'buy_dragon_seed', cost: 50, itemId: 'dragon_seed' },
+                    { label: '🌾 Sell produce', action: 'sell_crops' },
+                    { label: '◀ Back', action: 'prev' },
                     { label: 'Leave', action: 'close' },
                 ]
             },
         ],
         blacksmith: [
             {
-                text: '⚒️ Welcome to the forge! I sell weapons and can FORGE two weapons into one mighty creation! What\'ll it be?', options: [
+                text: '⚒️ Welcome to the forge! I sell steel, I forge steel, and I buy any blade you have no use for.', options: [
                     { label: 'Iron Sword (30g)', action: 'buy_iron_sword', cost: 30, itemId: 'iron_sword' },
                     { label: 'Short Bow (25g)', action: 'buy_short_bow', cost: 25, itemId: 'short_bow' },
                     { label: 'Bone Axe (20g)', action: 'buy_bone_axe', cost: 20, itemId: 'bone_axe' },
+                    { label: '💰 Sell me your weapons', action: 'sell_gear' },
                     { label: 'More weapons...', action: 'next' },
                 ]
             },
             {
-                text: '⚒️ My finer wares! Or step up to the forge and combine two weapons into something powerful!', options: [
+                text: '⚒️ My finer wares. The forge takes weapons, armour and rings — two of a kind, and mind the cap: +3 without a Limit Breaker.', options: [
                     { label: 'Steel Sword (80g)', action: 'buy_steel_sword', cost: 80, itemId: 'steel_sword' },
                     { label: 'War Axe (90g)', action: 'buy_war_axe', cost: 90, itemId: 'war_axe' },
                     { label: 'Long Bow (75g)', action: 'buy_long_bow', cost: 75, itemId: 'long_bow' },
                     { label: '🔥 OPEN THE FORGE!', action: 'open_forge' },
+                    { label: '⚔️ Sell gear', action: 'sell_gear' },
+                    { label: '◀ Back', action: 'prev' },
                     { label: 'Leave', action: 'close' },
                 ]
             },
@@ -296,7 +367,289 @@ function createNPC(type: NPCType, x: number, y: number, floor: number): NPCState
     };
 }
 
+// ===== ROOM ARCHETYPES =====
+// library  — a free skill point, once
+// vault    — locked; costs a key, holds guaranteed good loot
+// shrine   — a lasting blessing at a price in blood
+// ambush   — walking in seals it and spawns a wave
+// hoard    — piles of loot with elites standing on them
+function assignRoomKinds(
+    rooms: Room[],
+    tiles: TileType[][],
+    floor: number,
+    chests: ChestState[],
+): void {
+    // Never touch the first (spawn) or last (stairs / boss) room
+    const candidates = rooms.slice(1, Math.max(1, rooms.length - 1));
+    if (candidates.length === 0) return;
+
+    // Deeper floors host more of them
+    const wanted = Math.min(candidates.length, 1 + Math.floor(floor / 25) + (rng() < 0.4 ? 1 : 0));
+
+    const pool: RoomKind[] = ['library', 'vault', 'shrine', 'ambush', 'hoard'];
+    // Libraries thin out once you are drowning in skill points
+    if (floor > 60) pool.push('vault', 'hoard', 'ambush');
+
+    const taken = new Set<number>();
+    for (let n = 0; n < wanted; n++) {
+        let idx = -1;
+        for (let attempt = 0; attempt < 10; attempt++) {
+            const i = Math.floor(rng() * candidates.length);
+            if (!taken.has(i)) { idx = i; break; }
+        }
+        if (idx < 0) break;
+        taken.add(idx);
+
+        const room = candidates[idx];
+        const kind = pool[Math.floor(rng() * pool.length)];
+        room.kind = kind;
+        room.used = false;
+
+        const cx = room.x + Math.floor(room.w / 2);
+        const cy = room.y + Math.floor(room.h / 2);
+
+        switch (kind) {
+            case 'vault': {
+                // Two chests behind the cost of a key
+                for (const dx of [-1, 1]) {
+                    const vx = cx + dx;
+                    if (tiles[cy]?.[vx] === 'FLOOR') {
+                        tiles[cy][vx] = 'CHEST';
+                        chests.push({ x: vx, y: cy, opened: false });
+                    }
+                }
+                break;
+            }
+            case 'hoard': {
+                // A scatter of chests, guarded
+                let placed = 0;
+                for (let a = 0; a < 14 && placed < 3; a++) {
+                    const hx = room.x + 1 + Math.floor(rng() * (room.w - 2));
+                    const hy = room.y + 1 + Math.floor(rng() * (room.h - 2));
+                    if (tiles[hy]?.[hx] === 'FLOOR') {
+                        tiles[hy][hx] = 'CHEST';
+                        chests.push({ x: hx, y: hy, opened: false });
+                        placed++;
+                    }
+                }
+                break;
+            }
+            case 'ambush':
+                // Nothing on the map — the trap is the room itself
+                break;
+            case 'library':
+            case 'shrine':
+                // Marked visually at render time from room.kind
+                break;
+        }
+    }
+}
+
+// ===================================================================
+// UNDERWORLD CAVES (floors 101-150)
+// Cellular automata instead of BSP: no corridors, no right angles, just
+// chambers that open into each other. It should not feel like Dungeon 1.
+// ===================================================================
+function carveCaves(w: number, h: number, fillChance: number, steps: number): boolean[][] {
+    // true = solid rock
+    let grid: boolean[][] = Array.from({ length: h }, (_, y) =>
+        Array.from({ length: w }, (_, x) =>
+            (x < 2 || y < 2 || x >= w - 2 || y >= h - 2) ? true : rng() < fillChance));
+
+    const solidNeighbours = (g: boolean[][], x: number, y: number): number => {
+        let n = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                if (dx === 0 && dy === 0) continue;
+                const nx = x + dx, ny = y + dy;
+                if (nx < 0 || ny < 0 || nx >= w || ny >= h) { n++; continue; }
+                if (g[ny][nx]) n++;
+            }
+        }
+        return n;
+    };
+
+    for (let s = 0; s < steps; s++) {
+        const next: boolean[][] = grid.map(r => r.slice());
+        for (let y = 1; y < h - 1; y++) {
+            for (let x = 1; x < w - 1; x++) {
+                const n = solidNeighbours(grid, x, y);
+                // Classic 4-5 rule: rock stays rock with 4+, floor fills at 5+
+                next[y][x] = grid[y][x] ? n >= 4 : n >= 5;
+            }
+        }
+        grid = next;
+    }
+    return grid;
+}
+
+/** Flood fill from a seed, returning every reachable open tile. */
+function floodRegion(solid: boolean[][], sx: number, sy: number, seen: boolean[][]): Position[] {
+    const h = solid.length, w = solid[0].length;
+    const out: Position[] = [];
+    const stack: Position[] = [{ x: sx, y: sy }];
+    seen[sy][sx] = true;
+    while (stack.length) {
+        const p = stack.pop()!;
+        out.push(p);
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as number[][]) {
+            const nx = p.x + dx, ny = p.y + dy;
+            if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+            if (seen[ny][nx] || solid[ny][nx]) continue;
+            seen[ny][nx] = true;
+            stack.push({ x: nx, y: ny });
+        }
+    }
+    return out;
+}
+
+function generateUnderworldFloor(floor: number): DungeonFloor {
+    const depth = floor - 100;
+    const w = 52 + Math.floor(depth * 0.4);
+    const h = 40 + Math.floor(depth * 0.3);
+
+    // Deeper caves are tighter and more broken up
+    const solid = carveCaves(w, h, 0.45 + Math.min(0.06, depth * 0.001), 5);
+
+    // Keep only the largest cavern so nothing is stranded
+    const seen = createBoolGrid(w, h, false);
+    let best: Position[] = [];
+    for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+            if (solid[y][x] || seen[y][x]) continue;
+            const region = floodRegion(solid, x, y, seen);
+            if (region.length > best.length) best = region;
+        }
+    }
+    // Anything outside the main cavern becomes rock again
+    const open = new Set(best.map(p => `${p.x},${p.y}`));
+    const tiles = createGrid(w, h, 'WALL');
+    for (const p of best) tiles[p.y][p.x] = 'FLOOR';
+
+    // Fallback: if the automata produced almost nothing, bail to a plain room
+    if (best.length < 80) {
+        for (let y = 2; y < h - 2; y++) for (let x = 2; x < w - 2; x++) tiles[y][x] = 'FLOOR';
+        best = [];
+        for (let y = 2; y < h - 2; y++) for (let x = 2; x < w - 2; x++) best.push({ x, y });
+    }
+
+    const pickOpen = (): Position => best[Math.floor(rng() * best.length)];
+
+    // Stairs at opposite ends of the cavern
+    let up = pickOpen();
+    let down = pickOpen();
+    for (let i = 0; i < 60; i++) {
+        const a = pickOpen(), b = pickOpen();
+        if (Math.abs(a.x - b.x) + Math.abs(a.y - b.y) >
+            Math.abs(up.x - down.x) + Math.abs(up.y - down.y)) { up = a; down = b; }
+    }
+    tiles[up.y][up.x] = 'STAIRS_UP';
+    tiles[down.y][down.x] = 'STAIRS_DOWN';
+
+    // Lakes of whatever the biome bleeds — impassable, forcing detours
+    const lakeCount = 2 + Math.floor(rng() * 3);
+    for (let i = 0; i < lakeCount; i++) {
+        const c = pickOpen();
+        const r = 2 + Math.floor(rng() * 3);
+        for (let y = c.y - r; y <= c.y + r; y++) {
+            for (let x = c.x - r; x <= c.x + r; x++) {
+                if (!open.has(`${x},${y}`)) continue;
+                if (tiles[y]?.[x] !== 'FLOOR') continue;
+                const d = Math.hypot(x - c.x, y - c.y);
+                if (d <= r - 0.4) tiles[y][x] = 'WATER';
+            }
+        }
+    }
+    // Never seal the stairs behind a lake
+    tiles[up.y][up.x] = 'STAIRS_UP';
+    tiles[down.y][down.x] = 'STAIRS_DOWN';
+
+    // Chests tucked in dead ends
+    const chests: ChestState[] = [];
+    for (let i = 0; i < 2 + Math.floor(rng() * 3); i++) {
+        const c = pickOpen();
+        if (tiles[c.y][c.x] === 'FLOOR') {
+            tiles[c.y][c.x] = 'CHEST';
+            chests.push({ x: c.x, y: c.y, opened: false });
+        }
+    }
+
+    // Spikes instead of neat traps — the cave floor is hostile
+    for (let i = 0; i < 10 + depth; i++) {
+        const c = pickOpen();
+        if (tiles[c.y][c.x] === 'FLOOR') tiles[c.y][c.x] = rng() < 0.6 ? 'SPIKES' : 'TRAP';
+    }
+
+    // Enemies
+    const enemies: EnemyState[] = [];
+    const pool = getEnemyPool(floor);
+    const count = 12 + Math.floor(depth * 0.7);
+    for (let i = 0; i < count; i++) {
+        const c = pickOpen();
+        if (tiles[c.y][c.x] !== 'FLOOR') continue;
+        if (Math.abs(c.x - up.x) + Math.abs(c.y - up.y) < 6) continue;
+        const type = pool[Math.floor(rng() * pool.length)];
+        const e = createEnemy(type, c.x, c.y, floor, false);
+        const elite = rollEliteModifier(floor);
+        if (elite) {
+            e.isElite = true;
+            e.eliteModifier = elite.modifier;
+            e.eliteColor = elite.color;
+            e.eliteName = elite.name;
+            e.eliteXpMult = elite.xpMult;
+            e.eliteGoldMult = elite.goldMult;
+            e.hp = Math.floor(e.hp * elite.statMult.hp);
+            e.maxHp = e.hp;
+            e.atk = Math.floor(e.atk * elite.statMult.atk);
+            e.def = Math.floor(e.def * elite.statMult.def);
+            e.xpReward = Math.floor(e.xpReward * elite.xpMult);
+        }
+        enemies.push(e);
+    }
+
+    // Boss every 10 levels
+    if (floor % 10 === 0) {
+        const def = getBossDef(floor);
+        const bossType = def ? def.baseType : pool[pool.length - 1];
+        const boss = createEnemy(bossType, down.x, down.y, floor, true);
+        if (def) {
+            boss.hp = Math.floor(boss.hp * def.hpMult);
+            boss.maxHp = boss.hp;
+            boss.atk = Math.floor(boss.atk * def.atkMult);
+        }
+        enemies.push(boss);
+    }
+
+    const explored = createBoolGrid(w, h, false);
+    const visible = createBoolGrid(w, h, false);
+    const biome = getBiome(floor);
+
+    // A single notional room covering the cavern, so room-event code is happy
+    const rooms: Room[] = [{ x: 1, y: 1, w: w - 2, h: h - 2, kind: 'plain' }];
+
+    const result: DungeonFloor = {
+        width: w, height: h, tiles, rooms, explored, visible,
+        enemies, npcs: [], items: [] as DroppedItem[],
+        stairsDown: down, stairsUp: up, chests,
+        biome: biome.name,
+        region: 'underworld',
+    };
+
+    if (floor % 10 === 0) {
+        const arena = carveBossArena(result, floor, rng);
+        if (arena) result.arena = arena;
+    }
+
+    return result;
+}
+
 export function generateFloor(floor: number): DungeonFloor {
+    // Dungeon 2 uses an entirely different generator
+    if (floor > 100) return generateUnderworldFloor(floor);
+    return generateBSPFloor(floor);
+}
+
+function generateBSPFloor(floor: number): DungeonFloor {
     const w = 40 + Math.floor(floor * 0.3);
     const h = 30 + Math.floor(floor * 0.2);
     const tiles = createGrid(w, h, 'WALL');
@@ -367,9 +720,9 @@ export function generateFloor(floor: number): DungeonFloor {
         }
     }
 
-    // Spawn enemies
+    // Spawn enemies — denser than before so floors feel populated
     const enemies: EnemyState[] = [];
-    const enemyCount = 3 + Math.floor(floor * 0.5 + rng() * 5);
+    const enemyCount = 7 + Math.floor(floor * 0.8 + rng() * 7);
     const pool = getEnemyPool(floor);
 
     for (let i = 0; i < enemyCount; i++) {
@@ -403,18 +756,22 @@ export function generateFloor(floor: number): DungeonFloor {
         }
     }
 
-    // Boss every 10 floors
+    // Boss every 10 floors — spawned here, then relocated into its arena below
     if (floor % 10 === 0 && rooms.length > 1) {
         const bossRoom = rooms[rooms.length - 1];
         const bc = getRoomCenter(bossRoom);
-        // Boss is placed near stairs down
         const bx = Math.min(bc.x + 2, bossRoom.x + bossRoom.w - 2);
         const by = bc.y;
-        if (tiles[by][bx] === 'FLOOR') {
-            const bossPool = getEnemyPool(floor);
-            const bossType = bossPool[bossPool.length - 1]; // strongest type for this range
-            enemies.push(createEnemy(bossType, bx, by, floor, true));
+        const def = getBossDef(floor);
+        const bossPool = getEnemyPool(floor);
+        const bossType = def ? def.baseType : bossPool[bossPool.length - 1];
+        const boss = createEnemy(bossType, bx, by, floor, true);
+        if (def) {
+            boss.hp = Math.floor(boss.hp * def.hpMult);
+            boss.maxHp = boss.hp;
+            boss.atk = Math.floor(boss.atk * def.atkMult);
         }
+        enemies.push(boss);
     }
 
     // Spawn NPCs (one per floor, random type)
@@ -488,57 +845,97 @@ export function generateFloor(floor: number): DungeonFloor {
         isTrapRoom = true;
     }
 
+    // ===== ROOM ARCHETYPES =====
+    // Every floor seeds a couple of special rooms so exploring off the
+    // critical path is worth doing.
+    assignRoomKinds(rooms, tiles, floor, chests);
+
     // Biome
     const biome = getBiome(floor);
 
-    return {
+    const result: DungeonFloor = {
         width: w, height: h, tiles, rooms, explored, visible,
         enemies, npcs, items: [] as DroppedItem[], stairsDown, stairsUp, chests,
         biome: biome.name,
         hasSecretRoom,
         isTrapRoom,
     };
+
+    // Boss floors get a purpose-built arena grafted onto the south edge
+    if (floor % 10 === 0) {
+        const arena = carveBossArena(result, floor, rng);
+        if (arena) result.arena = arena;
+    }
+
+    return result;
 }
 
 export function isWalkable(tiles: TileType[][], x: number, y: number): boolean {
     if (y < 0 || y >= tiles.length || x < 0 || x >= tiles[0].length) return false;
     const t = tiles[y][x];
-    return t !== 'WALL' && t !== 'WATER' && t !== 'BUILDING' && t !== 'TREE' && t !== 'SECRET_WALL';
+    return t !== 'WALL' && t !== 'WATER' && t !== 'BUILDING' && t !== 'TREE' && t !== 'SECRET_WALL'
+        && t !== 'PILLAR' && t !== 'BOSS_GATE_SEALED' && t !== 'FORGE' && t !== 'ANVIL'
+        // World props block until they are dealt with
+        && t !== 'RUBBLE' && t !== 'BRIDGE_BROKEN' && t !== 'PORTAL_BROKEN' && t !== 'RUSH_GATE'
+        // City scenery
+        && t !== 'CITY_BUILDING' && t !== 'LAMP' && t !== 'PLANTER';
 }
 
-export function generateTown(): DungeonFloor {
-    const w = 32, h = 28;
+export function generateTown(unlocks?: { landslide: boolean; bridge: boolean }): DungeonFloor {
+    const w = 56, h = 44;
     const tiles = createGrid(w, h, 'GRASS');
     // Border of trees
     for (let x = 0; x < w; x++) { tiles[0][x] = 'TREE'; tiles[h - 1][x] = 'TREE'; }
     for (let y = 0; y < h; y++) { tiles[y][0] = 'TREE'; tiles[y][w - 1] = 'TREE'; }
     // Extra trees in corners
     for (let i = 1; i < 4; i++) { tiles[1][i] = 'TREE'; tiles[1][w - 1 - i] = 'TREE'; tiles[h - 2][i] = 'TREE'; tiles[h - 2][w - 1 - i] = 'TREE'; }
+
+    // ===== RIVER =====
+    // A river runs top-to-bottom down the east side of town, well clear of the
+    // smithy. It meanders slightly so it doesn't read as a canal.
+    const riverBank: number[] = [];
+    for (let y = 1; y < h - 1; y++) {
+        const cx = 29 + Math.round(Math.sin(y * 0.45) * 1.2);
+        riverBank[y] = cx;
+        for (let x = cx - 1; x <= cx + 1; x++) {
+            if (x > 0 && x < w - 1) tiles[y][x] = 'WATER';
+        }
+    }
+    // Fishing spots along the bank
+    for (const fy of [6, 11, 17, 22]) {
+        tiles[fy][riverBank[fy]] = 'FISH_SPOT';
+    }
+    // Bridge across the river on the main east-west road
+    for (let x = riverBank[13] - 2; x <= riverBank[13] + 2; x++) {
+        if (x > 0 && x < w - 1) { tiles[13][x] = 'BRIDGE'; tiles[14][x] = 'BRIDGE'; }
+    }
+
     // Main path (cross shape)
-    for (let x = 4; x < w - 4; x++) { tiles[13][x] = 'PATH'; tiles[14][x] = 'PATH'; }
+    for (let x = 4; x < riverBank[13] - 2; x++) { tiles[13][x] = 'PATH'; tiles[14][x] = 'PATH'; }
     for (let y = 4; y < h - 4; y++) { tiles[y][15] = 'PATH'; tiles[y][16] = 'PATH'; }
     // Entry point at bottom
     tiles[h - 2][15] = 'PATH'; tiles[h - 2][16] = 'PATH';
     tiles[h - 1][15] = 'PATH'; tiles[h - 1][16] = 'PATH';
+
     // Cook shop (top left building, 5x4)
     for (let y = 4; y < 8; y++) for (let x = 4; x < 9; x++) tiles[y][x] = 'BUILDING';
     tiles[7][6] = 'PATH'; // door
     // Flowers around cook
     tiles[8][4] = 'FLOWER'; tiles[8][5] = 'FLOWER'; tiles[8][8] = 'FLOWER';
-    // Fish shop (top right building, 5x4)
-    for (let y = 4; y < 8; y++) for (let x = 22; x < 27; x++) tiles[y][x] = 'BUILDING';
-    tiles[7][24] = 'PATH'; // door
-    // Fishing pond (right side, 6x4)
-    for (let y = 16; y < 20; y++) for (let x = 22; x < 28; x++) tiles[y][x] = 'WATER';
-    tiles[16][23] = 'FISH_SPOT'; tiles[16][25] = 'FISH_SPOT'; tiles[19][24] = 'FISH_SPOT';
+
+    // Fish shop (top right, beside the river)
+    for (let y = 4; y < 8; y++) for (let x = 21; x < 26; x++) tiles[y][x] = 'BUILDING';
+    tiles[7][23] = 'PATH'; // door
+    for (let y = 8; y < 14; y++) { tiles[y][23] = 'PATH'; }
+
     // Farm shop (left side building)
     for (let y = 17; y < 21; y++) for (let x = 4; x < 9; x++) tiles[y][x] = 'BUILDING';
     tiles[17][6] = 'PATH'; // door
-    // Farm crop plots (left side, 3x4 grid of crops)
+    // Farm crop plots
     for (let y = 22; y < 25; y++) for (let x = 4; x < 12; x++) tiles[y][x] = 'CROP';
     // Flowers and decorations
-    tiles[10][8] = 'FLOWER'; tiles[10][22] = 'FLOWER';
-    tiles[12][10] = 'FLOWER'; tiles[12][20] = 'FLOWER';
+    tiles[10][8] = 'FLOWER'; tiles[10][20] = 'FLOWER';
+    tiles[12][10] = 'FLOWER'; tiles[12][19] = 'FLOWER';
     // Fence around farm (with gate opening)
     for (let x = 3; x < 13; x++) tiles[21][x] = 'FENCE';
     tiles[21][7] = 'PATH'; tiles[21][8] = 'PATH'; // Farm gate
@@ -547,31 +944,113 @@ export function generateTown(): DungeonFloor {
     // Path leading to farm gate
     for (let y = 14; y < 22; y++) { tiles[y][7] = 'PATH'; tiles[y][8] = 'PATH'; }
 
-    // ===== BLACKSMITH BUILDING (bottom right, 7x5 — bigger!) =====
-    for (let y = 20; y < 25; y++) for (let x = 20; x < 27; x++) tiles[y][x] = 'BUILDING';
-    tiles[20][23] = 'PATH'; // door
-    // Anvil marker next to building (just a path tile with anvil nearby)
-    tiles[19][23] = 'PATH';
-    tiles[19][22] = 'PATH'; tiles[19][24] = 'PATH';
-    // Path connecting blacksmith to main road
-    for (let y = 14; y < 20; y++) { tiles[y][23] = 'PATH'; tiles[y][24] = 'PATH'; }
-    // Decorative fence around blacksmith
-    tiles[25][20] = 'FENCE'; tiles[25][21] = 'FENCE'; tiles[25][22] = 'FENCE';
-    tiles[25][24] = 'FENCE'; tiles[25][25] = 'FENCE'; tiles[25][26] = 'FENCE';
+    // ===== SMITHY (dry ground, no water anywhere near it) =====
+    // Workshop building
+    for (let y = 21; y < 26; y++) for (let x = 19; x < 26; x++) tiles[y][x] = 'BUILDING';
+    tiles[21][22] = 'PATH'; // door
 
-    // Stairs back to dungeon (entry point)
+    // Open-air working yard in front of the workshop
+    for (let y = 17; y < 21; y++) for (let x = 18; x < 27; x++) tiles[y][x] = 'PATH';
+    // The forge hearth against the workshop wall, with the anvil in front of it
+    tiles[17][20] = 'FORGE';
+    tiles[17][21] = 'FORGE';
+    tiles[19][21] = 'ANVIL';
+    // Quench barrel and rack flank the anvil
+    tiles[19][24] = 'FENCE';
+    tiles[17][25] = 'FENCE';
+    // Road from the crossroads to the yard
+    for (let y = 14; y < 18; y++) { tiles[y][19] = 'PATH'; tiles[y][20] = 'PATH'; }
+
+    // ===================================================================
+    // THE LOWER TOWN — everything south of the old map edge
+    // ===================================================================
+
+    // South road continuing from the crossroads down to the new district
+    for (let y = 14; y < h - 2; y++) { tiles[y][15] = 'PATH'; tiles[y][16] = 'PATH'; }
+
+    // --- Market row (west side) ---
+    for (let y = 29; y < 34; y++) for (let x = 5; x < 12; x++) tiles[y][x] = 'BUILDING';
+    tiles[33][8] = 'PATH';
+    for (let y = 34; y < 38; y++) { tiles[y][8] = 'PATH'; }
+    for (let x = 8; x < 16; x++) { tiles[37][x] = 'PATH'; tiles[38][x] = 'PATH'; }
+    // Market stalls and planters
+    tiles[35][5] = 'FENCE'; tiles[35][6] = 'FENCE'; tiles[35][11] = 'FENCE';
+    tiles[28][6] = 'FLOWER'; tiles[28][10] = 'FLOWER'; tiles[36][12] = 'FLOWER';
+
+    // --- Wooded common (south) ---
+    for (const [tx, ty] of [[4, 40], [7, 41], [11, 40], [19, 41], [23, 40], [12, 27], [3, 33]] as number[][]) {
+        if (ty < h - 1 && tx < w - 1) tiles[ty][tx] = 'TREE';
+    }
+
+    // --- Landslide: a spill of rock burying the east road to the colosseum ---
+    // Two tiles thick so it reads as a wall of debris, not a pebble.
+    const slideY = 30;
+    for (let x = 20; x < 27; x++) {
+        tiles[slideY][x] = 'RUBBLE';
+        tiles[slideY + 1][x] = 'RUBBLE';
+    }
+    // Road approaching the slide from the crossroads
+    for (let y = 26; y < slideY; y++) { tiles[y][22] = 'PATH'; tiles[y][23] = 'PATH'; }
+    // Road beyond it, up to the colosseum gate
+    for (let y = slideY + 2; y < 36; y++) { tiles[y][22] = 'PATH'; tiles[y][23] = 'PATH'; }
+
+    // --- Colosseum (boss rush) at the far south-east ---
+    for (let y = 36; y < 42; y++) for (let x = 18; x < 28; x++) tiles[y][x] = 'BUILDING';
+    tiles[36][22] = 'RUSH_GATE';
+    tiles[36][23] = 'RUSH_GATE';
+    // Banner posts flanking the gate
+    tiles[35][20] = 'FENCE'; tiles[35][25] = 'FENCE';
+
+    // If the landslide is already cleared, the road is open
+    if (unlocks?.landslide) {
+        for (let x = 20; x < 27; x++) {
+            tiles[slideY][x] = 'PATH';
+            tiles[slideY + 1][x] = 'PATH';
+        }
+    }
+
+    // --- The broken bridge on the far bank, north-east ---
+    // It reaches out over the river and stops in mid-air.
+    const bridgeY = 8;
+    const bankX = riverBank[bridgeY];
+    for (let x = bankX - 3; x <= bankX + 3; x++) {
+        if (x > 0 && x < w - 1) {
+            tiles[bridgeY][x] = unlocks?.bridge ? 'BRIDGE' : 'BRIDGE_BROKEN';
+        }
+    }
+    // Approach path from the fish shop road
+    for (let x = 24; x < bankX - 2; x++) tiles[bridgeY][x] = 'PATH';
+    for (let y = bridgeY; y < 14; y++) tiles[y][25] = 'PATH';
+    // Once repaired, the far side has a road running to the Underworld stair
+    if (unlocks?.bridge) {
+        for (let x = bankX + 4; x < w - 4; x++) tiles[bridgeY][x] = 'PATH';
+        tiles[bridgeY][w - 4] = 'STAIRS_DOWN';   // the descent into Dungeon 2
+    } else {
+        // Otherwise the far bank is just overgrown
+        for (const ty of [bridgeY - 1, bridgeY + 1, bridgeY + 2]) {
+            for (let x = bankX + 4; x < w - 3; x += 3) {
+                if (ty > 0 && ty < h - 1) tiles[ty][x] = 'TREE';
+            }
+        }
+    }
+
+    // Stairs back to dungeon 1 (entry point)
     const stairsUp: Position = { x: 15, y: h - 3 };
     tiles[stairsUp.y][stairsUp.x] = 'STAIRS_DOWN';
     const stairsDown: Position = { x: 16, y: h - 3 };
+    tiles[h - 3][16] = 'PATH';
     // NPCs
     const npcs: NPCState[] = [
         createNPC('cook', 6, 9, 0),
-        createNPC('fishmonger', 24, 9, 0),
+        createNPC('fishmonger', 23, 9, 0),
         createNPC('farmer', 6, 16, 0),
         createNPC('healer', 14, 12, 0),
         createNPC('merchant', 18, 12, 0),
         createNPC('sage', 16, 10, 0),
-        createNPC('blacksmith', 23, 18, 0),
+        createNPC('blacksmith', 22, 19, 0),
+        // Lower town gets its own traders
+        createNPC('merchant', 9, 35, 0),
+        createNPC('healer', 13, 37, 0),
     ];
     const explored = createBoolGrid(w, h, true);
     const visible = createBoolGrid(w, h, true);
@@ -579,5 +1058,112 @@ export function generateTown(): DungeonFloor {
         width: w, height: h, tiles, rooms: [], explored, visible,
         enemies: [], npcs, items: [], stairsDown, stairsUp, chests: [],
         isTown: true,
+        region: 'town',
+    };
+}
+
+// ===================================================================
+// THE CITY — reached with a City Scroll once the hub portal is repaired
+// ===================================================================
+/** The City smith trades in rare and epic goods and runs the master forge. */
+function createCityBlacksmith(x: number, y: number): NPCState {
+    const npc = createNPC('blacksmith', x, y, 0);
+    npc.name = 'Master Smith Aurel';
+    npc.dialog = [
+        {
+            text: '🏙️ City work. Rare steel, epic commissions, and a forge that takes a piece to +4 without breaking a sweat. What do you need?',
+            options: [
+                { label: "Guardsman's Blade (400g)", action: 'buy_guardsman', cost: 400, itemId: 'guardsman_blade' },
+                { label: "Duelist's Rapier (430g)", action: 'buy_rapier', cost: 430, itemId: 'duelist_rapier' },
+                { label: 'Civic Plate (780g)', action: 'buy_civic_plate', cost: 780, itemId: 'civic_plate' },
+                { label: 'Epic commissions...', action: 'next' },
+            ],
+        },
+        {
+            text: 'Epic work — and if you carry a Limit Breaker, I can take a piece past +4. That is MYTHIC, and nowhere else can do it.',
+            options: [
+                { label: 'Clocksprung Bow (820g)', action: 'buy_clockbow', cost: 820, itemId: 'clocksprung_bow' },
+                { label: "Lamplighter's Staff (850g)", action: 'buy_lampstaff', cost: 850, itemId: 'lamplighters_staff' },
+                { label: "Magistrate's Maul (900g)", action: 'buy_maul', cost: 900, itemId: 'magistrates_maul' },
+                { label: 'Signet of Office (700g)', action: 'buy_signet', cost: 700, itemId: 'signet_of_office' },
+                { label: '🔥 THE MASTER FORGE', action: 'open_city_forge' },
+                { label: '⚔️ Sell me your gear', action: 'sell_gear' },
+                { label: '◀ Back', action: 'prev' },
+                { label: 'Leave', action: 'close' },
+            ],
+        },
+    ];
+    return npc;
+}
+
+export function generateCity(): DungeonFloor {
+    const w = 44, h = 34;
+    const tiles = createGrid(w, h, 'CITY_FLOOR');
+
+    // Outer wall of buildings
+    for (let x = 0; x < w; x++) { tiles[0][x] = 'CITY_BUILDING'; tiles[h - 1][x] = 'CITY_BUILDING'; }
+    for (let y = 0; y < h; y++) { tiles[y][0] = 'CITY_BUILDING'; tiles[y][w - 1] = 'CITY_BUILDING'; }
+
+    // City blocks — a grid, because someone planned this place
+    const block = (bx: number, by: number, bw: number, bh: number, doorX: number) => {
+        for (let y = by; y < by + bh; y++) {
+            for (let x = bx; x < bx + bw; x++) {
+                if (y > 0 && y < h - 1 && x > 0 && x < w - 1) tiles[y][x] = 'CITY_BUILDING';
+            }
+        }
+        if (by + bh < h - 1) tiles[by + bh - 1][doorX] = 'CITY_FLOOR';
+    };
+    block(3, 3, 8, 6, 6);
+    block(15, 3, 9, 6, 19);
+    block(28, 3, 12, 6, 33);
+    block(3, 14, 8, 7, 6);
+    block(28, 14, 12, 7, 33);
+    block(3, 26, 10, 5, 7);
+    block(18, 26, 10, 5, 22);
+    block(32, 26, 8, 5, 35);
+
+    // Boulevards: wide central avenue and a cross street
+    for (let y = 1; y < h - 1; y++) { tiles[y][12] = 'CITY_FLOOR'; tiles[y][13] = 'CITY_FLOOR'; tiles[y][14] = 'CITY_FLOOR'; }
+    for (let x = 1; x < w - 1; x++) { tiles[11][x] = 'CITY_FLOOR'; tiles[12][x] = 'CITY_FLOOR'; tiles[23][x] = 'CITY_FLOOR'; }
+
+    // Street lamps down the avenue and along the cross street
+    for (let y = 4; y < h - 3; y += 5) { tiles[y][11] = 'LAMP'; tiles[y + 2][15] = 'LAMP'; }
+    for (let x = 6; x < w - 4; x += 7) { tiles[10][x] = 'LAMP'; tiles[24][x] = 'LAMP'; }
+
+    // Planters and a small civic square
+    for (const [px, py] of [[17, 13], [20, 13], [17, 21], [20, 21], [26, 13], [26, 21]] as number[][]) {
+        tiles[py][px] = 'PLANTER';
+    }
+
+    // The master smithy: a proper workshop with a double hearth
+    for (let y = 15; y < 21; y++) for (let x = 17; x < 25; x++) tiles[y][x] = 'CITY_BUILDING';
+    tiles[20][20] = 'CITY_FLOOR';
+    tiles[14][19] = 'FORGE';
+    tiles[14][20] = 'FORGE';
+    tiles[14][21] = 'FORGE';
+    tiles[16][20] = 'ANVIL';
+
+    // Return portal home, at the top of the avenue
+    tiles[2][13] = 'PORTAL';
+
+    const stairsUp: Position = { x: 13, y: 3 };
+    const stairsDown: Position = { x: 13, y: 3 };
+
+    const npcs: NPCState[] = [
+        createCityBlacksmith(20, 13),
+        createNPC('merchant', 8, 12, 0),
+        createNPC('healer', 31, 12, 0),
+        createNPC('sage', 13, 24, 0),
+        createNPC('cook', 22, 24, 0),
+        createNPC('fishmonger', 35, 24, 0),
+    ];
+
+    const explored = createBoolGrid(w, h, true);
+    const visible = createBoolGrid(w, h, true);
+    return {
+        width: w, height: h, tiles, rooms: [], explored, visible,
+        enemies: [], npcs, items: [], stairsDown, stairsUp, chests: [],
+        isTown: true,
+        region: 'city',
     };
 }

@@ -62,6 +62,21 @@ export function renderMinimap(floor: DungeonFloor, player: PlayerState, remotePl
                 case 'TRAP':
                     ctx.fillStyle = isVisible ? '#a33' : '#665';
                     break;
+                case 'ARENA_FLOOR':
+                    ctx.fillStyle = '#7a5c8a';
+                    break;
+                case 'PILLAR':
+                    ctx.fillStyle = '#443a55';
+                    break;
+                case 'BOSS_GATE':
+                    ctx.fillStyle = '#c9a227';
+                    break;
+                case 'BOSS_GATE_SEALED':
+                    ctx.fillStyle = '#c0392b';
+                    break;
+                case 'SECRET_WALL':
+                    ctx.fillStyle = '#334';
+                    break;
                 default:
                     ctx.fillStyle = '#222';
             }
@@ -93,6 +108,7 @@ export function renderMinimap(floor: DungeonFloor, player: PlayerState, remotePl
     // Draw remote players (co-op teammates)
     if (remotePlayers) {
         remotePlayers.forEach(rp => {
+            if (rp.floor !== player.floor) return;
             const mx = rp.x * MINIMAP_SCALE + offsetX;
             const my = rp.y * MINIMAP_SCALE + offsetY;
             if (mx < -MINIMAP_SCALE || mx > mw || my < -MINIMAP_SCALE || my > mh) return;

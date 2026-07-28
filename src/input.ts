@@ -18,6 +18,11 @@ let joystickStartY = 0;
 
 export function initInput(): void {
     window.addEventListener('keydown', e => {
+        // Never swallow keys while the player is typing into a field
+        const el = document.activeElement as HTMLElement | null;
+        if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+        // Ctrl/Cmd combos belong to the browser and to the chest "take all"
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
         if (!keys[e.code]) justPressed[e.code] = true;
         keys[e.code] = true;
         if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();
@@ -40,13 +45,30 @@ export function initInput(): void {
     if (atkBtn) {
         atkBtn.addEventListener('touchstart', e => { e.preventDefault(); _touchAttack = true; });
         atkBtn.addEventListener('touchend', e => { e.preventDefault(); _touchAttack = false; });
+        atkBtn.addEventListener('touchcancel', () => { _touchAttack = false; });
     }
 
-    // Interact button (one-shot: fire once per tap)
-    const intBtn = document.getElementById('mobile-interact');
-    if (intBtn) {
-        intBtn.addEventListener('touchstart', e => { e.preventDefault(); _touchInteract = true; });
-        intBtn.addEventListener('touchend', e => { e.preventDefault(); });
+    // ATTACK FIX: release is tracked on the window, not the canvas. Pressing on
+    // the canvas and releasing over any UI element (a dialog, the HUD, a popup
+    // button) used to leave the attack input latched ON forever, which killed
+    // attacking outright until a full press-release cycle landed on the canvas.
+    window.addEventListener('mouseup', () => { _screenAttack = false; });
+    window.addEventListener('touchend', () => { _screenAttack = false; });
+    window.addEventListener('touchcancel', () => { _screenAttack = false; _touchAttack = false; });
+    window.addEventListener('blur', () => {
+        // Alt-tabbing away must not leave keys or buttons stuck down
+        _screenAttack = false;
+        _touchAttack = false;
+        _touchInteract = false;
+        touchDir = null;
+        for (const k in keys) keys[k] = false;
+    });
+
+    // NPC Popup button (one-shot: fire once per tap)
+    const npcPopupBtn = document.getElementById('npc-popup-btn');
+    if (npcPopupBtn) {
+        npcPopupBtn.addEventListener('touchstart', e => { e.preventDefault(); _touchInteract = true; });
+        npcPopupBtn.addEventListener('click', e => { e.preventDefault(); _touchInteract = true; });
     }
 
     // Screen tap/click to attack
@@ -55,14 +77,13 @@ export function initInput(): void {
         canvas.addEventListener('mousedown', e => {
             if (e.button === 0) _screenAttack = true;
         });
-        canvas.addEventListener('mouseup', () => { _screenAttack = false; });
         canvas.addEventListener('touchstart', e => {
             const target = e.target as HTMLElement;
             if (target.id === 'gameCanvas') {
                 _screenAttack = true;
             }
         });
-        canvas.addEventListener('touchend', () => { _screenAttack = false; });
+        // Release is handled on the window — see the note above
     }
 
     // Virtual Joystick
@@ -271,17 +292,23 @@ export const Input = {
         return false;
     },
 
-    // Inventory: I key or gamepad Y
-    wantsInventory: (): boolean => !!justPressed['KeyI'] || gamepadInventory,
+    // Inventory: Tab (primary) or I, or gamepad Y
+    wantsInventory: (): boolean => !!justPressed['Tab'] || !!justPressed['KeyI'] || gamepadInventory,
 
-    // Escape: close menus / open settings, or gamepad Start
+    // Escape: exit fullscreen / close menus / open settings, or gamepad Start
     wantsEscape: (): boolean => !!justPressed['Escape'] || gamepadEscape,
 
-    // Tab: toggle minimap
-    wantsMinimapToggle: (): boolean => !!justPressed['Tab'],
+    // N: toggle the minimap (Tab is now inventory)
+    wantsMinimapToggle: (): boolean => !!justPressed['KeyN'],
 
-    // M: fullscreen map (not implemented yet, placeholder)
-    wantsMap: (): boolean => !!justPressed['KeyM'],
+    // M: open the menu drawer
+    wantsMenu: (): boolean => !!justPressed['KeyM'],
+
+    // C: open chat (co-op)
+    wantsChat: (): boolean => !!justPressed['KeyC'],
+
+    // F: toggle fullscreen
+    wantsFullscreen: (): boolean => !!justPressed['KeyF'],
 
     // R: use first potion in hotbar, or gamepad LB/RB
     wantsQuickUse: (): boolean => !!justPressed['KeyR'] || gamepadQuickUse,

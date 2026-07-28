@@ -80,8 +80,43 @@ const BIOMES: BiomeDef[] = [
     },
 ];
 
+// ===== DUNGEON 2: THE UNDERWORLD (floors 101-150) =====
+// Below the last floor of the first dungeon the rock gives out entirely.
+const UNDERWORLD: BiomeDef[] = [
+    {
+        name: 'The Drowned Deep', floorColor: '#0d1c24', wallColor: '#12303c', wallAccent: '#2e8b9e',
+        ambientColor: '10,60,80', ambientAlpha: 0.16, particleColor: '#4fd8e8', icon: '🌊',
+        floorStyle: 'cave', debris: 'moss'
+    },
+    {
+        name: 'Ashfall Wastes', floorColor: '#241f1c', wallColor: '#332b26', wallAccent: '#8a6f5c',
+        ambientColor: '90,70,55', ambientAlpha: 0.15, particleColor: '#c8b39a', icon: '🌫️',
+        floorStyle: 'cave', debris: 'smoke'
+    },
+    {
+        name: 'The Bone Cathedral', floorColor: '#2a261e', wallColor: '#3d3728', wallAccent: '#e8dcc0',
+        ambientColor: '110,95,70', ambientAlpha: 0.14, particleColor: '#f0e8d0', icon: '⛪',
+        floorStyle: 'bone', debris: 'bones'
+    },
+    {
+        name: 'Rivers of Slag', floorColor: '#2b1410', wallColor: '#3d1a12', wallAccent: '#ff6a2a',
+        ambientColor: '200,70,10', ambientAlpha: 0.18, particleColor: '#ff9a4a', icon: '🔥',
+        floorStyle: 'lava', debris: 'embers'
+    },
+    {
+        name: 'The Throat of the World', floorColor: '#08040c', wallColor: '#120818', wallAccent: '#ff2d55',
+        ambientColor: '70,0,30', ambientAlpha: 0.24, particleColor: '#ff4d6d', icon: '🕳️',
+        floorStyle: 'abyss', debris: 'blood'
+    },
+];
+
 export function getBiome(floor: number): BiomeDef {
     if (floor <= 0) return BIOMES[0];
+    // Floors above 100 are Dungeon 2
+    if (floor > 100) {
+        const idx = Math.min(Math.floor((floor - 101) / 10), UNDERWORLD.length - 1);
+        return UNDERWORLD[Math.max(0, idx)];
+    }
     const idx = Math.min(Math.floor((floor - 1) / 10), BIOMES.length - 1);
     return BIOMES[idx];
 }
